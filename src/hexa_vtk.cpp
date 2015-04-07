@@ -210,7 +210,7 @@ int hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename)
     
 }
 
-int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename)
+int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords = NULL)
 {
  
   const int32_t Ncells = mesh->elements.elem_count;
@@ -260,22 +260,39 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename)
 
     /* loop over the elements in the tree and calculated vertex coordinates */
     count = 0;
-    
-    for(zz=0; zz < Ntotal; ++zz)
-    {
-         octant_node_t* node   = (octant_node_t*) sc_array_index (&mesh->nodes, zz);
-         VTK_FLOAT_TYPE wx  = (VTK_FLOAT_TYPE) node->x;
-         VTK_FLOAT_TYPE wy  = (VTK_FLOAT_TYPE) node->y;
-         VTK_FLOAT_TYPE wz  = (VTK_FLOAT_TYPE) node->z;
+    if(coords == NULL) {
+        for(zz=0; zz < Ntotal; ++zz)
+        {
+            octant_node_t* node   = (octant_node_t*) sc_array_index (&mesh->nodes, zz);
+            VTK_FLOAT_TYPE wx  = (VTK_FLOAT_TYPE) node->x;
+            VTK_FLOAT_TYPE wy  = (VTK_FLOAT_TYPE) node->y;
+            VTK_FLOAT_TYPE wz  = (VTK_FLOAT_TYPE) node->z;
          
 #ifdef VTK_DOUBLES
-        fprintf (vtufile, "     %24.16e %24.16e %24.16e\n", wx, wy, wz);
+            fprintf (vtufile, "     %24.16e %24.16e %24.16e\n", wx, wy, wz);
 #else
-        fprintf (vtufile, "          %16.8e %16.8e %16.8e\n", wx, wy, wz);
+            fprintf (vtufile, "     %16.8e %16.8e %16.8e\n", wx, wy, wz);
 #endif
+        }
+    } else
+    {
+        for(zz=0; zz < Ntotal; ++zz)
+        {
+            
+            VTK_FLOAT_TYPE wx  = (VTK_FLOAT_TYPE) (*coords)[zz*3  ];
+            VTK_FLOAT_TYPE wy  = (VTK_FLOAT_TYPE) (*coords)[zz*3+1];
+            VTK_FLOAT_TYPE wz  = (VTK_FLOAT_TYPE) (*coords)[zz*3+2];
+         
+#ifdef VTK_DOUBLES
+            fprintf (vtufile, "     %24.16e %24.16e %24.16e\n", wx, wy, wz);
+#else
+            fprintf (vtufile, "     %16.8e %16.8e %16.8e\n", wx, wy, wz);
+#endif 
+        }
     }
-    fprintf (vtufile, "        </DataArray>\n");
-    fprintf (vtufile, "      </Points>\n");
+        fprintf (vtufile, "        </DataArray>\n");
+        fprintf (vtufile, "      </Points>\n");
+    
     fprintf (vtufile, "      <Cells>\n");
 
     /* write connectivity data */
@@ -316,7 +333,18 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename)
   fprintf (vtufile, "\n");
   fprintf (vtufile, "        </DataArray>\n");
   fprintf (vtufile, "      </Cells>\n");
-
+  fprintf (vtufile, "      <CellData Scalars=\"ElemType\" >\n");
+  /* write connectivity data */
+  fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"ElemType\" format=\"%s\">\n", VTK_LOCIDX, VTK_FORMAT_STRING);
+  for (il = 0, sk = 1; il < Ncells; ++il, ++sk) {
+        octant_t *h     = (octant_t*) sc_array_index(&mesh->elements, il);
+        fprintf (vtufile, " %d", h->pad);
+        if (!(sk % 20) && il != (Ncells - 1))
+            fprintf (vtufile, "\n         ");
+  }
+  fprintf (vtufile, "\n");
+  fprintf (vtufile, "        </DataArray>\n");
+  fprintf (vtufile, "      </CellData>\n"); 
   fprintf (vtufile, "    </Piece>\n");
   fprintf (vtufile, "  </UnstructuredGrid>\n");
   fprintf (vtufile, "</VTKFile>\n");
@@ -356,10 +384,11 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename)
 
         fprintf (pvtufile, "  <PUnstructuredGrid GhostLevel=\"0\">\n");
         fprintf (pvtufile, "    <PPoints>\n");
-        fprintf (pvtufile, "      <PDataArray type=\"%s\" Name=\"Position\""
-                 " NumberOfComponents=\"3\" format=\"%s\"/>\n",
-                    VTK_FLOAT_NAME, VTK_FORMAT_STRING);
+        fprintf (pvtufile, "      <PDataArray type=\"%s\" Name=\"Position\" NumberOfComponents=\"3\" format=\"%s\"/>\n",VTK_FLOAT_NAME, VTK_FORMAT_STRING);
         fprintf (pvtufile, "    </PPoints>\n");
+        fprintf (vtufile, "     <PCellData Scalars=\"ElemType\" >\n");
+        fprintf (vtufile, "        <PDataArray type=\"%s\" Name=\"ElemType\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
+        fprintf (vtufile, "      </PCellData>\n"); 
         for (int p = 0; p < mesh->mpi_size; ++p) {
             fprintf (pvtufile, "    <Piece Source=\"%s_%d_%d.vtu\"/>\n", filename, mesh->mpi_size, p);
         }

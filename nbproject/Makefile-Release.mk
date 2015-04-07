@@ -41,7 +41,8 @@ OBJECTFILES= \
 	${OBJECTDIR}/src/hexa_mesh.o \
 	${OBJECTDIR}/src/hexa_parallel.o \
 	${OBJECTDIR}/src/hexa_unv.o \
-	${OBJECTDIR}/src/hexa_vtk.o
+	${OBJECTDIR}/src/hexa_vtk.o \
+	${OBJECTDIR}/src/intercept_surface.o
 
 
 # C Compiler Flags
@@ -102,6 +103,11 @@ ${OBJECTDIR}/src/hexa_vtk.o: src/hexa_vtk.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
 	$(COMPILE.cc) -O2 -I/home/camata/local/include -Iinclude -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_vtk.o src/hexa_vtk.cpp
+
+${OBJECTDIR}/src/intercept_surface.o: src/intercept_surface.cpp 
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.cc) -O2 -I/home/camata/local/include -Iinclude -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/intercept_surface.o src/intercept_surface.cpp
 
 # Subprojects
 .build-subprojects:

@@ -11,20 +11,23 @@
 #include <sc.h>
 #include "hexa.h"
 
-
+void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, std::vector<double>& coords);
 /*
  * 
  */
 int main(int argc, char** argv) {
 
     hexa_tree_t mesh;
+    std::vector<double> coords;
     hexa_init(argc, argv, &mesh);
-    
     hexa_tree_init(&mesh);
-    hexa_tree_cube(&mesh,1);
+    hexa_tree_cube(&mesh,5);
     hexa_mesh(&mesh);
-    hexa_mesh_write_vtk(&mesh,"mesh");
-    hexa_mesh_write_unv(&mesh,"teste");
+    GetMeshFromSurface(&mesh,"bedrock.gts", coords);
+    hexa_mesh_write_vtk(&mesh,"mesh", &coords);
+    hexa_mesh_write_unv(&mesh,"teste", &coords);
+    //hexa_mesh_write_vtk(&mesh,"mesh");
+    //hexa_mesh_write_unv(&mesh,"teste");
     hexa_tree_destroy(&mesh);
     hexa_finalize(&mesh);
     return 0;

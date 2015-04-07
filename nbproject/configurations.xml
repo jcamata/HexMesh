@@ -19,6 +19,7 @@
       <itemPath>src/hexa_parallel.cpp</itemPath>
       <itemPath>src/hexa_unv.cpp</itemPath>
       <itemPath>src/hexa_vtk.cpp</itemPath>
+      <itemPath>src/intercept_surface.cpp</itemPath>
       <itemPath>main.cpp</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
@@ -47,6 +48,8 @@
             <pElem>/home/camata/local/include</pElem>
             <pElem>include</pElem>
             <pElem>/usr/lib/openmpi/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
+            <pElem>/usr/lib/x86_64-linux-gnu/glib-2.0/include</pElem>
           </incDir>
         </ccTool>
         <linkerTool>
@@ -59,6 +62,7 @@
             <linkerLibLibItem>sc</linkerLibLibItem>
             <linkerLibFileItem>/usr/lib/openmpi/lib/libmpi.so</linkerLibFileItem>
             <linkerLibLibItem>mpi_cxx</linkerLibLibItem>
+            <linkerLibLibItem>gts</linkerLibLibItem>
           </linkerLibItems>
         </linkerTool>
       </compileType>
@@ -83,6 +87,8 @@
       <item path="src/hexa_unv.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_vtk.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="src/intercept_surface.cpp" ex="false" tool="1" flavor2="0">
       </item>
     </conf>
     <conf name="Release" type="1">
@@ -138,6 +144,8 @@
       <item path="src/hexa_unv.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_vtk.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="src/intercept_surface.cpp" ex="false" tool="1" flavor2="0">
       </item>
     </conf>
   </confs>

@@ -149,6 +149,14 @@ void hexa_tree_cube(hexa_tree_t* mesh, int max_tree_levels)
     mesh->ncellz = mesh->ncellx;
     mesh->max_levels = max_tree_levels;
     
+    if(mesh->mpi_rank == 0)
+    {
+        printf(" Max cells \n");
+        printf("   x-direction: %d\n", mesh->ncellx);
+        printf("   y-direction: %d\n", mesh->ncelly);
+        printf("   z-direction: %d\n", mesh->ncellz);
+    }
+    
     internal_step = 1;
     coarse_step   = 1;
     int level     = 1;
@@ -161,7 +169,7 @@ void hexa_tree_cube(hexa_tree_t* mesh, int max_tree_levels)
     int nz_test = nz+internal_step;
     while( (nz+internal_step) <= mesh->ncellz)
     {
-        if((nlayer+1)%9 == 0) {
+        if((nlayer+1)%15 == 0) {
             coarse_step*=3;
             hexa_transient_layer(mesh,nz,coarse_step, internal_step, level);
             internal_step*=3;

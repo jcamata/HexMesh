@@ -8,7 +8,7 @@ using namespace std;
 #include "hexa.h" 
 
 
-void UNVIO_WriteNodes(std::ofstream &out_file, hexa_tree_t* mesh)
+void UNVIO_WriteNodes(std::ofstream &out_file, hexa_tree_t* mesh, vector<double> *coords = NULL)
 {
     int n_nodes       = mesh->nodes.elem_count;
     sc_array_t* nodes = &mesh->nodes;
@@ -27,19 +27,36 @@ void UNVIO_WriteNodes(std::ofstream &out_file, hexa_tree_t* mesh)
      // Use scientific notation with captial E and 16 digits for printing out the coordinates
     out_file << std::scientific << std::setprecision(16) << std::uppercase;
     
-    for(int inode = 0; inode < n_nodes; ++inode)
+    if(coords == NULL) {
+        for(int inode = 0; inode < n_nodes; ++inode)
+        {
+            octant_node_t* n = (octant_node_t*) sc_array_index(nodes,inode);
+
+            out_file << std::setw(10) << (inode+1)
+                     << std::setw(10) << exp_coord_sys_dummy
+                     << std::setw(10) << disp_coord_sys_dummy
+                     << std::setw(10) << color_dummy
+                     << '\n';
+            out_file << std::setw(25) << (double) n->x
+                     << std::setw(25) << (double) n->y
+                     << std::setw(25) << (double) n->z
+                     << '\n';
+        }
+    }
+    else
     {
-        octant_node_t* n = (octant_node_t*) sc_array_index(nodes,inode);
-        
-        out_file << std::setw(10) << (inode+1)
-                 << std::setw(10) << exp_coord_sys_dummy
-                 << std::setw(10) << disp_coord_sys_dummy
-                 << std::setw(10) << color_dummy
-                 << '\n';
-        out_file << std::setw(25) << (double) n->x
-                 << std::setw(25) << (double) n->y
-                 << std::setw(25) << (double) n->z
-                 << '\n';
+        for(int inode = 0; inode < n_nodes; ++inode)
+        {
+            out_file << std::setw(10) << (inode+1)
+                     << std::setw(10) << exp_coord_sys_dummy
+                     << std::setw(10) << disp_coord_sys_dummy
+                     << std::setw(10) << color_dummy
+                     << '\n';
+            out_file << std::setw(25) << (double) (*coords)[inode*3+0]
+                     << std::setw(25) << (double) (*coords)[inode*3+1]
+                     << std::setw(25) << (double) (*coords)[inode*3+2]
+                     << '\n';
+        }
     }
     // Write end of dataset
     out_file << "    -1\n";
@@ -96,7 +113,7 @@ void UNVIO_WriteElements(std::ofstream &out_file, hexa_tree_t* mesh)
     out_file << "    -1\n";
 }
 
-void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name)
+void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords = NULL)
 {
 
     char filename[80];

@@ -13,11 +13,14 @@
 #include <sc.h>
 #include <sc_containers.h>
 
+#include <vector>
+
 #define HEXA_DEBUG_
 
 typedef struct {
     int32_t    x,y,z;
     int8_t     level;
+    int8_t     pad;
     sc_array_t nodes;
 } octant_t;
 
@@ -50,7 +53,6 @@ typedef struct
     uint32_t max_sendbuf_size;
     int     nrequests;
 } comm_map_t;
-
 
 typedef struct {
     
@@ -102,9 +104,9 @@ void hexa_processors_interval(hexa_tree_t* mesh);
 
 void hexa_mesh(hexa_tree_t* tree);
 
-int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename);
+int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords);
 
-void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name);
+void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 
 
 #endif	/* HEXA_H */

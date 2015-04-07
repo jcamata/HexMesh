@@ -182,7 +182,7 @@ void hexa_mesh(hexa_tree_t* tree)
 #endif
     
 
-    int my_nodes    = 0;
+    int not_my_nodes    = 0;
     tree->global_id = (int64_t*)malloc(sizeof(int64_t)*tree->local_n_nodes);
     memset(tree->global_id,-2,tree->local_n_nodes*sizeof(int64_t));
     SendTo   = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
@@ -193,10 +193,9 @@ void hexa_mesh(hexa_tree_t* tree)
         shared_node_t* sn = (shared_node_t*) sc_array_index(&tree->shared_nodes,i);
         for(int j = 0; j < sn->listSz; j++)
             
-            
             if(sn->rankList[j] < tree->mpi_rank) {
-                my_nodes++;
-                tree->global_id[sn->id] = -1;
+                //my_nodes++;
+               
                 message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&sn->rankList[j],&position);
                 if(m!=NULL)
                 {
@@ -226,14 +225,18 @@ void hexa_mesh(hexa_tree_t* tree)
                     int32_t* p = (int32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;   
                 }
+                tree->global_id[sn->id] = -1;
             }
+          
+        if(tree->global_id[sn->id] == -1) not_my_nodes++;
+         
     }
     
     sc_hash_array_rip(RecvFrom, &tree->comm_map.RecvFrom );
     sc_hash_array_rip(SendTo  , &tree->comm_map.SendTo   );
     
 #ifdef HEXA_DEBUG_
-#if 1
+#if 0
     fprintf(tree->fdbg, "Recv from %ld processors\n", tree->comm_map.RecvFrom.elem_count);
     for(int i=0; i < tree->comm_map.RecvFrom.elem_count; i++)
     {
@@ -258,7 +261,6 @@ void hexa_mesh(hexa_tree_t* tree)
         tree->comm_map.max_recvbuf_size +=  m->idxs.elem_count;
     }
     
-
     tree->comm_map.max_sendbuf_size = 0;
     for(int i = 0; i < tree->comm_map.SendTo.elem_count; i++)
     {
@@ -272,7 +274,9 @@ void hexa_mesh(hexa_tree_t* tree)
                                      tree->comm_map.SendTo.elem_count;
     
     int offset = 0;
+    int my_nodes = tree->local_n_nodes - not_my_nodes;
     MPI_Scan(&my_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    
     int count = offset;
     for(int i=0; i < tree->local_n_nodes; ++i)
         if(tree->global_id[i] != -1) tree->global_id[i] = count++;
@@ -282,6 +286,8 @@ void hexa_mesh(hexa_tree_t* tree)
     
 #ifdef HEXA_DEBUG_
 #if  1
+    fprintf(tree->fdbg, "Offset: %d\n", offset);
+    
     fprintf(tree->fdbg, "Nodes: \n");
     for(int i = 0; i < tree->nodes.elem_count; ++i)
     {
