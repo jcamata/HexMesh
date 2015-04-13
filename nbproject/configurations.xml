@@ -5,6 +5,7 @@
                    displayName="Header Files"
                    projectFiles="true">
       <itemPath>/home/camata/Programming/HexMesh/include/hexa.h</itemPath>
+      <itemPath>include/pml.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
@@ -17,6 +18,7 @@
       <itemPath>src/hexa_face_hanging.cpp</itemPath>
       <itemPath>src/hexa_mesh.cpp</itemPath>
       <itemPath>src/hexa_parallel.cpp</itemPath>
+      <itemPath>src/hexa_pml.cpp</itemPath>
       <itemPath>src/hexa_unv.cpp</itemPath>
       <itemPath>src/hexa_vtk.cpp</itemPath>
       <itemPath>src/intercept_surface.cpp</itemPath>
@@ -76,6 +78,8 @@
             tool="1"
             flavor2="0">
       </item>
+      <item path="include/pml.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="main.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_face_hanging.cpp" ex="false" tool="1" flavor2="0">
@@ -83,6 +87,8 @@
       <item path="src/hexa_mesh.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_parallel.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="src/hexa_pml.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_unv.cpp" ex="false" tool="1" flavor2="0">
       </item>
@@ -133,6 +139,8 @@
             tool="1"
             flavor2="0">
       </item>
+      <item path="include/pml.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="main.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_face_hanging.cpp" ex="false" tool="1" flavor2="0">
@@ -140,6 +148,8 @@
       <item path="src/hexa_mesh.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_parallel.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="src/hexa_pml.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_unv.cpp" ex="false" tool="1" flavor2="0">
       </item>

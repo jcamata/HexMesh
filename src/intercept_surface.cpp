@@ -40,6 +40,7 @@ gdouble  distance(GtsPoint *p, gpointer bounded)
     return gts_point_triangle_distance(p, t);
 }
 
+/*
 void GetElementNodes(octant_t* n, octant_node_t* noel[])
 {
     for(int i =0; i < 8; i++)
@@ -48,7 +49,7 @@ void GetElementNodes(octant_t* n, octant_node_t* noel[])
     }
   
 }
-
+*/
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& coords)
 {
@@ -99,12 +100,12 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
         double zmax = box->z2 - d;
         dz = (zmax-zmin)/(double)tree->ncellz;
         double z = zmax - n->z*dz;
-         if(z < 0.0) {
+        /* if(z < 0.0) {
             zmax = 0.0;
             dz = (zmax-zmin)/(double)tree->ncellz;
             z  = zmax - n->z*dz;
          }
-        
+        */
         coords[i*3 + 0] = p->x;
         coords[i*3 + 1] = p->y;
         coords[i*3 + 2] = z;
@@ -114,14 +115,15 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
     int solid_elem = 0;
     for(int i=0; i < elements->elem_count; ++i)
     {
-        octant_node_t* noels[8];
+        
         octant_t *h     = (octant_t*) sc_array_index(elements, i);
+        octant_node_t* noels = h->nodes;
         h->pad = 0;
         // Calculando octant baricenter
-        GetElementNodes(h, noels);
-        int I   = noels[0]->id;
-        int IJ  = noels[2]->id;
-        int IJK = noels[5]->id;
+        
+        int I   = h->nodes[0].id;
+        int IJ  = h->nodes[2].id;
+        int IJK = h->nodes[5].id;
         double dx =  0.5*(coords[IJ*3  ] - coords[I*3]);
         double dy =  0.5*(coords[IJ*3+1] - coords[I*3+1]);
         double dz =  0.5*(coords[IJK*3+2]- coords[I*3+2]);

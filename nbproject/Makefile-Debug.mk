@@ -40,6 +40,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/src/hexa_face_hanging.o \
 	${OBJECTDIR}/src/hexa_mesh.o \
 	${OBJECTDIR}/src/hexa_parallel.o \
+	${OBJECTDIR}/src/hexa_pml.o \
 	${OBJECTDIR}/src/hexa_unv.o \
 	${OBJECTDIR}/src/hexa_vtk.o \
 	${OBJECTDIR}/src/intercept_surface.o
@@ -95,6 +96,11 @@ ${OBJECTDIR}/src/hexa_parallel.o: src/hexa_parallel.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
 	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_parallel.o src/hexa_parallel.cpp
+
+${OBJECTDIR}/src/hexa_pml.o: src/hexa_pml.cpp 
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_pml.o src/hexa_pml.cpp
 
 ${OBJECTDIR}/src/hexa_unv.o: src/hexa_unv.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src

@@ -18,17 +18,19 @@
 #define HEXA_DEBUG_
 
 typedef struct {
-    int32_t    x,y,z;
-    int8_t     level;
-    int8_t     pad;
-    sc_array_t nodes;
-} octant_t;
-
-
-typedef struct {
     int32_t id;
     int32_t x,y,z;
 } octant_node_t;
+
+typedef struct {
+    int32_t    x,y,z;
+    int8_t     level;
+    int8_t     pad;
+    octant_node_t nodes[8];
+} octant_t;
+
+
+
 
 typedef struct shared_node
 {
@@ -90,11 +92,11 @@ void hexa_init(int argc, char* argv[], hexa_tree_t* mesh);
 
 void hexa_finalize(hexa_tree_t* mesh);
 
-void hexa_tree_init(hexa_tree_t* mesh);
+void hexa_tree_init(hexa_tree_t* mesh, int max_levels);
 
 void hexa_tree_destroy(hexa_tree_t* mesh);
 
-void hexa_tree_cube(hexa_tree_t* mesh, int max_tree_levels);
+void hexa_tree_cube(hexa_tree_t* mesh);
 
 int  hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename);
 
@@ -107,6 +109,8 @@ void hexa_mesh(hexa_tree_t* tree);
 int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords);
 
 void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
+
+void hexa_debug_face_hanging(hexa_tree_t* mesh);
 
 
 #endif	/* HEXA_H */

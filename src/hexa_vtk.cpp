@@ -84,7 +84,7 @@ int hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename)
     for (zz = 0; zz < Ncells; ++zz) {
       octant_t* h = (octant_t*) sc_array_index (&mesh->elements, zz);
       for(jt=0; jt < 8; ++jt){
-          octant_node_t* node = (octant_node_t*) sc_array_index(&h->nodes, jt);
+          octant_node_t* node = &h->nodes[jt];
           float_data[count*3  ] = (VTK_FLOAT_TYPE) node->x;
           float_data[count*3+1] = (VTK_FLOAT_TYPE) node->y;
           float_data[count*3+2] = (VTK_FLOAT_TYPE) node->z;
@@ -302,7 +302,7 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
         fprintf (vtufile, "          ");
         for(il=0; il < 8; il++)
         {
-            octant_node_t* node = (octant_node_t*) sc_array_index(&h->nodes, il);
+            octant_node_t* node = &h->nodes[il];
             fprintf (vtufile, "%ld ", node->id);     
         }
         fprintf (vtufile, "\n");

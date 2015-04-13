@@ -104,7 +104,7 @@ void UNVIO_WriteElements(std::ofstream &out_file, hexa_tree_t* mesh)
           
           for(int j =0; j < 8; j++)
           {
-              octant_node_t* n = (octant_node_t*) sc_array_index(&h->nodes, assign_elem_nodes[j]);
+              octant_node_t* n = &h->nodes[assign_elem_nodes[j]];
               out_file << std::setw(10) << (n->id+1);
           }
           out_file << '\n';
@@ -125,7 +125,7 @@ void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<d
         return;
     }
         
-    UNVIO_WriteNodes(out_file, mesh);
+    UNVIO_WriteNodes(out_file, mesh, coords);
     UNVIO_WriteElements(out_file,mesh);
     out_file.close();
        

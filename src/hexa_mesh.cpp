@@ -93,7 +93,7 @@ void hexa_mesh(hexa_tree_t* tree)
     {
         octant_t *h  = (octant_t*) sc_array_index(&tree->elements, i);
         for(int j = 0; j < 8; j++) {
-            octant_node_t* node = (octant_node_t*) sc_array_index(&h->nodes, j);
+            octant_node_t* node = &h->nodes[j];
             r = (octant_node_t*) sc_hash_array_insert_unique (indep_nodes, node, &position);
             if(r != NULL)
             {
