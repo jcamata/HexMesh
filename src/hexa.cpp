@@ -20,8 +20,6 @@ inline int get_hexa_id(int nx, int ny, int i, int j, int k)
 void hexa_tree_init(hexa_tree_t* mesh, int max_levels)
 {
     sc_array_init(&mesh->elements, sizeof(octant_t));    
-    //mesh->hexa_pool      =  sc_mempool_new(sizeof(octant_t));
-    //mesh->hexa_node_pool =  sc_mempool_new(sizeof(octant_node_t));
     mesh->ncellx = (int32_t) pow(3, max_levels);
     mesh->ncelly = mesh->ncellx;
     mesh->ncellz = mesh->ncellx;
@@ -186,9 +184,6 @@ void hexa_tree_cube(hexa_tree_t* mesh)
         nlayer++;
     }
     
-    
-    
-    //printf("Number of octants: %ld\n", mesh->elements.elem_count);
   
 }
 
@@ -198,8 +193,7 @@ void hexa_tree_destroy(hexa_tree_t* mesh)
 {
     sc_array_reset(&mesh->elements);
     sc_array_reset(&mesh->nodes);
-    //sc_mempool_destroy (mesh->hexa_pool);
-    //sc_mempool_destroy(mesh->hexa_node_pool);
+
 }
 
 
