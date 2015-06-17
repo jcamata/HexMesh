@@ -62,8 +62,8 @@ typedef enum {
 
 static int face_map[6][4] = 
 {
-    {0,4,7,3},
-    {1,2,6,7},
+    {0,4,7,3}, // 
+    {1,2,6,5},
     {0,1,5,4},
     {3,2,6,7},
     {0,1,2,3},
@@ -84,7 +84,7 @@ static int elem_to_pml_map[NPML][8] = {
                            
 };
 
-void SetPML(hexa_tree_t* tree, octant_t *elem, int step);
+void SetElemPML(hexa_tree_t* tree, octant_t *elem, int step);
 
 
 #endif	/* PML_H */

@@ -64,7 +64,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
     sc_array_t *elements = &tree->elements;
     
     
-// Note that here we use a gts file.
+    // Note that here we use a gts file.
     // There is a tool called stl2gts that convert STL files to GTS.
     // It is installed together with the gts library.
     s   = SurfaceRead(surface);
@@ -100,12 +100,14 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
         double zmax = box->z2 - d;
         dz = (zmax-zmin)/(double)tree->ncellz;
         double z = zmax - n->z*dz;
-        /* if(z < 0.0) {
+        /*
+        if(z < 0.0) {
             zmax = 0.0;
             dz = (zmax-zmin)/(double)tree->ncellz;
             z  = zmax - n->z*dz;
          }
-        */
+         */
+        
         coords[i*3 + 0] = p->x;
         coords[i*3 + 1] = p->y;
         coords[i*3 + 2] = z;

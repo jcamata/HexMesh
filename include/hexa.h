@@ -62,6 +62,7 @@ typedef struct {
     int64_t total_n_nodes;
     int32_t local_n_elements;
     int32_t local_n_nodes;
+    int32_t max_step;
     
     sc_array_t      elements;
     sc_array_t      nodes;

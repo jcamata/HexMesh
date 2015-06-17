@@ -126,7 +126,7 @@ void hexa_uniform_layer(hexa_tree_t* mesh, int nz, int coarse_step, int internal
                 hexa_element_init(elem);
                 hexa_element_conn(elem,nx,ny,nz, coarse_step, level);
                 elem->pad = 0;
-                SetPML(mesh,elem,coarse_step);
+                SetElemPML(mesh,elem,coarse_step);
             }
      }
 }

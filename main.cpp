@@ -13,27 +13,33 @@
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, std::vector<double>& coords);
 
-
 /*
  * 
  */
+
 int main(int argc, char** argv) {
 
     hexa_tree_t mesh;
     std::vector<double> coords;
     hexa_init(argc, argv, &mesh);
-    hexa_tree_init(&mesh,2);
+    hexa_tree_init(&mesh,4);
     hexa_tree_cube(&mesh);
     //hexa_debug_face_hanging(&mesh);
     
     hexa_mesh(&mesh);
-    //GetMeshFromSurface(&mesh,"bedrock.gts", coords);
-    //hexa_mesh_write_vtk(&mesh,"mesh", &coords);
-    //hexa_mesh_write_unv(&mesh,"teste", &coords);
-    hexa_mesh_write_vtk(&mesh,"mesh", NULL);
-    hexa_mesh_write_unv(&mesh,"teste", NULL);
+    GetMeshFromSurface(&mesh,"bedrock.gts", coords);
+    // Add PML elements
+    
+    hexa_mesh_write_vtk(&mesh,"mesh", &coords);
+    hexa_mesh_write_unv(&mesh,"teste", &coords);
+    //hexa_mesh_write_vtk(&mesh,"mesh", NULL);
+    //hexa_mesh_write_unv(&mesh,"teste", NULL);
     hexa_tree_destroy(&mesh);
     hexa_finalize(&mesh);
     return 0;
 }
 
+void add_pml_elements(hexa_tree_t *mesh)
+{
+    
+}
