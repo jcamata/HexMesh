@@ -131,7 +131,38 @@ void AddPMLElements(hexa_tree_t* tree)
         SetPMLMask(mask,elem->pad);
         
         if(mask[PML_CORNER_X0Y0Z0]) {
-           octant_t* pml_e = (octant_t*) sc_array_push(elements);
+            
+           octant_t* pml_e   = (octant_t*) sc_array_push(elements);
+           pml_e->nodes[6]   = elem->nodes[0];
+           pml_e->nodes[0].x = elem->nodes[0].x + XM;
+           pml_e->nodes[0].y = elem->nodes[0].y + YM;
+           pml_e->nodes[0].z = elem->nodes[0].z + ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[0].x;
+           pml_e->nodes[1].y = elem->nodes[0].y + YM;
+           pml_e->nodes[1].z = elem->nodes[0].z + ZM;
+           
+           pml_e->nodes[2].x = elem->nodes[0].x;
+           pml_e->nodes[2].y = elem->nodes[0].y;
+           pml_e->nodes[2].z = elem->nodes[0].z + ZM;
+           
+           
+           pml_e->nodes[3].x = elem->nodes[0].x + XM;
+           pml_e->nodes[3].y = elem->nodes[0].y;
+           pml_e->nodes[3].z = elem->nodes[0].z + ZM;
+           
+           pml_e->nodes[4].x = elem->nodes[0].x + XM;
+           pml_e->nodes[4].y = elem->nodes[0].y + YM;
+           pml_e->nodes[4].z = elem->nodes[0].z;
+           
+           pml_e->nodes[5].x = elem->nodes[0].x;
+           pml_e->nodes[5].y = elem->nodes[0].y + YM;
+           pml_e->nodes[5].z = elem->nodes[0].z;
+           
+           pml_e->nodes[7].x = elem->nodes[0].x + XM;
+           pml_e->nodes[7].y = elem->nodes[0].y;
+           pml_e->nodes[7].z = elem->nodes[0].z;
+           
            pml_e->pad = PML_CORNER_X0Y0Z0;
            continue;
         }
@@ -139,19 +170,78 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_CORNER_X1Y0Z0])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+                      
+           pml_e->nodes[7]   = elem->nodes[1];
+           
+           pml_e->nodes[0].x = elem->nodes[1].x;
+           pml_e->nodes[0].y = elem->nodes[1].y + YM;
+           pml_e->nodes[0].z = elem->nodes[1].z + ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[1].x + XP;
+           pml_e->nodes[1].y = elem->nodes[1].y + YM;
+           pml_e->nodes[1].z = elem->nodes[1].z + ZM;
+           
+           pml_e->nodes[2].x = elem->nodes[1].x + XP;
+           pml_e->nodes[2].y = elem->nodes[1].y;
+           pml_e->nodes[2].z = elem->nodes[1].z + ZM;
+           
+           
+           pml_e->nodes[3].x = elem->nodes[1].x;
+           pml_e->nodes[3].y = elem->nodes[1].y;
+           pml_e->nodes[3].z = elem->nodes[1].z + ZM;
+           
+           pml_e->nodes[4].x = elem->nodes[1].x;
+           pml_e->nodes[4].y = elem->nodes[1].y + YM;
+           pml_e->nodes[4].z = elem->nodes[1].z;
+           
+           pml_e->nodes[5].x = elem->nodes[1].x + XP;
+           pml_e->nodes[5].y = elem->nodes[1].y + YM;
+           pml_e->nodes[5].z = elem->nodes[1].z;
+           
+           pml_e->nodes[6].x = elem->nodes[1].x + XP;
+           pml_e->nodes[6].y = elem->nodes[1].y;
+           pml_e->nodes[6].z = elem->nodes[1].z;
+           
            pml_e->pad = PML_CORNER_X1Y0Z0;
-           for(int i = 0; i < 8; i++) {
-               int id = elem_to_pml_map[PML_CORNER_X1Y0Z0][i];
-               if(id >=0 )
-                   pml_e->nodes[i] = elem->nodes[id];
-           }
-               continue;
+           
+           continue;
            
         }
  
         if(mask[PML_CORNER_X0Y1Z0])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+                      
+           pml_e->nodes[5]   = elem->nodes[3];
+           
+           pml_e->nodes[0].x = elem->nodes[3].x + XM;
+           pml_e->nodes[0].y = elem->nodes[3].y;
+           pml_e->nodes[0].z = elem->nodes[3].z + ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[3].x;
+           pml_e->nodes[1].y = elem->nodes[3].y;
+           pml_e->nodes[1].z = elem->nodes[3].z + ZM;
+           
+           pml_e->nodes[2].x = elem->nodes[3].x;
+           pml_e->nodes[2].y = elem->nodes[3].y + YP;
+           pml_e->nodes[2].z = elem->nodes[3].z + ZM;
+           
+           
+           pml_e->nodes[3].x = elem->nodes[3].x + XM;
+           pml_e->nodes[3].y = elem->nodes[3].y + YP;
+           pml_e->nodes[3].z = elem->nodes[3].z + ZM;
+           
+           pml_e->nodes[4].x = elem->nodes[3].x + XM;
+           pml_e->nodes[4].y = elem->nodes[3].y;
+           pml_e->nodes[4].z = elem->nodes[3].z;
+           
+           pml_e->nodes[6].x = elem->nodes[3].x;
+           pml_e->nodes[6].y = elem->nodes[3].y + YP;
+           pml_e->nodes[6].z = elem->nodes[3].z;
+           
+           pml_e->nodes[7].x = elem->nodes[3].x + XM;
+           pml_e->nodes[7].y = elem->nodes[3].y + YP;
+           pml_e->nodes[7].z = elem->nodes[3].z;
            pml_e->pad = PML_CORNER_X0Y1Z0;
            continue;
         }
@@ -159,6 +249,39 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_CORNER_X1Y1Z0])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+                      
+           pml_e->nodes[4]   = elem->nodes[2];
+           
+           
+           pml_e->nodes[0].x = elem->nodes[2].x;
+           pml_e->nodes[0].y = elem->nodes[2].y;
+           pml_e->nodes[0].z = elem->nodes[2].z + ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[2].x + XP;
+           pml_e->nodes[1].y = elem->nodes[2].y;
+           pml_e->nodes[1].z = elem->nodes[2].z + ZM;
+           
+           pml_e->nodes[2].x = elem->nodes[2].x + XP;
+           pml_e->nodes[2].y = elem->nodes[2].y + YP;
+           pml_e->nodes[2].z = elem->nodes[2].z + ZM;
+           
+           
+           pml_e->nodes[3].x = elem->nodes[2].x;
+           pml_e->nodes[3].y = elem->nodes[2].y + YP;
+           pml_e->nodes[3].z = elem->nodes[2].z + ZM;
+           
+           pml_e->nodes[5].x = elem->nodes[2].x + XP;
+           pml_e->nodes[5].y = elem->nodes[2].y;
+           pml_e->nodes[5].z = elem->nodes[2].z;
+           
+           pml_e->nodes[6].x = elem->nodes[2].x + XP;
+           pml_e->nodes[6].y = elem->nodes[2].y + YP;
+           pml_e->nodes[6].z = elem->nodes[2].z;
+           
+           pml_e->nodes[7].x = elem->nodes[2].x;
+           pml_e->nodes[7].y = elem->nodes[2].y+ YP;
+           pml_e->nodes[7].z = elem->nodes[2].z;
+           
            pml_e->pad = PML_CORNER_X1Y1Z0;
            continue;
         }
@@ -166,6 +289,39 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_CORNER_X0Y0Z1])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+           pml_e->nodes[2]   = elem->nodes[4];
+           
+           
+           pml_e->nodes[0].x = elem->nodes[4].x + XM;
+           pml_e->nodes[0].y = elem->nodes[4].y + YM;
+           pml_e->nodes[0].z = elem->nodes[4].z;
+           
+           pml_e->nodes[1].x = elem->nodes[4].x;
+           pml_e->nodes[1].y = elem->nodes[4].y + YM;
+           pml_e->nodes[1].z = elem->nodes[4].z;
+           
+           pml_e->nodes[3].x = elem->nodes[4].x + XP;
+           pml_e->nodes[3].y = elem->nodes[4].y  ;
+           pml_e->nodes[3].z = elem->nodes[4].z  ;
+           
+           
+           pml_e->nodes[4].x = elem->nodes[4].x + YM;
+           pml_e->nodes[4].y = elem->nodes[4].y + YP;
+           pml_e->nodes[4].z = elem->nodes[4].z + ZP;
+           
+           pml_e->nodes[5].x = elem->nodes[4].x;
+           pml_e->nodes[5].y = elem->nodes[4].y + YM;
+           pml_e->nodes[5].z = elem->nodes[4].z + ZP;
+           
+           pml_e->nodes[6].x = elem->nodes[4].x;
+           pml_e->nodes[6].y = elem->nodes[4].y;
+           pml_e->nodes[6].z = elem->nodes[4].z + ZP;
+           
+           pml_e->nodes[7].x = elem->nodes[4].x + XM;
+           pml_e->nodes[7].y = elem->nodes[4].y ;
+           pml_e->nodes[7].z = elem->nodes[4].z + ZP;
+           
+           
            pml_e->pad = PML_CORNER_X0Y0Z1;
            continue;
         }
@@ -173,6 +329,39 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_CORNER_X1Y0Z1])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+           pml_e->nodes[3]   = elem->nodes[5];
+           
+           
+           pml_e->nodes[0].x = elem->nodes[5].x;
+           pml_e->nodes[0].y = elem->nodes[5].y + YM;
+           pml_e->nodes[0].z = elem->nodes[5].z;
+           
+           pml_e->nodes[1].x = elem->nodes[5].x + XP;
+           pml_e->nodes[1].y = elem->nodes[5].y + YM;
+           pml_e->nodes[1].z = elem->nodes[5].z;
+           
+           pml_e->nodes[2].x = elem->nodes[5].x + XP;
+           pml_e->nodes[2].y = elem->nodes[5].y  ;
+           pml_e->nodes[2].z = elem->nodes[5].z  ;
+           
+           
+           pml_e->nodes[4].x = elem->nodes[5].x;
+           pml_e->nodes[4].y = elem->nodes[5].y + YM;
+           pml_e->nodes[4].z = elem->nodes[5].z + ZP;
+           
+           pml_e->nodes[5].x = elem->nodes[5].x + XP;
+           pml_e->nodes[5].y = elem->nodes[5].y + YM;
+           pml_e->nodes[5].z = elem->nodes[5].z + ZP;
+           
+           pml_e->nodes[6].x = elem->nodes[5].x + XP;
+           pml_e->nodes[6].y = elem->nodes[5].y;
+           pml_e->nodes[6].z = elem->nodes[5].z + ZP;
+           
+           pml_e->nodes[7].x = elem->nodes[5].x ;
+           pml_e->nodes[7].y = elem->nodes[5].y ;
+           pml_e->nodes[7].z = elem->nodes[5].z + ZP;           
+           
+           
            pml_e->pad = PML_CORNER_X1Y0Z1;
            continue;
         }
@@ -180,6 +369,38 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_CORNER_X0Y1Z1])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+           pml_e->nodes[1]   = elem->nodes[7];
+           
+           
+           pml_e->nodes[0].x = elem->nodes[7].x + XM;
+           pml_e->nodes[0].y = elem->nodes[7].y     ;
+           pml_e->nodes[0].z = elem->nodes[7].z;
+           
+           pml_e->nodes[2].x = elem->nodes[7].x     ;
+           pml_e->nodes[2].y = elem->nodes[7].y + YM;
+           pml_e->nodes[2].z = elem->nodes[7].z;
+           
+           pml_e->nodes[3].x = elem->nodes[7].x+XM;
+           pml_e->nodes[3].y = elem->nodes[7].y+YP;
+           pml_e->nodes[3].z = elem->nodes[7].z   ;
+           
+           
+           pml_e->nodes[4].x = elem->nodes[7].x + XM;
+           pml_e->nodes[4].y = elem->nodes[7].y     ;
+           pml_e->nodes[4].z = elem->nodes[7].z + ZP;
+           
+           pml_e->nodes[5].x = elem->nodes[7].x;
+           pml_e->nodes[5].y = elem->nodes[7].y;
+           pml_e->nodes[5].z = elem->nodes[7].z + ZP;
+           
+           pml_e->nodes[6].x = elem->nodes[7].x;
+           pml_e->nodes[6].y = elem->nodes[7].y + YP;
+           pml_e->nodes[6].z = elem->nodes[7].z + ZP;
+           
+           pml_e->nodes[7].x = elem->nodes[7].x +XM ;
+           pml_e->nodes[7].y = elem->nodes[7].y + YP;
+           pml_e->nodes[7].z = elem->nodes[7].z + ZP;       
+           
            pml_e->pad = PML_CORNER_X0Y1Z1;
            continue;
         }  
@@ -187,6 +408,39 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_CORNER_X1Y1Z1])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+                      
+           pml_e->nodes[0]   = elem->nodes[6];
+           
+           
+           pml_e->nodes[1].x = elem->nodes[6].x + XP;
+           pml_e->nodes[1].y = elem->nodes[6].y     ;
+           pml_e->nodes[1].z = elem->nodes[6].z;
+           
+           pml_e->nodes[2].x = elem->nodes[6].x + XP    ;
+           pml_e->nodes[2].y = elem->nodes[6].y + YP;
+           pml_e->nodes[2].z = elem->nodes[6].z;
+           
+           pml_e->nodes[3].x = elem->nodes[6].x;
+           pml_e->nodes[3].y = elem->nodes[6].y+YP;
+           pml_e->nodes[3].z = elem->nodes[6].z   ;
+           
+           
+           pml_e->nodes[4].x = elem->nodes[6].x;
+           pml_e->nodes[4].y = elem->nodes[6].y     ;
+           pml_e->nodes[4].z = elem->nodes[6].z + ZP;
+           
+           pml_e->nodes[5].x = elem->nodes[6].x + XP;
+           pml_e->nodes[5].y = elem->nodes[6].y;
+           pml_e->nodes[5].z = elem->nodes[6].z + ZP;
+           
+           pml_e->nodes[6].x = elem->nodes[6].x + XP;
+           pml_e->nodes[6].y = elem->nodes[6].y + YP;
+           pml_e->nodes[6].z = elem->nodes[6].z + ZP;
+           
+           pml_e->nodes[7].x = elem->nodes[6].x ;
+           pml_e->nodes[7].y = elem->nodes[6].y + YP;
+           pml_e->nodes[7].z = elem->nodes[6].z + ZP;  
+           
            pml_e->pad = PML_CORNER_X1Y1Z1;
            continue;
         }
@@ -194,6 +448,36 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_EDGE_Z0_X0])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+                      
+           pml_e->nodes[5]   = elem->nodes[0];
+           pml_e->nodes[6]   = elem->nodes[3];
+           
+           pml_e->nodes[0].x = elem->nodes[5].x+XM;
+           pml_e->nodes[0].y = elem->nodes[5].y   ;
+           pml_e->nodes[0].z = elem->nodes[5].z+ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[5].x;
+           pml_e->nodes[1].y = elem->nodes[5].y;
+           pml_e->nodes[1].z = elem->nodes[5].z + ZM;
+           
+           pml_e->nodes[4].x = elem->nodes[5].x + XM;
+           pml_e->nodes[4].y = elem->nodes[5].y;
+           pml_e->nodes[4].z = elem->nodes[5].z;
+          
+           
+           pml_e->nodes[2].x = elem->nodes[6].x+XM;
+           pml_e->nodes[2].y = elem->nodes[6].y;
+           pml_e->nodes[2].z = elem->nodes[6].z+ZM;
+           
+           pml_e->nodes[3].x = elem->nodes[6].x;
+           pml_e->nodes[3].y = elem->nodes[6].y;
+           pml_e->nodes[3].z = elem->nodes[6].z+ZM;
+           
+           pml_e->nodes[7].x = elem->nodes[6].x + XM;
+           pml_e->nodes[7].y = elem->nodes[6].y;
+           pml_e->nodes[7].z = elem->nodes[6].z;
+           
+         
            pml_e->pad = PML_EDGE_Z0_X0;
            continue;
         }
@@ -201,6 +485,34 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_EDGE_Z0_X1])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+                      
+           pml_e->nodes[4]   = elem->nodes[1];
+           pml_e->nodes[7]   = elem->nodes[2];
+           
+           pml_e->nodes[0].x = elem->nodes[1].x;
+           pml_e->nodes[0].y = elem->nodes[1].y   ;
+           pml_e->nodes[0].z = elem->nodes[1].z+ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[1].x + XM;
+           pml_e->nodes[1].y = elem->nodes[1].y;
+           pml_e->nodes[1].z = elem->nodes[1].z + ZM;
+           
+           pml_e->nodes[5].x = elem->nodes[1].x + XM;
+           pml_e->nodes[5].y = elem->nodes[1].y;
+           pml_e->nodes[5].z = elem->nodes[1].z;
+          
+           
+           pml_e->nodes[2].x = elem->nodes[2].x+XM;
+           pml_e->nodes[2].y = elem->nodes[2].y;
+           pml_e->nodes[2].z = elem->nodes[2].z+ZM;
+           
+           pml_e->nodes[3].x = elem->nodes[2].x;
+           pml_e->nodes[3].y = elem->nodes[2].y;
+           pml_e->nodes[3].z = elem->nodes[2].z+ZM;
+           
+           pml_e->nodes[6].x = elem->nodes[2].x + XM;
+           pml_e->nodes[6].y = elem->nodes[2].y;
+           pml_e->nodes[6].z = elem->nodes[2].z;
            pml_e->pad = PML_EDGE_Z0_X1;
            continue;
         }
@@ -208,7 +520,39 @@ void AddPMLElements(hexa_tree_t* tree)
         if(mask[PML_EDGE_Z0_Y0])
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
+           
+           pml_e->nodes[6]   = elem->nodes[1];
+           pml_e->nodes[7]   = elem->nodes[0];
+           
+           pml_e->nodes[0].x = elem->nodes[0].x;
+           pml_e->nodes[0].y = elem->nodes[0].y+YM   ;
+           pml_e->nodes[0].z = elem->nodes[0].z+ZM;
+           
+           pml_e->nodes[3].x = elem->nodes[0].x;
+           pml_e->nodes[3].y = elem->nodes[0].y;
+           pml_e->nodes[3].z = elem->nodes[0].z + ZM;
+           
+           pml_e->nodes[4].x = elem->nodes[0].x;
+           pml_e->nodes[4].y = elem->nodes[0].y+YM;
+           pml_e->nodes[4].z = elem->nodes[0].z;
+          
+           
+           pml_e->nodes[1].x = elem->nodes[1].x;
+           pml_e->nodes[1].y = elem->nodes[1].y+YM;
+           pml_e->nodes[1].z = elem->nodes[1].z+ZM;
+           
+           pml_e->nodes[2].x = elem->nodes[1].x;
+           pml_e->nodes[2].y = elem->nodes[1].y;
+           pml_e->nodes[2].z = elem->nodes[1].z+ZM;
+           
+           pml_e->nodes[5].x = elem->nodes[1].x;
+           pml_e->nodes[5].y = elem->nodes[1].y+YM;
+           pml_e->nodes[5].z = elem->nodes[1].z;
+           
+           
            pml_e->pad = PML_EDGE_Z0_Y0;
+           
+           
            continue;
         }
         
@@ -216,6 +560,36 @@ void AddPMLElements(hexa_tree_t* tree)
         {
            octant_t* pml_e = (octant_t*) sc_array_push(elements);
            pml_e->pad = PML_EDGE_Z0_Y1;
+           
+           pml_e->nodes[5]   = elem->nodes[2];
+           pml_e->nodes[4]   = elem->nodes[3];
+           
+           pml_e->nodes[1].x = elem->nodes[2].x;
+           pml_e->nodes[1].y = elem->nodes[2].y;
+           pml_e->nodes[1].z = elem->nodes[2].z+ZM;
+           
+           pml_e->nodes[1].x = elem->nodes[2].x;
+           pml_e->nodes[1].y = elem->nodes[2].y+YP;
+           pml_e->nodes[1].z = elem->nodes[2].z + ZM;
+           
+           pml_e->nodes[6].x = elem->nodes[2].x;
+           pml_e->nodes[6].y = elem->nodes[2].y+YP;
+           pml_e->nodes[6].z = elem->nodes[2].z;
+          
+           
+           pml_e->nodes[0].x = elem->nodes[3].x;
+           pml_e->nodes[0].y = elem->nodes[3].y;
+           pml_e->nodes[0].z = elem->nodes[3].z+ZM;
+           
+           pml_e->nodes[3].x = elem->nodes[3].x;
+           pml_e->nodes[3].y = elem->nodes[3].y+YP;
+           pml_e->nodes[3].z = elem->nodes[3].z+ZM;
+           
+           pml_e->nodes[7].x = elem->nodes[3].x;
+           pml_e->nodes[7].y = elem->nodes[3].y+YP;
+           pml_e->nodes[7].z = elem->nodes[3].z;
+           
+           
            continue;
         }        
               

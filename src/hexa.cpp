@@ -3,6 +3,9 @@
 #include "hexa.h"
 #include "pml.h"
 
+#define MAX(a,b) (a > b?a:b)
+
+
 // Compute node id based on cartesian coordinates.
 inline int get_node_id(int nx, int ny, int i, int j, int k)
 {
@@ -111,6 +114,7 @@ void hexa_refinement_layer(hexa_tree_t* mesh, int nz, int coarse_step, int inter
             for(int nx=0; nx < mesh->ncellx; nx+=coarse_step)
             {
                 hexa_get_27tree(mesh,nx,ny,nz,internal_step,level);
+                mesh->max_step = MAX(mesh->max_step,internal_step);
             }
         }
     
@@ -126,7 +130,8 @@ void hexa_uniform_layer(hexa_tree_t* mesh, int nz, int coarse_step, int internal
                 hexa_element_init(elem);
                 hexa_element_conn(elem,nx,ny,nz, coarse_step, level);
                 elem->pad = 0;
-                SetElemPML(mesh,elem,coarse_step);
+                //SetElemPML(mesh,elem,coarse_step);
+                mesh->max_step = MAX(mesh->max_step,coarse_step);
             }
      }
 }
@@ -138,6 +143,7 @@ void hexa_transient_layer(hexa_tree_t* mesh, int nz, int coarse_step, int intern
             for(int nx=mesh->x_start; nx < mesh->x_end; nx+=coarse_step)
             {
                 hexa_transition_element(mesh,nx,ny,nz,internal_step,level);
+                mesh->max_step = MAX(mesh->max_step,internal_step);
             }
         }
     
@@ -183,6 +189,9 @@ void hexa_tree_cube(hexa_tree_t* mesh)
         
         nlayer++;
     }
+    
+    
+    
     
   
 }
