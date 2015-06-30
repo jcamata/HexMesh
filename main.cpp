@@ -27,12 +27,12 @@ int main(int argc, char** argv) {
     //hexa_debug_face_hanging(&mesh);
     
     hexa_mesh(&mesh);
-    GetMeshFromSurface(&mesh,"bedrock.gts", coords);
+    //GetMeshFromSurface(&mesh,"bedrock.gts", coords);
     // Add PML elements
     
-    hexa_mesh_write_vtk(&mesh,"mesh", &coords);
-    hexa_mesh_write_unv(&mesh,"teste", &coords);
-    //hexa_mesh_write_vtk(&mesh,"mesh", NULL);
+    //hexa_mesh_write_vtk(&mesh,"mesh", &coords);
+    //hexa_mesh_write_unv(&mesh,"teste", &coords);
+    hexa_mesh_write_vtk(&mesh,"mesh", NULL);
     //hexa_mesh_write_unv(&mesh,"teste", NULL);
     hexa_tree_destroy(&mesh);
     hexa_finalize(&mesh);

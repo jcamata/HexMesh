@@ -73,7 +73,7 @@ void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* no
 
 
 
-void hexa_mesh(hexa_tree_t* tree)
+void hexa_mesh(hexa_tree_t* mesh)
 {
     
     bool                clamped = true;
@@ -89,19 +89,28 @@ void hexa_mesh(hexa_tree_t* tree)
     indep_nodes     = sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
     shared_nodes    = sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
     
-    for(int i = 0; i < tree->elements.elem_count; i++)
+    for(int i = 0; i < mesh->elements.elem_count; i++)
     {
-        octant_t *h  = (octant_t*) sc_array_index(&tree->elements, i);
+        octant_t *h  = (octant_t*) sc_array_index(&mesh->elements, i);
         for(int j = 0; j < 8; j++) {
             octant_node_t* node = &h->nodes[j];
             r = (octant_node_t*) sc_hash_array_insert_unique (indep_nodes, node, &position);
             if(r != NULL)
             {
-               r->x     = node->x;
-               r->y     = node->y;
-               r->z     = node->z;
-               r->id    = num_indep_nodes;
-               node->id = num_indep_nodes;
+                r->x     = node->x;
+                if(node->x == (mesh->ncellx+1) ) r->x = -mesh->max_step;
+                if(node->x == (mesh->ncellx+2) ) r->x = mesh->ncellx+mesh->max_step;
+                
+                r->y     = node->y;
+                if(node->y == (mesh->ncelly+1) ) r->y = -mesh->max_step;
+                if(node->y == (mesh->ncelly+2) ) r->y = mesh->ncelly+mesh->max_step;
+
+                r->z     = node->z;
+                if(node->z == (mesh->ncellz+1) ) r->z = -mesh->max_step;
+                if(node->z == (mesh->ncellz+2) ) r->z = mesh->ncellz+mesh->max_step;
+               
+                r->id    = num_indep_nodes;
+                node->id = num_indep_nodes;
                assert(position == num_indep_nodes);
                ++num_indep_nodes;
             } else
@@ -110,36 +119,36 @@ void hexa_mesh(hexa_tree_t* tree)
             }
         }
     }
-    sc_hash_array_rip (indep_nodes,  &tree->nodes);
+    sc_hash_array_rip (indep_nodes,  &mesh->nodes);
     
-    for(int i = 0; i < tree->nodes.elem_count; i++)
+    for(int i = 0; i < mesh->nodes.elem_count; i++)
     {
-        octant_node_t* node = (octant_node_t*) sc_array_index (&tree->nodes, i);
-         if(node->y == tree->y_start) 
+        octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, i);
+         if(node->y == mesh->y_start) 
          {
-                if(node->x == tree->x_start)
-                    hexa_insert_shared_node(shared_nodes,node,tree->neighbors[0]);
-                if(node->x == tree->x_end)
-                    hexa_insert_shared_node(shared_nodes,node,tree->neighbors[2]);
+                if(node->x == mesh->x_start)
+                    hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[0]);
+                if(node->x == mesh->x_end)
+                    hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[2]);
                
-                hexa_insert_shared_node(shared_nodes,node,tree->neighbors[1]);
+                hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[1]);
                 continue;
          }
             
-         if(node->y == tree->y_end) {
-                if(node->x == tree->x_start)
-                    hexa_insert_shared_node(shared_nodes,node,tree->neighbors[6]);
-                if(node->x == tree->x_end)
-                    hexa_insert_shared_node(shared_nodes,node,tree->neighbors[8]);
+         if(node->y == mesh->y_end) {
+                if(node->x == mesh->x_start)
+                    hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[6]);
+                if(node->x == mesh->x_end)
+                    hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[8]);
              
-                hexa_insert_shared_node(shared_nodes,node,tree->neighbors[7]);
+                hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[7]);
                 continue;
           }
             
-            if(node->x == tree->x_start)
-                 hexa_insert_shared_node(shared_nodes,node,tree->neighbors[3]);
-            if(node->x == tree->x_end)
-                 hexa_insert_shared_node(shared_nodes,node,tree->neighbors[5]);
+            if(node->x == mesh->x_start)
+                 hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[3]);
+            if(node->x == mesh->x_end)
+                 hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[5]);
     }
     
     
@@ -148,15 +157,15 @@ void hexa_mesh(hexa_tree_t* tree)
     // building communication map
     //
     
-    sc_hash_array_rip (shared_nodes, &tree->shared_nodes);
+    sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
     
-    local[0] = tree->local_n_nodes    = tree->nodes.elem_count;
-    local[1] = tree->local_n_elements = tree->elements.elem_count;
+    local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
+    local[1] = mesh->local_n_elements = mesh->elements.elem_count;
     
     MPI_Allreduce(local, global,2,MPI_LONG_LONG_INT,MPI_SUM,MPI_COMM_WORLD);
     
-    tree->total_n_nodes    = global[0];
-    tree->total_n_elements = global[1];
+    mesh->total_n_nodes    = global[0];
+    mesh->total_n_elements = global[1];
    
     
 #ifdef HEXA_DEBUG_
@@ -183,17 +192,17 @@ void hexa_mesh(hexa_tree_t* tree)
     
 
     int not_my_nodes    = 0;
-    tree->global_id = (int64_t*)malloc(sizeof(int64_t)*tree->local_n_nodes);
-    memset(tree->global_id,-2,tree->local_n_nodes*sizeof(int64_t));
+    mesh->global_id = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
+    memset(mesh->global_id,-2,mesh->local_n_nodes*sizeof(int64_t));
     SendTo   = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
     RecvFrom = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
     
-    for(int i = 0; i < tree->shared_nodes.elem_count; ++i)
+    for(int i = 0; i < mesh->shared_nodes.elem_count; ++i)
     { 
-        shared_node_t* sn = (shared_node_t*) sc_array_index(&tree->shared_nodes,i);
+        shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
         for(int j = 0; j < sn->listSz; j++)
             
-            if(sn->rankList[j] < tree->mpi_rank) {
+            if(sn->rankList[j] < mesh->mpi_rank) {
                 //my_nodes++;
                
                 message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&sn->rankList[j],&position);
@@ -210,7 +219,7 @@ void hexa_mesh(hexa_tree_t* tree)
                     *p = sn->id;   
                 }
             } 
-            else if (sn->rankList[j] > tree->mpi_rank)
+            else if (sn->rankList[j] > mesh->mpi_rank)
             {
                 message_t *m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&sn->rankList[j],&position);
                 if(m!=NULL)
@@ -225,15 +234,15 @@ void hexa_mesh(hexa_tree_t* tree)
                     int32_t* p = (int32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;   
                 }
-                tree->global_id[sn->id] = -1;
+                mesh->global_id[sn->id] = -1;
             }
           
-        if(tree->global_id[sn->id] == -1) not_my_nodes++;
+        if(mesh->global_id[sn->id] == -1) not_my_nodes++;
          
     }
     
-    sc_hash_array_rip(RecvFrom, &tree->comm_map.RecvFrom );
-    sc_hash_array_rip(SendTo  , &tree->comm_map.SendTo   );
+    sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
+    sc_hash_array_rip(SendTo  , &mesh->comm_map.SendTo   );
     
 #ifdef HEXA_DEBUG_
 #if 0
@@ -254,45 +263,45 @@ void hexa_mesh(hexa_tree_t* tree)
     
 #if 1
     
-    tree->comm_map.max_recvbuf_size = 0;
-    for(int i = 0; i < tree->comm_map.RecvFrom.elem_count; i++)
+    mesh->comm_map.max_recvbuf_size = 0;
+    for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; i++)
     {
-        message_t* m = (message_t*) sc_array_index(&tree->comm_map.RecvFrom, i);
-        tree->comm_map.max_recvbuf_size +=  m->idxs.elem_count;
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+        mesh->comm_map.max_recvbuf_size +=  m->idxs.elem_count;
     }
     
-    tree->comm_map.max_sendbuf_size = 0;
-    for(int i = 0; i < tree->comm_map.SendTo.elem_count; i++)
+    mesh->comm_map.max_sendbuf_size = 0;
+    for(int i = 0; i < mesh->comm_map.SendTo.elem_count; i++)
     {
-        message_t* m = (message_t*) sc_array_index(&tree->comm_map.SendTo, i);
-        tree->comm_map.max_sendbuf_size +=  m->idxs.elem_count;
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
+        mesh->comm_map.max_sendbuf_size +=  m->idxs.elem_count;
     }
     
 
     
-    tree->comm_map.nrequests = tree->comm_map.RecvFrom.elem_count + 
-                                     tree->comm_map.SendTo.elem_count;
+    mesh->comm_map.nrequests = mesh->comm_map.RecvFrom.elem_count + 
+                                     mesh->comm_map.SendTo.elem_count;
     
     int offset = 0;
-    int my_nodes = tree->local_n_nodes - not_my_nodes;
+    int my_nodes = mesh->local_n_nodes - not_my_nodes;
     MPI_Scan(&my_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     
     int count = offset;
-    for(int i=0; i < tree->local_n_nodes; ++i)
-        if(tree->global_id[i] != -1) tree->global_id[i] = count++;
+    for(int i=0; i < mesh->local_n_nodes; ++i)
+        if(mesh->global_id[i] != -1) mesh->global_id[i] = count++;
 
-    void communicate_global_ids(hexa_tree_t* mesh);
+    //void communicate_global_ids(hexa_tree_t* mesh);
 #endif   
     
 #ifdef HEXA_DEBUG_
 #if  1
-    fprintf(tree->fdbg, "Offset: %d\n", offset);
+    fprintf(mesh->fdbg, "Offset: %d\n", offset);
     
-    fprintf(tree->fdbg, "Nodes: \n");
-    for(int i = 0; i < tree->nodes.elem_count; ++i)
+    fprintf(mesh->fdbg, "Nodes: \n");
+    for(int i = 0; i < mesh->nodes.elem_count; ++i)
     {
-        octant_node_t* n = (octant_node_t*) sc_array_index(&tree->nodes,i);
-        fprintf(tree->fdbg, "(%d) (%ld): %d %d %d\n", n->id, tree->global_id[i], n->x, n->y, n->z);
+        octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
+        fprintf(mesh->fdbg, "(%d) (%ld): %d %d %d\n", n->id, mesh->global_id[i], n->x, n->y, n->z);
     }
 #endif
 #endif

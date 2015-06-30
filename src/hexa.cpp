@@ -18,6 +18,8 @@ inline int get_hexa_id(int nx, int ny, int i, int j, int k)
     return (k*((nx)*(ny))+j*(nx)+i+1);
 }
 
+void AddPMLElements(hexa_tree_t* mesh);
+
 
 
 void hexa_tree_init(hexa_tree_t* mesh, int max_levels)
@@ -130,7 +132,7 @@ void hexa_uniform_layer(hexa_tree_t* mesh, int nz, int coarse_step, int internal
                 hexa_element_init(elem);
                 hexa_element_conn(elem,nx,ny,nz, coarse_step, level);
                 elem->pad = 0;
-                //SetElemPML(mesh,elem,coarse_step);
+                SetElemPML(mesh,elem,coarse_step);
                 mesh->max_step = MAX(mesh->max_step,coarse_step);
             }
      }
@@ -170,6 +172,7 @@ void hexa_tree_cube(hexa_tree_t* mesh)
     int level     = 1;
     int layer     = 0;
     int nlayer    = 0; 
+    mesh->max_step = 0;
     
     hexa_processors_interval(mesh);
     
@@ -191,7 +194,7 @@ void hexa_tree_cube(hexa_tree_t* mesh)
     }
     
     
-    
+    AddPMLElements(mesh);
     
   
 }
