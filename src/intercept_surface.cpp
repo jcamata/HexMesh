@@ -113,6 +113,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
         coords[i*3 + 2] = z;
     }
     
+    /*
     int fluid_elem = 0;
     int solid_elem = 0;
     for(int i=0; i < elements->elem_count; ++i)
@@ -149,5 +150,5 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
     
     printf("Number of fluid elements: %d\n", fluid_elem);
     printf("Number of solid elements: %d\n", solid_elem);
-    
+    */
 }

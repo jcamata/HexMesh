@@ -1,0 +1,53 @@
+## -*- Makefile -*-
+##
+## User: camata
+## Time: Jul 6, 2015 2:23:03 PM
+## Makefile created by Oracle Solaris Studio.
+##
+## This file is generated automatically.
+##
+
+###############################################################################
+# File management.  This is where the source, header, and object files are
+# defined
+
+#
+# source files
+srcfiles 	:= $(wildcard src/*.cpp) main.cpp
+
+#
+# object files
+objects		:= $(patsubst %.cpp, %.o, $(srcfiles))
+###############################################################################
+CXX       = mpicxx -O2
+LDFLAGS   = -L/home/camata/local -lsc -lgts -lm
+CXX_FLAGS = -I/home/camata/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -Iinclude
+
+
+## Target: all
+all: hexmesh
+
+
+hexmesh: $(objects)
+	$(CXX) $(objects) -o hexmesh $(LDFLAGS)
+
+
+
+#
+# How to compile C++
+#
+%.o : %.cpp
+	@echo "Compiling C++ "$<"..."
+	$(CXX) $(CXX_FLAGS) -c $< -o $@
+
+
+
+#### Clean target deletes all generated files ####
+clean: 
+	rm $(objects)
+
+
+# Enable dependency checking
+.KEEP_STATE:
+.KEEP_STATE_FILE:.make.state.GNU-amd64-Linux
+

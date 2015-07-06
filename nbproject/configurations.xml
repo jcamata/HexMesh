@@ -35,6 +35,7 @@
                    kind="IMPORTANT_FILES_FOLDER">
       <itemPath>Makefile</itemPath>
     </logicalFolder>
+    <itemPath>Make.Linux</itemPath>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -77,6 +78,8 @@
             ex="false"
             tool="1"
             flavor2="0">
+      </item>
+      <item path="Make.Linux" ex="false" tool="3" flavor2="0">
       </item>
       <item path="include/pml.h" ex="false" tool="3" flavor2="0">
       </item>
@@ -138,6 +141,8 @@
             ex="false"
             tool="1"
             flavor2="0">
+      </item>
+      <item path="Make.Linux" ex="false" tool="3" flavor2="0">
       </item>
       <item path="include/pml.h" ex="false" tool="3" flavor2="0">
       </item>

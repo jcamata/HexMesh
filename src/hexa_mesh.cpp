@@ -167,6 +167,11 @@ void hexa_mesh(hexa_tree_t* mesh)
     mesh->total_n_nodes    = global[0];
     mesh->total_n_elements = global[1];
    
+    if(mesh->mpi_rank == 0)
+    {
+        printf("Total number of elements: %d\n", mesh->total_n_elements);
+        printf("Total number of nodes: %d\n", mesh->total_n_nodes);
+    }
     
 #ifdef HEXA_DEBUG_
 #if  0
