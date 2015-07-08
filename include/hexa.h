@@ -68,6 +68,7 @@ typedef struct {
     sc_array_t      nodes;
     sc_array_t      shared_nodes; 
     int64_t *global_id;
+    int32_t *part_nodes;
     int32_t ncellx;
     int32_t ncelly;
     int32_t ncellz;

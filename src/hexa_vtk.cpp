@@ -345,6 +345,17 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
   fprintf (vtufile, "\n");
   fprintf (vtufile, "        </DataArray>\n");
   fprintf (vtufile, "      </CellData>\n"); 
+  fprintf (vtufile, "      <PointData Scalars=\"NodePart\" >\n");
+  /* write connectivity data */
+  fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"NodePart\" format=\"%s\">\n", VTK_LOCIDX, VTK_FORMAT_STRING);
+  for (il = 0, sk = 1; il < Ntotal; ++il, ++sk) {
+        fprintf (vtufile, " %d", mesh->part_nodes[il]);
+        if (!(sk % 20) && il != (Ntotal - 1))
+            fprintf (vtufile, "\n         ");
+  }
+  fprintf (vtufile, "\n");
+  fprintf (vtufile, "        </DataArray>\n");
+  fprintf (vtufile, "      </PointData>\n"); 
   fprintf (vtufile, "    </Piece>\n");
   fprintf (vtufile, "  </UnstructuredGrid>\n");
   fprintf (vtufile, "</VTKFile>\n");
@@ -389,6 +400,9 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
         fprintf (vtufile, "     <PCellData Scalars=\"ElemType\" >\n");
         fprintf (vtufile, "        <PDataArray type=\"%s\" Name=\"ElemType\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
         fprintf (vtufile, "      </PCellData>\n"); 
+        fprintf (vtufile, "     <PPointData Scalars=\"NodePart\" >\n");
+        fprintf (vtufile, "        <PDataArray type=\"%s\" Name=\"NodePart\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
+        fprintf (vtufile, "      </PPointData>\n");
         for (int p = 0; p < mesh->mpi_size; ++p) {
             fprintf (pvtufile, "    <Piece Source=\"%s_%d_%d.vtu\"/>\n", filename, mesh->mpi_size, p);
         }

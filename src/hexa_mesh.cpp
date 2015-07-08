@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "hexa.h"
+void communicate_global_ids(hexa_tree_t* mesh);
 
 unsigned node_hash_fn (const void *v, const void *u)
 {
@@ -119,6 +120,7 @@ void hexa_mesh(hexa_tree_t* mesh)
             }
         }
     }
+    
     sc_hash_array_rip (indep_nodes,  &mesh->nodes);
     
     for(int i = 0; i < mesh->nodes.elem_count; i++)
@@ -161,17 +163,7 @@ void hexa_mesh(hexa_tree_t* mesh)
     
     local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
     local[1] = mesh->local_n_elements = mesh->elements.elem_count;
-    
-    MPI_Allreduce(local, global,2,MPI_LONG_LONG_INT,MPI_SUM,MPI_COMM_WORLD);
-    
-    mesh->total_n_nodes    = global[0];
-    mesh->total_n_elements = global[1];
-   
-    if(mesh->mpi_rank == 0)
-    {
-        printf("Total number of elements: %d\n", mesh->total_n_elements);
-        printf("Total number of nodes: %d\n", mesh->total_n_nodes);
-    }
+
     
 #ifdef HEXA_DEBUG_
 #if  0
@@ -197,7 +189,8 @@ void hexa_mesh(hexa_tree_t* mesh)
     
 
     int not_my_nodes    = 0;
-    mesh->global_id = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
+    int my_own_nodes    = 0;
+    mesh->global_id     = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
     memset(mesh->global_id,-2,mesh->local_n_nodes*sizeof(int64_t));
     SendTo   = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
     RecvFrom = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
@@ -206,7 +199,7 @@ void hexa_mesh(hexa_tree_t* mesh)
     { 
         shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
         for(int j = 0; j < sn->listSz; j++)
-            
+        {
             if(sn->rankList[j] < mesh->mpi_rank) {
                 //my_nodes++;
                
@@ -223,6 +216,7 @@ void hexa_mesh(hexa_tree_t* mesh)
                     int32_t* p = (int32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;   
                 }
+                mesh->global_id[sn->id] = -3;
             } 
             else if (sn->rankList[j] > mesh->mpi_rank)
             {
@@ -241,32 +235,61 @@ void hexa_mesh(hexa_tree_t* mesh)
                 }
                 mesh->global_id[sn->id] = -1;
             }
+        }
           
         if(mesh->global_id[sn->id] == -1) not_my_nodes++;
+        if(mesh->global_id[sn->id] == -3) my_own_nodes++;
          
+    }
+    
+    
+    local[0] -= not_my_nodes;
+    
+    MPI_Allreduce(local, global,2,MPI_LONG_LONG_INT,MPI_SUM,MPI_COMM_WORLD);
+    
+    mesh->total_n_nodes    = global[0];
+    mesh->total_n_elements = global[1];
+   
+    if(mesh->mpi_rank == 0)
+    {
+        printf("Total number of elements: %d\n", mesh->total_n_elements);
+        printf("Total number of nodes: %d\n", mesh->total_n_nodes);
     }
     
     sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
     sc_hash_array_rip(SendTo  , &mesh->comm_map.SendTo   );
     
 #ifdef HEXA_DEBUG_
-#if 0
-    fprintf(tree->fdbg, "Recv from %ld processors\n", tree->comm_map.RecvFrom.elem_count);
-    for(int i=0; i < tree->comm_map.RecvFrom.elem_count; i++)
+#if 1
+    fprintf(mesh->fdbg, "Recv from %ld processors\n", mesh->comm_map.RecvFrom.elem_count);
+    for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
     {
-        message_t* m = (message_t*) sc_array_index(&tree->comm_map.RecvFrom, i);
-        fprintf(tree->fdbg, "  Recv %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+        fprintf(mesh->fdbg, "  \n Recv %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+        for(int j =0; j < m->idxs.elem_count; j++)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            fprintf(mesh->fdbg, "%d ", *id);
+            if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+        }
+            
     }
-    fprintf(tree->fdbg, "Send to %ld processors\n", tree->comm_map.SendTo.elem_count);
-    for(int i=0; i < tree->comm_map.SendTo.elem_count; i++)
+    fprintf(mesh->fdbg, "Send to %ld processors\n", mesh->comm_map.SendTo.elem_count);
+    for(int i=0; i < mesh->comm_map.SendTo.elem_count; i++)
     {
-        message_t* m = (message_t*) sc_array_index(&tree->comm_map.SendTo, i);
-        fprintf(tree->fdbg, "  Sending %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
+        fprintf(mesh->fdbg, "\n Sending %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+        for(int j =0; j < m->idxs.elem_count; j++)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            fprintf(mesh->fdbg, "%d ", *id);
+            if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+        }
+        
     }
 #endif
 #endif
     
-#if 1
     
     mesh->comm_map.max_recvbuf_size = 0;
     for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; i++)
@@ -289,17 +312,30 @@ void hexa_mesh(hexa_tree_t* mesh)
     
     int offset = 0;
     int my_nodes = mesh->local_n_nodes - not_my_nodes;
-    MPI_Scan(&my_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Scan(&my_own_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     
     int count = offset;
     for(int i=0; i < mesh->local_n_nodes; ++i)
         if(mesh->global_id[i] != -1) mesh->global_id[i] = count++;
-
-    //void communicate_global_ids(hexa_tree_t* mesh);
-#endif   
+    
+    
+    communicate_global_ids(mesh);
+    
+    
+    mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
+    memset(mesh->part_nodes, mesh->mpi_rank, mesh->local_n_nodes*sizeof(int));
+    for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
+    {
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+        for(int j =0; j < m->idxs.elem_count; j++)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            mesh->part_nodes[*id] = m->rank;
+        }
+    }
+    
     
 #ifdef HEXA_DEBUG_
-#if  1
     fprintf(mesh->fdbg, "Offset: %d\n", offset);
     
     fprintf(mesh->fdbg, "Nodes: \n");
@@ -308,7 +344,7 @@ void hexa_mesh(hexa_tree_t* mesh)
         octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
         fprintf(mesh->fdbg, "(%d) (%ld): %d %d %d\n", n->id, mesh->global_id[i], n->x, n->y, n->z);
     }
-#endif
+
 #endif
     
 }
@@ -320,41 +356,52 @@ void communicate_global_ids(hexa_tree_t* mesh)
     
     MPI_Request *requests;
     MPI_Status  *statuses;
-    uint32_t    *recvbuf;
-    uint32_t    *sendbuf;
+    long long    *recvbuf;
+    long long   *sendbuf;
     
-    n_requests = mesh->comm_map.RecvFrom.elem_count + mesh->comm_map.SendTo.elem_count;
-    recvbuf    = (uint32_t*)malloc(mesh->comm_map.max_recvbuf_size*sizeof(uint32_t));
-    sendbuf    = (uint32_t*)malloc(mesh->comm_map.max_sendbuf_size*sizeof(uint32_t));
+    n_requests = mesh->comm_map.nrequests;
+    recvbuf    = (long long*)malloc(mesh->comm_map.max_recvbuf_size*sizeof(long long));
+    sendbuf    = (long long*)malloc(mesh->comm_map.max_sendbuf_size*sizeof(long long));
     
     requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
     statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
     int c = 0;
     
+    //printf("aqui 1\n");
+   
     int offset = 0;
+   
     // post all non-blocking receives
     for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
         message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-        MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
-        offset+=m->idxs.elem_count;
+        MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+        offset += m->idxs.elem_count;
         c++;
     }
     
+    assert(offset == mesh->comm_map.max_recvbuf_size);
+    
+    //printf("aqui 2\n");
     offset = 0;
     for(int i = 0; i < mesh->comm_map.SendTo.elem_count; ++i) {
          message_t *m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
          for(int j = 0; j < m->idxs.elem_count; ++j)
          {
              int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-             sendbuf[offset+j] = mesh->global_id[*id];
+             sendbuf[offset+j] = (long long) mesh->global_id[*id];
          }
-         MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+         MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
          offset += m->idxs.elem_count;
          c++;
     }
-    
+     assert(offset == mesh->comm_map.max_sendbuf_size);
+     
+     //printf("aqui 3\n");
+     assert(c == n_requests);
+     
     MPI_Waitall(n_requests,requests,statuses);
     
+    //printf("aqui 4\n");
     offset = 0;
     for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
         message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
@@ -366,8 +413,14 @@ void communicate_global_ids(hexa_tree_t* mesh)
         offset += m->idxs.elem_count;
     }
     
-    free(recvbuf);
-    free(sendbuf);
+   // printf("aqui 5\n");
+    
+    free(&recvbuf[0]);
+    free(&sendbuf[0]);
+    free(requests);
+    free(statuses);
+    
+    //printf("aqui 6\n");
     
 }
 
