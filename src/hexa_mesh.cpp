@@ -323,7 +323,9 @@ void hexa_mesh(hexa_tree_t* mesh)
     
     
     mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
-    memset(mesh->part_nodes, mesh->mpi_rank, mesh->local_n_nodes*sizeof(int));
+    for(int i =0; i < mesh->local_n_nodes; i++)
+        mesh->part_nodes[i] = mesh->mpi_rank;
+    
     for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
     {
         message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
@@ -342,7 +344,7 @@ void hexa_mesh(hexa_tree_t* mesh)
     for(int i = 0; i < mesh->nodes.elem_count; ++i)
     {
         octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
-        fprintf(mesh->fdbg, "(%d) (%ld): %d %d %d\n", n->id, mesh->global_id[i], n->x, n->y, n->z);
+        fprintf(mesh->fdbg, "(%d) (%d) (%ld): %d %d %d\n", n->id, mesh->part_nodes[i], mesh->global_id[i], n->x, n->y, n->z);
     }
 
 #endif
