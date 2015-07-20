@@ -303,7 +303,7 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
         for(il=0; il < 8; il++)
         {
             octant_node_t* node = &h->nodes[il];
-            fprintf (vtufile, "%ld ", node->id);     
+            fprintf (vtufile, "%lld ", node->id);     
         }
         fprintf (vtufile, "\n");
   }

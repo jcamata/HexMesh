@@ -35,8 +35,8 @@ typedef struct {
 typedef struct shared_node
 {
   int32_t      id;
-  int32_t      x, y, z;
-  int8_t       listSz;
+  int32_t       x, y, z;
+  int32_t       listSz;
   int32_t      rankList[8];
 } shared_node_t;
 
@@ -60,6 +60,7 @@ typedef struct {
     
     int64_t total_n_elements;
     int64_t total_n_nodes;
+    
     int32_t local_n_elements;
     int32_t local_n_nodes;
     int32_t max_step;
@@ -108,7 +109,7 @@ void hexa_processors_interval(hexa_tree_t* mesh);
 
 void hexa_mesh(hexa_tree_t* tree);
 
-int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords);
+int  hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords);
 
 void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 

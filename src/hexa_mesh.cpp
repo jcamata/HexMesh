@@ -26,7 +26,7 @@ int node_equal_fn (const void *v1, const void *v2, const void *u)
 
 unsigned processors_hash_fn (const void *v, const void *u)
 {
-  const int32_t *a_ptr = (int32_t*) v;
+  const uint32_t *a_ptr = (uint32_t*) v;
   uint32_t        a = *a_ptr;
   uint32_t        b=1, c=1;
 
@@ -37,8 +37,8 @@ unsigned processors_hash_fn (const void *v, const void *u)
 
 int processors_equal_fn (const void *v1, const void *v2, const void *u)
 {
-  const int32_t *q1 = (const int32_t*) v1;
-  const int32_t *q2 = (const int32_t*) v2;
+  const uint32_t *q1 = (const uint32_t*) v1;
+  const uint32_t *q2 = (const uint32_t*) v2;
   return (*q1 == *q2);
 }
 
@@ -49,7 +49,7 @@ void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* no
     shared_node_t *sn;
     int i;
     
-    if( processor == -1) return;
+    if( processor < 0) return;
     
     sn = (shared_node_t*) sc_hash_array_insert_unique (shared_nodes, node, &position);
     if(sn != NULL)
@@ -207,13 +207,13 @@ void hexa_mesh(hexa_tree_t* mesh)
                 if(m!=NULL)
                 {
                     m->rank  = sn->rankList[j];
-                    sc_array_init(&m->idxs, sizeof(int32_t));
-                    int32_t* p = (int32_t*) sc_array_push(&m->idxs);
+                    sc_array_init(&m->idxs, sizeof(uint32_t));
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;
                 } else
                 {
                     message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
-                    int32_t* p = (int32_t*) sc_array_push(&m->idxs);
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;   
                 }
                 mesh->global_id[sn->id] = -3;
@@ -224,13 +224,13 @@ void hexa_mesh(hexa_tree_t* mesh)
                 if(m!=NULL)
                 {
                     m->rank  = sn->rankList[j];
-                    sc_array_init(&m->idxs, sizeof(int32_t));
-                    int32_t* p = (int32_t*) sc_array_push(&m->idxs);
+                    sc_array_init(&m->idxs, sizeof(uint32_t));
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;
                 } else
                 {
                     message_t* m = (message_t*)sc_array_index(&RecvFrom->a, position);
-                    int32_t* p = (int32_t*) sc_array_push(&m->idxs);
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
                     *p = sn->id;   
                 }
                 mesh->global_id[sn->id] = -1;
@@ -252,8 +252,8 @@ void hexa_mesh(hexa_tree_t* mesh)
    
     if(mesh->mpi_rank == 0)
     {
-        printf("Total number of elements: %d\n", mesh->total_n_elements);
-        printf("Total number of nodes: %d\n", mesh->total_n_nodes);
+        printf("Total number of elements: %lld\n", mesh->total_n_elements);
+        printf("Total number of nodes: %lld\n", mesh->total_n_nodes);
     }
     
     sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
