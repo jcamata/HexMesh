@@ -48,17 +48,16 @@
       <compileType>
         <ccTool>
           <incDir>
-            <pElem>/home/camata/local/include</pElem>
             <pElem>include</pElem>
-            <pElem>/usr/lib/openmpi/include</pElem>
-            <pElem>/usr/include/glib-2.0</pElem>
-            <pElem>/usr/lib/x86_64-linux-gnu/glib-2.0/include</pElem>
+            <pElem>/usr/local/include</pElem>
+            <pElem>/opt/local/include/glib-2.0</pElem>
+            <pElem>/opt/local/lib/glib-2.0/include</pElem>
           </incDir>
         </ccTool>
         <linkerTool>
           <linkerAddLib>
-            <pElem>/home/camata/local/lib</pElem>
-            <pElem>/usr/lib/openmpi/lib</pElem>
+            <pElem>/opt/local/lib</pElem>
+            <pElem>/usr/local/lib</pElem>
           </linkerAddLib>
           <commandlineTool>g++</commandlineTool>
           <linkerLibItems>

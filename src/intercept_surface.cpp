@@ -3,6 +3,8 @@
 #include <glib.h>
 #include <vector>
 using namespace std;
+#include <sc_io.h>
+#include <sc_containers.h>
 
 #include "hexa.h"
 
@@ -40,23 +42,13 @@ gdouble  distance(GtsPoint *p, gpointer bounded)
     return gts_point_triangle_distance(p, t);
 }
 
-/*
-void GetElementNodes(octant_t* n, octant_node_t* noel[])
-{
-    for(int i =0; i < 8; i++)
-    {
-        noel[i] = (octant_node_t*) sc_array_index(&n->nodes, i);
-    }
-  
-}
-*/
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& coords)
 {
 
     GtsSurface *s;
     GtsBBox    *box;
-    GNode      *t;
+    GNode      *t  ;
     GtsPoint   *p;
     int    nx,ny,nz;
     double dx, dy, dz;
@@ -67,39 +59,46 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
     // Note that here we use a gts file.
     // There is a tool called stl2gts that convert STL files to GTS.
     // It is installed together with the gts library.
-    s   = SurfaceRead(surface);
+    tree->gdata.s   = SurfaceRead(surface);
     
     // Get the surface bounding box
-    box = gts_bbox_surface (gts_bbox_class (), s);
+    tree->gdata.bbox = gts_bbox_surface (gts_bbox_class (), tree->gdata.s);
     if(tree->mpi_rank == 0) {
         printf("Bounding box: \n");
-        printf(" x ranges from %f to %f\n", box->x1, box->x2);
-        printf(" y ranges from %f to %f\n", box->y1, box->y2);
-        printf(" z ranges from %f to %f\n", box->z1, box->z2);
+        printf(" x ranges from %f to %f\n", tree->gdata.bbox->x1, tree->gdata.bbox->x2);
+        printf(" y ranges from %f to %f\n", tree->gdata.bbox->y1, tree->gdata.bbox->y2);
+        printf(" z ranges from %f to %f\n", tree->gdata.bbox->z1, tree->gdata.bbox->z2);
     }
     
-    double Lx = (box->x2 - box->x1);
-    double Ly = (box->y2 - box->y1);
+    double Lx = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1);
+    double Ly = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1);
     double zmin = ((Lx < Ly)?-Lx:-Ly);
+
     // Get grid-spacing at x and y direction
-    dx = (box->x2 - box->x1)/(double)tree->ncellx;
-    dy = (box->y2 - box->y1)/(double)tree->ncelly;
+    dx = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1)/(double)tree->ncellx;
+    dy = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1)/(double)tree->ncelly;
 
     coords.resize(nodes->elem_count*3);
     
     // Build the bounding box tree
-    t = gts_bb_tree_surface(s);
-    p = gts_point_new(gts_point_class(), 0.0 , 0.0 , box->z2);
+    tree->gdata.bbt = gts_bb_tree_surface(tree->gdata.s);
+    p = gts_point_new(gts_point_class(), 0.0 , 0.0 , tree->gdata.bbox->z2);
     
+    //GSList *list = gts_bb_tree_overlap(t, box);
+
     for(int i=0; i < nodes->elem_count; ++i)
     {
         octant_node_t* n = (octant_node_t*) sc_array_index(nodes,i);
-        p->x = box->x1 + n->x*dx;
-        p->y = box->y1 + n->y*dy;
-        double d    = gts_bb_tree_point_distance(t,p,distance,NULL);
-        double zmax = box->z2 - d;
+        p->x = tree->gdata.bbox->x1 + n->x*dx;
+        p->y = tree->gdata.bbox->y1 + n->y*dy;
+        double d    = gts_bb_tree_point_distance(tree->gdata.bbt,p,distance,NULL);
+        double zmax = tree->gdata.bbox->z2 - d;
+        
+        // implict water level (z=0).
+
+        if(zmax < 0.0) zmax = 0.0;
         dz = (zmax-zmin)/(double)tree->ncellz;
-        double z = zmax - n->z*dz;
+        double z = zmax - (n->z)*dz;
         /*
         if(z < 0.0) {
             zmax = 0.0;
@@ -113,42 +112,80 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, vector<double>& 
         coords[i*3 + 2] = z;
     }
     
-    /*
-    int fluid_elem = 0;
-    int solid_elem = 0;
-    for(int i=0; i < elements->elem_count; ++i)
-    {
-        
-        octant_t *h     = (octant_t*) sc_array_index(elements, i);
-        octant_node_t* noels = h->nodes;
-        h->pad = 0;
-        // Calculando octant baricenter
-        
-        int I   = h->nodes[0].id;
-        int IJ  = h->nodes[2].id;
-        int IJK = h->nodes[5].id;
-        double dx =  0.5*(coords[IJ*3  ] - coords[I*3]);
-        double dy =  0.5*(coords[IJ*3+1] - coords[I*3+1]);
-        double dz =  0.5*(coords[IJK*3+2]- coords[I*3+2]);
-        double bx = coords[i*3]   + dx;
-        double by = coords[i*3+1] + dy;
-        double bz = coords[i*3+2] + dz;
-        if(bz < 0.0) {
-            p->x = bx;
-            p->y = by;
-            double d    = gts_bb_tree_point_distance(t,p,distance,NULL);
-            if(bz+d>0.0) { 
-                h->pad = 1;
-                fluid_elem++;
-            } else
-            {
-                solid_elem++;
-            }
-        } else
-            solid_elem++;
-    }
     
-    printf("Number of fluid elements: %d\n", fluid_elem);
-    printf("Number of solid elements: %d\n", solid_elem);
-    */
 }
+
+
+
+void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids)
+{
+    sc_array_t *elements = &mesh->elements;
+    GtsBBox    *box;
+
+    box = gts_bbox_new (gts_bbox_class (),0,0,0,0,1,1,1);
+
+    for(int iel; iel < elements->elem_count; ++iel)
+    {
+
+        octant_t *elem    = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+        box->x1 = box->y1= box->z1  = 1.0E10;
+        box->x2 = box->y2 = box->z2 = -1.0E10;
+        for(int i = 0; i < 8; ++i)
+        {
+            octant_node_t* node = &elem->nodes[i];
+            int id = node->id;
+            double x = coords[id*3];
+            double y = coords[id*3+1];
+            double z = coords[id*3+2];
+            box->x1 = (x < box->x1)?x:box->x1;
+            box->y1 = (y < box->y1)?y:box->y1;
+            box->z1 = (z < box->z1)?z:box->z1;
+            box->x2 = (x > box->x2)?x:box->x2;
+            box->y2 = (y > box->y2)?y:box->y2;
+            box->z2 = (z > box->z2)?z:box->z2;
+        }    
+        elem->pad = 0;
+
+        if(gts_bb_tree_is_overlapping(mesh->gdata.bbt, box)) 
+        {
+            elements_ids.push_back(iel);
+            elem->pad = 1;
+        }
+
+    }
+}
+
+
+/*
+
+ 1. Para cada octante, 
+
+ 1.a vefificar se duas faces paralelas nao sao interceptadas pela
+ superficie.
+   => Aplica-se o template 1: divide elemento ao meio gerando dois novos elementos
+
+ 1.b: quatro faces inteceptadas e as restantes nao sao paralelas
+   => Aplica-se o template 2:
+           - Adicionar ponto na intersecao seguindo a projecao diagonal do ponto da esquina do elemento, 
+           -  Tres novos elementos são criados. 
+            Obs.: Possibilidade de formacao de triangulos.  Solucao: mover pontos.
+
+ 1.c: tres faces interceptadas: Vega template3 hexMesh/doc.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*/

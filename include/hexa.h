@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <sc.h>
 #include <sc_containers.h>
-
+#include <gts.h>
 #include <vector>
 
 #define HEXA_DEBUG_
@@ -56,6 +56,16 @@ typedef struct
     int     nrequests;
 } comm_map_t;
 
+
+typedef struct 
+{
+    GtsSurface *s;      // Surface
+    GNode      *bbt;    // Boundary box tree used in 
+                        // interceptions operations
+    GtsBBox    *bbox;   // Surface boundry box
+} GeometryData;
+
+
 typedef struct {
     
     int64_t total_n_elements;
@@ -85,6 +95,8 @@ typedef struct {
 #ifdef HEXA_DEBUG_
     FILE* fdbg;
 #endif
+    GeometryData gdata;
+
 } hexa_tree_t;
 
 
