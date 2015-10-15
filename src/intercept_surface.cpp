@@ -9,6 +9,31 @@ using namespace std;
 #include "hexa.h"
 
 
+int EdgeVerticesMap[12][2] = {
+    {0,1}, // Edge 0
+    {1,2}, // Edge 1
+    {2,3}, //      2
+    {3,0},
+    {0,4},
+    {1,5},
+    {2,6},
+    {3,7},
+    {4,5},
+    {5,6},
+    {6,7},
+    {7,4}
+};
+
+int FaceEdgesMap[6][4] = {
+    {4,11,7,3 },
+    {5,1 ,6,9 },
+    {0,5,8,4  },
+    {2,6,10,7 },
+    {0,1,2,3  },
+    {8,9,10,11}
+};
+
+
 // Read the gts file format and create a gts surface.
 GtsSurface* SurfaceRead(const char* fname)
 {
@@ -157,6 +182,7 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 }
 
 
+
 /*
 
  1. Para cada octante, 
@@ -171,21 +197,190 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
            -  Tres novos elementos são criados. 
             Obs.: Possibilidade de formacao de triangulos.  Solucao: mover pontos.
 
- 1.c: tres faces interceptadas: Vega template3 hexMesh/doc.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ 1.c: tres faces interceptadas: Veja template3 hexMesh/doc.
 
 
 */
+
+
+GtsPoint* SegmentTriangleIntersection (GtsSegment * s, GtsTriangle * t)
+{
+  GtsPoint * A, * B, * C, * D, * E;
+  gint ABCE, ABCD, ADCE, ABDE, BCDE;
+  GtsEdge * AB, * BC, * CA;
+  gdouble a, b, c;
+
+  g_return_val_if_fail (s != NULL, NULL);
+  g_return_val_if_fail (t != NULL, NULL);
+
+  gts_triangle_vertices_edges (t, NULL, 
+			       (GtsVertex **) &A, 
+			       (GtsVertex **) &B, 
+			       (GtsVertex **) &C, 
+			       &AB, &BC, &CA);
+  D = GTS_POINT (s->v1);
+  E = GTS_POINT (s->v2);
+
+  ABCE = gts_point_orientation_3d_sos (A, B, C, E);
+  ABCD = gts_point_orientation_3d_sos (A, B, C, D);
+  if (ABCE < 0 || ABCD > 0) {
+    GtsPoint * tmpp;
+    gint tmp;
+
+    tmpp = E; E = D; D = tmpp;
+    tmp = ABCE; ABCE = ABCD; ABCD = tmp;
+  }
+  if (ABCE < 0 || ABCD > 0)
+    return NULL;
+  ADCE = gts_point_orientation_3d_sos (A, D, C, E);
+  if (ADCE < 0)
+    return NULL;
+  ABDE = gts_point_orientation_3d_sos (A, B, D, E);
+  if (ABDE < 0)
+    return NULL;
+  BCDE = gts_point_orientation_3d_sos (B, C, D, E);
+  if (BCDE < 0)
+    return NULL;
+  a = gts_point_orientation_3d (A, B, C, E);
+  b = gts_point_orientation_3d (A, B, C, D);
+  if (a != b) {
+    c = a/(a - b);
+    return gts_point_new (gts_point_class(),
+			  E->x + c*(D->x - E->x),
+			  E->y + c*(D->y - E->y),
+			  E->z + c*(D->z - E->z));
+  }
+  /* D and E are contained within ABC */
+#ifdef DEBUG
+  fprintf (stderr, 
+	   "segment: %p:%s triangle: %p:%s intersection\n"
+	   "D and E contained in ABC\n",
+	   s, GTS_NEDGE (s)->name, t, GTS_NFACE (t)->name);
+#endif /* DEBUG */  
+  g_assert (a == 0.0); 
+  return gts_point_new (gts_point_class(),
+			(E->x + D->x)/2.,
+			(E->y + D->y)/2.,
+			(E->z + D->z)/2.);
+}
+
+
+void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids)
+{
+    GtsSegment* segments[12];
+    bool        face_intecepted[6];
+    GtsPoint*   point[12];
+    
+    for(int i = 0; i < elements_ids.size(); ++i)
+    {
+        octant_t *elem    = (octant_t*) sc_array_index(&mesh->elements, elements_ids[i]);
+        for(int edge =0; edge < 12; ++edge)
+        {
+            int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+            int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+            
+            GtsVertex *v1  = gts_vertex_new(gts_vertex_class(), coords[node1*3], coords[node1*3+1], coords[node1*3+2]);
+            GtsVertex *v2  = gts_vertex_new(gts_vertex_class(), coords[node2*3], coords[node2*3+1], coords[node2*3+2]);
+            segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+            GtsBBox   *sb  = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+            GSList* list   = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+            if(list == NULL) continue;
+            while(list)
+            {
+                GtsTriangle* tri = GTS_TRIANGLE(list->data);
+                point[edge] = SegmentTriangleIntersection (segments[edge], tri);
+                if(point[edge]) break;
+                list = list->next;
+            }
+            
+        }
+        
+        
+        //check parallel faces
+        for(int face=0; face < 6; ++face)
+        {
+            face_intecepted[face] = false;
+            for(int fe=0; fe < 4; ++fe) {
+               int edge = FaceEdgesMap[face][fe];
+               if( point[edge] != NULL ) {
+                   face_intecepted[face] = true;
+                   break;
+               }
+            }
+            if(face_intecepted[face]) continue;
+        }
+        
+        int n_parallel_faces = (face_intecepted[0] && face_intecepted[1]) + 
+                               (face_intecepted[2] && face_intecepted[3]) +
+                               (face_intecepted[4] && face_intecepted[5]);
+        
+        if(n_parallel_faces == 4 ) 
+        {
+            // Apply template 1.
+            elem->pad = elem->pad + 1;
+            if((!face_intecepted[0]) && (!face_intecepted[1])) 
+            {
+                // New points are created splitting edges 0,2,8,10
+                // Two new elements are created
+                //  NP1 = Point splitting Edge1  
+                GtsPoint *np1 = point[0];
+                GtsPoint *np2 = point[2];
+                GtsPoint *np3 = point[8];
+                GtsPoint *np4 = point[10];
+                
+                g_assert(np1 != NULL);
+                g_assert(np2 != NULL);
+                g_assert(np3 != NULL);
+                g_assert(np4 != NULL);
+                // Remove the parent element form the list and
+                // introduce two new children elements
+                // Elem 1:
+                // N0, NP1, NP2, N3, N4, NP3, NP4, N7
+                // Elem 2:
+                // NP1, N1, N2, NP2, NP3, N5, N6, NP4
+                int conn[8];
+
+                
+                conn[0] = elem->nodes[0].id;
+                conn[3] = elem->nodes[3].id;
+                conn[4] = elem->nodes[4].id;
+                conn[7] = elem->nodes[7].id;
+                    
+                coords.push_back(np1->x);
+                coords.push_back(np1->y);
+                coords.push_back(np1->z);      
+                conn[1] = mesh->local_n_nodes;
+                mesh->local_n_nodes++;
+                
+                coords.push_back(np2->x);
+                coords.push_back(np2->y);
+                coords.push_back(np2->z);      
+                conn[2] = mesh->local_n_nodes;
+                mesh->local_n_nodes++;
+                
+                coords.push_back(np3->x);
+                coords.push_back(np3->y);
+                coords.push_back(np3->z);      
+                conn[5] = mesh->local_n_nodes;
+                mesh->local_n_nodes++;
+                
+                coords.push_back(np4->x);
+                coords.push_back(np4->y);
+                coords.push_back(np4->z);      
+                conn[6] = mesh->local_n_nodes;
+                mesh->local_n_nodes++;
+                
+                
+            } else if((!face_intecepted[2]) && (!face_intecepted[3]))
+            {
+                
+                
+            } else if((!face_intecepted[4]) && (!face_intecepted[5]))
+            {
+                
+            } 
+        }
+        
+    }
+    
+}

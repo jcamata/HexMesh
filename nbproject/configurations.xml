@@ -47,25 +47,26 @@
       </toolsSet>
       <compileType>
         <ccTool>
+          <commandlineTool>mpicxx</commandlineTool>
           <incDir>
             <pElem>include</pElem>
             <pElem>/usr/local/include</pElem>
-            <pElem>/opt/local/include/glib-2.0</pElem>
-            <pElem>/opt/local/lib/glib-2.0/include</pElem>
+            <pElem>/usr/include/glib-2.0</pElem>
+            <pElem>/usr/lib/x86_64-linux-gnu/glib-2.0/include</pElem>
+            <pElem>/home/camata/local/include</pElem>
           </incDir>
         </ccTool>
         <linkerTool>
           <linkerAddLib>
-            <pElem>/opt/local/lib</pElem>
             <pElem>/usr/local/lib</pElem>
+            <pElem>/home/camata/local/lib</pElem>
           </linkerAddLib>
-          <commandlineTool>g++</commandlineTool>
+          <commandlineTool>mpicxx</commandlineTool>
           <linkerLibItems>
-            <linkerLibLibItem>sc</linkerLibLibItem>
-            <linkerLibFileItem>/usr/lib/openmpi/lib/libmpi.so</linkerLibFileItem>
-            <linkerLibLibItem>mpi_cxx</linkerLibLibItem>
             <linkerLibLibItem>gts</linkerLibLibItem>
+            <linkerLibLibItem>sc</linkerLibLibItem>
           </linkerLibItems>
+          <commandLine>-lglib-2.0</commandLine>
         </linkerTool>
       </compileType>
       <item path="/home/camata/Programming/HexMesh/include/hexa.h"

@@ -15,8 +15,8 @@ NM=nm
 CCADMIN=CCadmin
 RANLIB=ranlib
 CC=gcc
-CCC=g++
-CXX=g++
+CCC=mpicxx
+CXX=mpicxx
 FC=gfortran
 AS=as
 
@@ -60,62 +60,60 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=-L/home/camata/local/lib -L/usr/lib/openmpi/lib -lsc /usr/lib/openmpi/lib/libmpi.so -lmpi_cxx -lgts
+LDLIBSOPTIONS=-L/usr/local/lib -L/home/camata/local/lib -lgts -lsc
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
 	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/hexmesh
 
-${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/hexmesh: /usr/lib/openmpi/lib/libmpi.so
-
 ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/hexmesh: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
-	g++ -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/hexmesh ${OBJECTFILES} ${LDLIBSOPTIONS}
+	mpicxx -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/hexmesh ${OBJECTFILES} ${LDLIBSOPTIONS} -lglib-2.0
 
 ${OBJECTDIR}/_ext/1217637752/hexa.o: /home/camata/Programming/HexMesh/src/hexa.cpp 
 	${MKDIR} -p ${OBJECTDIR}/_ext/1217637752
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/1217637752/hexa.o /home/camata/Programming/HexMesh/src/hexa.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/1217637752/hexa.o /home/camata/Programming/HexMesh/src/hexa.cpp
 
 ${OBJECTDIR}/main.o: main.cpp 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/main.o main.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/main.o main.cpp
 
 ${OBJECTDIR}/src/hexa_face_hanging.o: src/hexa_face_hanging.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_face_hanging.o src/hexa_face_hanging.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_face_hanging.o src/hexa_face_hanging.cpp
 
 ${OBJECTDIR}/src/hexa_mesh.o: src/hexa_mesh.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_mesh.o src/hexa_mesh.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_mesh.o src/hexa_mesh.cpp
 
 ${OBJECTDIR}/src/hexa_parallel.o: src/hexa_parallel.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_parallel.o src/hexa_parallel.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_parallel.o src/hexa_parallel.cpp
 
 ${OBJECTDIR}/src/hexa_pml.o: src/hexa_pml.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_pml.o src/hexa_pml.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_pml.o src/hexa_pml.cpp
 
 ${OBJECTDIR}/src/hexa_unv.o: src/hexa_unv.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_unv.o src/hexa_unv.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_unv.o src/hexa_unv.cpp
 
 ${OBJECTDIR}/src/hexa_vtk.o: src/hexa_vtk.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_vtk.o src/hexa_vtk.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_vtk.o src/hexa_vtk.cpp
 
 ${OBJECTDIR}/src/intercept_surface.o: src/intercept_surface.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I/home/camata/local/include -Iinclude -I/usr/lib/openmpi/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/intercept_surface.o src/intercept_surface.cpp
+	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/intercept_surface.o src/intercept_surface.cpp
 
 # Subprojects
 .build-subprojects:
