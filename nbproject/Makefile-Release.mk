@@ -43,6 +43,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/src/hexa_pml.o \
 	${OBJECTDIR}/src/hexa_unv.o \
 	${OBJECTDIR}/src/hexa_vtk.o \
+	${OBJECTDIR}/src/hilbert.o \
 	${OBJECTDIR}/src/intercept_surface.o
 
 
@@ -109,6 +110,11 @@ ${OBJECTDIR}/src/hexa_vtk.o: src/hexa_vtk.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
 	$(COMPILE.cc) -O2 -I/home/camata/local/include -Iinclude -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_vtk.o src/hexa_vtk.cpp
+
+${OBJECTDIR}/src/hilbert.o: src/hilbert.c 
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.c) -O2 -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hilbert.o src/hilbert.c
 
 ${OBJECTDIR}/src/intercept_surface.o: src/intercept_surface.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src

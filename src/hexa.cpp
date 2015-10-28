@@ -180,7 +180,7 @@ void hexa_tree_cube(hexa_tree_t* mesh)
     int nz_test = nz+internal_step;
     while( (nz+internal_step) <= mesh->ncellz)
     {
-        if((nlayer+1)%15 == 0) {
+        if((nlayer+1)%30 == 0) {
             coarse_step*=3;
             hexa_transient_layer(mesh,nz,coarse_step, internal_step, level);
             internal_step*=3;

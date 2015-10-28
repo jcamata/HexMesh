@@ -5,6 +5,7 @@
                    displayName="Header Files"
                    projectFiles="true">
       <itemPath>/home/camata/Programming/HexMesh/include/hexa.h</itemPath>
+      <itemPath>include/hilbert.h</itemPath>
       <itemPath>include/pml.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
@@ -21,6 +22,7 @@
       <itemPath>src/hexa_pml.cpp</itemPath>
       <itemPath>src/hexa_unv.cpp</itemPath>
       <itemPath>src/hexa_vtk.cpp</itemPath>
+      <itemPath>src/hilbert.c</itemPath>
       <itemPath>src/intercept_surface.cpp</itemPath>
       <itemPath>main.cpp</itemPath>
     </logicalFolder>
@@ -46,6 +48,11 @@
         <rebuildPropChanged>false</rebuildPropChanged>
       </toolsSet>
       <compileType>
+        <cTool>
+          <incDir>
+            <pElem>include</pElem>
+          </incDir>
+        </cTool>
         <ccTool>
           <commandlineTool>mpicxx</commandlineTool>
           <incDir>
@@ -63,8 +70,8 @@
           </linkerAddLib>
           <commandlineTool>mpicxx</commandlineTool>
           <linkerLibItems>
-            <linkerLibLibItem>gts</linkerLibLibItem>
             <linkerLibLibItem>sc</linkerLibLibItem>
+            <linkerLibLibItem>gts</linkerLibLibItem>
           </linkerLibItems>
           <commandLine>-lglib-2.0</commandLine>
         </linkerTool>
@@ -81,6 +88,8 @@
       </item>
       <item path="Make.Linux" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="include/hilbert.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="include/pml.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="main.cpp" ex="false" tool="1" flavor2="0">
@@ -96,6 +105,8 @@
       <item path="src/hexa_unv.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_vtk.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="src/hilbert.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="src/intercept_surface.cpp" ex="false" tool="1" flavor2="0">
       </item>
@@ -144,6 +155,8 @@
       </item>
       <item path="Make.Linux" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="include/hilbert.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="include/pml.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="main.cpp" ex="false" tool="1" flavor2="0">
@@ -159,6 +172,8 @@
       <item path="src/hexa_unv.cpp" ex="false" tool="1" flavor2="0">
       </item>
       <item path="src/hexa_vtk.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="src/hilbert.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="src/intercept_surface.cpp" ex="false" tool="1" flavor2="0">
       </item>

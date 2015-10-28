@@ -43,6 +43,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/src/hexa_pml.o \
 	${OBJECTDIR}/src/hexa_unv.o \
 	${OBJECTDIR}/src/hexa_vtk.o \
+	${OBJECTDIR}/src/hilbert.o \
 	${OBJECTDIR}/src/intercept_surface.o
 
 
@@ -60,7 +61,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=-L/usr/local/lib -L/home/camata/local/lib -lgts -lsc
+LDLIBSOPTIONS=-L/usr/local/lib -L/home/camata/local/lib -lsc -lgts
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
@@ -109,6 +110,11 @@ ${OBJECTDIR}/src/hexa_vtk.o: src/hexa_vtk.cpp
 	${MKDIR} -p ${OBJECTDIR}/src
 	${RM} "$@.d"
 	$(COMPILE.cc) -g -Iinclude -I/usr/local/include -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/home/camata/local/include -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hexa_vtk.o src/hexa_vtk.cpp
+
+${OBJECTDIR}/src/hilbert.o: src/hilbert.c 
+	${MKDIR} -p ${OBJECTDIR}/src
+	${RM} "$@.d"
+	$(COMPILE.c) -g -Iinclude -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/src/hilbert.o src/hilbert.c
 
 ${OBJECTDIR}/src/intercept_surface.o: src/intercept_surface.cpp 
 	${MKDIR} -p ${OBJECTDIR}/src

@@ -13,6 +13,7 @@
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface, std::vector<double>& coords);
 void GetInterceptedElements(hexa_tree_t* tree, std::vector<double>& coords, std::vector<int> &element_ids);
+void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 /*
  * 
  */
@@ -32,8 +33,9 @@ int main(int argc, char** argv) {
     //hexa_debug_face_hanging(&mesh);
     
     hexa_mesh(&mesh);
-    GetMeshFromSurface(&mesh,"bedrock.gts", coords);
+    GetMeshFromSurface(&mesh,"simple.gts", coords);
     GetInterceptedElements(&mesh,coords,element_ids);
+    CheckTemplate(&mesh, coords, element_ids);
     // Add PML elements
 
     printf(" Elements intercepted: %d\n", element_ids.size() );
