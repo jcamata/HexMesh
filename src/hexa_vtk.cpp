@@ -237,8 +237,7 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
   char                vtufilename[BUFSIZ];
   FILE               *vtufile;
  
-
- 
+  
   /* Have each proc write to its own file */
   snprintf (vtufilename, BUFSIZ, "%s_%d_%d.vtu", filename, mesh->mpi_size, mesh->mpi_rank);
   vtufile = fopen (vtufilename, "w");
@@ -369,13 +368,13 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
     printf ("VTKIO: Error closing footer\n");
     return -1;
   }
-  
+
   if(mesh->mpi_rank == 0)
   {
         char                pvtufilename[BUFSIZ];
         FILE               *pvtufile;
         snprintf (pvtufilename, BUFSIZ, "%s.pvtu", filename);
-
+        
         pvtufile = fopen (pvtufilename, "w");
         if (!pvtufile) {
             printf ("Could not open %s for output!\n", vtufilename);
@@ -397,30 +396,28 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
         fprintf (pvtufile, "    <PPoints>\n");
         fprintf (pvtufile, "      <PDataArray type=\"%s\" Name=\"Position\" NumberOfComponents=\"3\" format=\"%s\"/>\n",VTK_FLOAT_NAME, VTK_FORMAT_STRING);
         fprintf (pvtufile, "    </PPoints>\n");
-        fprintf (vtufile, "     <PCellData Scalars=\"ElemType\" >\n");
-        fprintf (vtufile, "        <PDataArray type=\"%s\" Name=\"ElemType\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
-        fprintf (vtufile, "      </PCellData>\n"); 
-        fprintf (vtufile, "     <PPointData Scalars=\"NodePart\" >\n");
-        fprintf (vtufile, "        <PDataArray type=\"%s\" Name=\"NodePart\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
-        fprintf (vtufile, "      </PPointData>\n");
+        fprintf (pvtufile, "     <PCellData Scalars=\"ElemType\" >\n");
+        fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"ElemType\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
+        fprintf (pvtufile, "      </PCellData>\n"); 
+        fprintf (pvtufile, "     <PPointData Scalars=\"NodePart\" >\n");
+        fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"NodePart\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
+        fprintf (pvtufile, "      </PPointData>\n");
         for (int p = 0; p < mesh->mpi_size; ++p) {
             fprintf (pvtufile, "    <Piece Source=\"%s_%d_%d.vtu\"/>\n", filename, mesh->mpi_size, p);
         }
         fprintf (pvtufile, "  </PUnstructuredGrid>\n");
         fprintf (pvtufile, "</VTKFile>\n");
-
         if (ferror (pvtufile)) {
             printf ("vtk: Error writing parallel footer\n");
             fclose (pvtufile);
             return -1;
-        }
+        }     
         if (fclose (pvtufile)) {
             printf ("vtk: Error closing parallel footer\n");
             return -1;
         }
-        
-    }
- 
+
+  }
   return 0;
     
 }
