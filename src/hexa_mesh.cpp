@@ -368,9 +368,7 @@ void communicate_global_ids(hexa_tree_t* mesh)
     requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
     statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
     int c = 0;
-    
-    //printf("aqui 1\n");
-   
+       
     int offset = 0;
    
     // post all non-blocking receives
@@ -383,7 +381,6 @@ void communicate_global_ids(hexa_tree_t* mesh)
     
     assert(offset == mesh->comm_map.max_recvbuf_size);
     
-    //printf("aqui 2\n");
     offset = 0;
     for(int i = 0; i < mesh->comm_map.SendTo.elem_count; ++i) {
          message_t *m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
@@ -398,12 +395,10 @@ void communicate_global_ids(hexa_tree_t* mesh)
     }
      assert(offset == mesh->comm_map.max_sendbuf_size);
      
-     //printf("aqui 3\n");
      assert(c == n_requests);
      
     MPI_Waitall(n_requests,requests,statuses);
     
-    //printf("aqui 4\n");
     offset = 0;
     for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
         message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
@@ -414,15 +409,10 @@ void communicate_global_ids(hexa_tree_t* mesh)
         }
         offset += m->idxs.elem_count;
     }
-    
-   // printf("aqui 5\n");
-    
+        
     free(&recvbuf[0]);
     free(&sendbuf[0]);
     free(requests);
     free(statuses);
-    
-    //printf("aqui 6\n");
-    
+        
 }
-

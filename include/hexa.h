@@ -26,6 +26,8 @@ typedef struct {
     int32_t    x,y,z;
     int8_t     level;
     int8_t     pad;
+    int8_t     pml_id;
+//  int_8      mat; 
     octant_node_t nodes[8];
 } octant_t;
 
@@ -83,6 +85,7 @@ typedef struct {
     int32_t ncellx;
     int32_t ncelly;
     int32_t ncellz;
+    int32_t max_z;
     int     mpi_rank;
     int     mpi_size;
     int     max_levels;

@@ -26,7 +26,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
              
      //----------------------------
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
     
      //node 1
      node = &h->nodes[0];
@@ -86,7 +86,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -147,7 +147,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
      //node 1
      node = &h->nodes[0];
@@ -208,7 +208,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);     
+     //SetElemPML(mesh,h,step);
           //node 1
      node = &h->nodes[0];
      node->x = i;
@@ -267,7 +267,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -329,7 +329,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -391,7 +391,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -453,7 +453,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -515,7 +515,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -576,7 +576,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k+step;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -639,7 +639,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k+2*step;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
      //node 1
      node = &h->nodes[0];
@@ -702,7 +702,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k+step;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];
@@ -763,7 +763,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
      h->z = k+2*step;
      h->level = level;
      h->pad = 0;
-     SetElemPML(mesh,h,step);
+     //SetElemPML(mesh,h,step);
      
           //node 1
      node = &h->nodes[0];

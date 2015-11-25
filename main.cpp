@@ -14,6 +14,7 @@
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char* surface_topo, const char* coastline,std::vector<double>& coords);void GetInterceptedElements(hexa_tree_t* tree, std::vector<double>& coords, std::vector<int> &element_ids);
 void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
+void AddPMLElements(hexa_tree_t* mesh);
 /*
  * 
  */
@@ -31,19 +32,20 @@ int main(int argc, char** argv) {
     hexa_tree_init(&mesh,l);
     hexa_tree_cube(&mesh);
     //hexa_debug_face_hanging(&mesh);
+    AddPMLElements(&mesh);
+
     
     hexa_mesh(&mesh);
-    GetMeshFromSurface(&mesh, "Bathymetry.gts", "Topo.gts", "Argostoli_coastline.dat", coords); 
+    GetMeshFromSurface(&mesh, "./input/Bathymetry.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
     GetInterceptedElements(&mesh,coords,element_ids);
     CheckTemplate(&mesh, coords, element_ids);
-    // Add PML elements
 
     printf(" Elements intercepted: %d\n", element_ids.size() );
     
     hexa_mesh_write_vtk(&mesh,"mesh", &coords);
 
     //hexa_mesh_write_unv(&mesh,"test", &coords);
-    //hexa_mesh_write_vtk(&mesh,"template", NULL);
+    hexa_mesh_write_vtk(&mesh,"template", NULL);
     //hexa_mesh_write_unv(&mesh,"teste", NULL);
     hexa_tree_destroy(&mesh);
     hexa_finalize(&mesh);
