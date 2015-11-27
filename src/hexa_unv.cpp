@@ -105,9 +105,11 @@ void UNVIO_WriteElements(std::ofstream &out_file, hexa_tree_t* mesh) {
 }
 
 void UNVIO_WritePhysicalVolumes(std::ofstream &out_file, hexa_tree_t* mesh) {
-    int n_elements = mesh->elements.elem_count;
+    
     sc_array_t* elements = &mesh->elements;
 
+    int n_elements = mesh->elements.elem_count;
+    int total_n_mat = mesh->total_n_mat;
     int _physicalVolume_dataset_label = 2477;
     // Write beginning of dataset
     out_file << "    -1\n"
@@ -127,10 +129,10 @@ void UNVIO_WritePhysicalVolumes(std::ofstream &out_file, hexa_tree_t* mesh) {
             entity_node_leaf_id = 0,
             entity_component_id = 0;
 
-    std::vector<int> count(27);
+    std::vector<int> count(total_n_mat);
     std::vector<int> el_tab(n_elements);
     int counter = 1;
-    for (int n_mater = 1; n_mater <= 27; ++n_mater) {
+    for (int n_mater = 1; n_mater <= total_n_mat; ++n_mater) {
         count[n_mater] = 0;
         for (int iel = 0; iel < n_elements; ++iel) {
             octant_t* h = (octant_t*) sc_array_index(elements, iel);
@@ -144,7 +146,7 @@ void UNVIO_WritePhysicalVolumes(std::ofstream &out_file, hexa_tree_t* mesh) {
 
     counter = 1;
 
-    for (int n_mater = 1; n_mater <= 27; ++n_mater) {
+    for (int n_mater = 1; n_mater <= total_n_mat; ++n_mater) {
 
         if (count[n_mater] != 0) {
             //describe the data set

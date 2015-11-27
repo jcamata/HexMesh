@@ -22,15 +22,13 @@ typedef struct {
     int node_id;
 } node_in_edge_t;
 
-
-unsigned edge_hash_fn (const void *v, const void *u)
-{
-  const node_in_edge_t *q = (const node_in_edge_t*) v;
-  bitmask_t index;
-  index = hilbert_c2i(2,32, q->coord);
-  return (unsigned) index;
+unsigned edge_hash_fn(const void *v, const void *u) {
+    const node_in_edge_t *q = (const node_in_edge_t*) v;
+    bitmask_t index;
+    index = hilbert_c2i(2, 32, q->coord);
+    return (unsigned) index;
 }
- 
+
 int edge_equal_fn(const void *v, const void *u, const void *w) {
     const node_in_edge_t *e1 = (const node_in_edge_t*) v;
     const node_in_edge_t *e2 = (const node_in_edge_t*) u;
@@ -99,8 +97,6 @@ gdouble distance(GtsPoint *p, gpointer bounded) {
     return gts_point_triangle_distance(p, t);
 }
 
-//int pnpoly(int nvert, std::vector<float>& vertx, std::vector<float>& verty, float testx, float testy)
-
 int pnpoly(int nvert, std::vector<Point2D>& vert, double testx, double testy) {
     int i, j, c = 0;
     for (i = 0, j = nvert - 1; i < nvert; j = i++) {
@@ -123,7 +119,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
     double dx, dy, dz;
     sc_array_t *nodes = &tree->nodes;
     sc_array_t *elements = &tree->elements;
-    
+
     hexa_tree_t tree_t;
 
 
@@ -162,14 +158,12 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
     tree->gdata.bbt = gts_bb_tree_surface(tree->gdata.s);
     tree_t.gdata.bbt = gts_bb_tree_surface(tree_t.gdata.s);
 
-    //p = gts_point_new(gts_point_class(), 0.0 , 0.0 , tree->gdata.bbox->z2);
     p = gts_point_new(gts_point_class(), 0.0, 0.0, tree_t.gdata.bbox->z2);
 
     //GSList *list = gts_bb_tree_overlap(t, box);
     // Call the coastline reader
     SetOfCoastLine scl;
     Coastline_Reader(coastline, &scl);
-    //std::cout << scl.npart << std::endl;
 
     for (int i = 0; i < nodes->elem_count; ++i) {
         octant_node_t* n = (octant_node_t*) sc_array_index(nodes, i);
@@ -178,25 +172,25 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
         double xp = tree->gdata.bbox->x1 + n->x*dx;
         double yp = tree->gdata.bbox->y1 + n->y*dy;
         double d;
-        //for (int ii = 0; ii < 10; ++ii) {
+        double zmax;
         for (int ii = 0; ii < scl.npart - 1; ++ii) {
-            //std::cout << scl.coastlines[ii].npoints << std::endl;
             int tes = pnpoly(scl.coastlines[ii].npoints, scl.coastlines[ii].points, xp, yp);
             if (tes == 0) {
                 d = gts_bb_tree_point_distance(tree->gdata.bbt, p, distance, NULL);
+                zmax = 0;
             } else {
                 d = gts_bb_tree_point_distance(tree_t.gdata.bbt, p, distance, NULL);
+                zmax = tree_t.gdata.bbox->z2 - d;
                 break;
             }
         }
-            double zmax = tree_t.gdata.bbox->z2 - d;
-            if (zmax < 0.0) zmax = 0.0;
-            dz = (zmax - zmin) / (double) tree->ncellz;
-            double z = zmax - (n->z) * dz;
-            
-            coords[i * 3 + 0] = p->x;
-            coords[i * 3 + 1] = p->y;
-            coords[i * 3 + 2] = z;
+
+        dz = (zmax - zmin) / (double) tree->ncellz;
+        double z = zmax - (n->z) * dz;
+
+        coords[i * 3 + 0] = p->x;
+        coords[i * 3 + 1] = p->y;
+        coords[i * 3 + 2] = z;
     }
 }
 

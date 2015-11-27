@@ -27,12 +27,9 @@ typedef struct {
     int8_t     level;
     int8_t     pad;
     int8_t     pml_id;
-    int        n_mat; 
+    int        n_mat;
     octant_node_t nodes[8];
 } octant_t;
-
-
-
 
 typedef struct shared_node
 {
@@ -72,6 +69,7 @@ typedef struct {
     
     int64_t total_n_elements;
     int64_t total_n_nodes;
+    int        total_n_mat;
     
     int32_t local_n_elements;
     int32_t local_n_nodes;
