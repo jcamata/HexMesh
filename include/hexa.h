@@ -27,7 +27,7 @@ typedef struct {
     int8_t     level;
     int8_t     pad;
     int8_t     pml_id;
-//  int_8      mat; 
+    int        n_mat; 
     octant_node_t nodes[8];
 } octant_t;
 

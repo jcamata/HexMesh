@@ -169,7 +169,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
     // Call the coastline reader
     SetOfCoastLine scl;
     Coastline_Reader(coastline, &scl);
-    std::cout << scl.npart << std::endl;
+    //std::cout << scl.npart << std::endl;
 
     for (int i = 0; i < nodes->elem_count; ++i) {
         octant_node_t* n = (octant_node_t*) sc_array_index(nodes, i);
@@ -193,7 +193,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
             if (zmax < 0.0) zmax = 0.0;
             dz = (zmax - zmin) / (double) tree->ncellz;
             double z = zmax - (n->z) * dz;
-
+            
             coords[i * 3 + 0] = p->x;
             coords[i * 3 + 1] = p->y;
             coords[i * 3 + 2] = z;
