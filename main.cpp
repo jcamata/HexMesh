@@ -38,15 +38,15 @@ int main(int argc, char** argv) {
     hexa_mesh(&mesh);
     GetMeshFromSurface(&mesh, "./input/Bathymetry.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
     GetInterceptedElements(&mesh,coords,element_ids);
-    //CheckTemplate(&mesh, coords, element_ids);
+    CheckTemplate(&mesh, coords, element_ids);
 
     printf(" Elements intercepted: %d\n", element_ids.size() );
     
     hexa_mesh_write_vtk(&mesh,"mesh", &coords);
 
-    //hexa_mesh_write_unv(&mesh,"test", &coords);
-    //hexa_mesh_write_vtk(&mesh,"template", NULL);
-    //hexa_mesh_write_unv(&mesh,"teste", NULL);
+    hexa_mesh_write_unv(&mesh,"test", &coords);
+    hexa_mesh_write_vtk(&mesh,"template", NULL);
+    hexa_mesh_write_unv(&mesh,"teste", NULL);
     hexa_tree_destroy(&mesh);
     hexa_finalize(&mesh);
     return 0;

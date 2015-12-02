@@ -1,6 +1,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
 

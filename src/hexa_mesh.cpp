@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <sc.h>
 
 #include "hexa.h"
 void communicate_global_ids(hexa_tree_t* mesh);
