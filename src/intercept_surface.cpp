@@ -256,8 +256,10 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
     GtsEdge * AB, * BC, * CA;
     gdouble a, b, c;
 
-    g_return_val_if_fail(s != NULL, NULL);
-    g_return_val_if_fail(t != NULL, NULL);
+    //g_return_val_if_fail(s != NULL, NULL);
+    //g_return_val_if_fail(t != NULL, NULL);
+    if( s == NULL) return NULL;
+    if (t == NULL) return NULL;
 
     gts_triangle_vertices_edges(t, NULL,
             (GtsVertex **) & A,

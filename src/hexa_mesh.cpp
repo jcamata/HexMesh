@@ -88,8 +88,8 @@ void hexa_mesh(hexa_tree_t* mesh)
     int num_indep_nodes = 0;
     int64_t    local[2], global[2];
     
-    indep_nodes     = sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
-    shared_nodes    = sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
+    indep_nodes     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
+    shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
     
     for(int i = 0; i < mesh->elements.elem_count; i++)
     {
@@ -193,8 +193,8 @@ void hexa_mesh(hexa_tree_t* mesh)
     int my_own_nodes    = 0;
     mesh->global_id     = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
     memset(mesh->global_id,-2,mesh->local_n_nodes*sizeof(int64_t));
-    SendTo   = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
-    RecvFrom = sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+    SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+    RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
     
     for(int i = 0; i < mesh->shared_nodes.elem_count; ++i)
     { 
