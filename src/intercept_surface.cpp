@@ -22,11 +22,26 @@ typedef struct {
     int node_id;
 } node_in_edge_t;
 
+/*
 unsigned edge_hash_fn(const void *v, const void *u) {
     const node_in_edge_t *q = (const node_in_edge_t*) v;
     bitmask_t index;
     index = hilbert_c2i(2, 32, q->coord);
     return (unsigned) index;
+}
+ * 
+ */
+
+unsigned edge_hash_fn(const void *v, const void *u) {
+    const node_in_edge_t *q = (const node_in_edge_t*) v;
+    uint32_t a, b, c;
+
+    a = (uint32_t) q->coord[0];
+    b = (uint32_t) q->coord[1];
+    c = (uint32_t) 0;
+    sc_hash_mix(a, b, c);
+    sc_hash_final(a, b, c);
+    return (unsigned) c;
 }
 
 int edge_equal_fn(const void *v, const void *u, const void *w) {
@@ -63,6 +78,20 @@ int FaceEdgesMap[6][4] = {
     {8, 9, 10, 11}
 };
 
+int EdgeEdgeMap[12][4] = {
+    {3, 4, 1, 5}, // Edge 0
+    {0, 5, 2, 6}, // Edge 1
+    {1, 6, 3, 7}, //      2
+    {2, 7, 0, 4,}, //3  
+    {0, 3, 8, 11}, //4 
+    {1, 0, 9, 8}, //5
+    {2, 1, 10, 9}, //6
+    {3, 2, 11, 10}, //7
+    {11, 4, 9, 5}, //8
+    {8, 5, 10, 6}, //9 
+    {9, 6, 11, 7}, //10 
+    {10, 7, 8, 9}//11
+};
 
 // Read the gts file format and create a gts surface.
 
@@ -143,6 +172,16 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
         printf(" z ranges from %f to %f\n", tree->gdata.bbox->z1, tree->gdata.bbox->z2);
     }
 
+    //double factor = 0.01;
+    double x_factor = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1)*0.01;
+    double y_factor = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1)*0.01;
+
+    tree->gdata.bbox->x1 += x_factor;
+    tree->gdata.bbox->y1 += y_factor;
+
+    tree->gdata.bbox->x2 -= x_factor;
+    tree->gdata.bbox->y2 -= y_factor;
+
     double Lx = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1);
     double Ly = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1);
     double zmin = ((Lx < Ly) ? -Lx : -Ly);
@@ -198,6 +237,7 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
     sc_array_t *elements = &mesh->elements;
     GtsBBox *box;
 
+
     box = gts_bbox_new(gts_bbox_class(), 0, 0, 0, 0, 1, 1, 1);
 
     for (int iel = 0; iel < elements->elem_count; ++iel) {
@@ -222,11 +262,14 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
         }
         elem->pad = 0;
 
+        //mesh->gdata.s = SurfaceRead("./input/templete2.gts");
+        //mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+        //mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
+
         if (gts_bb_tree_is_overlapping(mesh->gdata.bbt, box)) {
             elements_ids.push_back(iel);
             elem->pad = 1;
         }
-
     }
 }
 
@@ -256,10 +299,10 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
     GtsEdge * AB, * BC, * CA;
     gdouble a, b, c;
 
-    //g_return_val_if_fail(s != NULL, NULL);
-    //g_return_val_if_fail(t != NULL, NULL);
-    if( s == NULL) return NULL;
-    if (t == NULL) return NULL;
+    g_return_val_if_fail(s != NULL, NULL);
+    g_return_val_if_fail(t != NULL, NULL);
+    //if( s == NULL) return NULL;
+    //if (t == NULL) return NULL;
 
     gts_triangle_vertices_edges(t, NULL,
             (GtsVertex **) & A,
@@ -316,7 +359,9 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
             (E->z + D->z) / 2.);
 }
 
-void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
+//void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, sc_array_t* intercepted_elements) {
+
+void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
     bool clamped = true;
     GtsSegment * segments[12];
     bool face_intecepted[6];
@@ -324,14 +369,18 @@ void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
     int Edge2GNode[12][2];
     int conn_p[4];
     int original_conn[8];
+    int connec_order_in[8];
+    int connec_order_out1[8];
+    int connec_order_out2[8];
+    int cut_edge[4];
+
     FILE * fdbg;
 
+    int id_offset = 0;
 
     fdbg = fopen("intercepted_faces.dbg", "w");
 
-
     sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (node_in_edge_t), edge_hash_fn, edge_equal_fn, &clamped);
-
 
     for (int iel = 0; iel < elements_ids.size(); ++iel) {
         octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
@@ -341,11 +390,12 @@ void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
         //double z = (coords[original_conn[0]+2] + coords[original_conn[2]+2])*0.5;
         //if(z >= 0.0) continue;
-
         for (int edge = 0; edge < 12; ++edge) {
             point[edge] = NULL;
             int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
             int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+
+            fprintf(fdbg, " Nodes : %d, %d\n", node1, node2);
 
             Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
             Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
@@ -356,16 +406,19 @@ void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
             GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
             GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
             if (list == NULL) continue;
             while (list) {
                 GtsBBox *b = GTS_BBOX(list->data);
                 point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
-                if (point[edge]) break;
+                if (point[edge]) {
+                    fprintf(fdbg, "edge, %d\n ", edge);
+                    break;
+                }
                 list = list->next;
             }
-
         }
-
+        fprintf(fdbg, "\n ");
 
         //check parallel faces
         for (int face = 0; face < 6; ++face) {
@@ -392,180 +445,356 @@ void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             // Apply template 1.
             elem->pad = 1;
 #if 0
-            if (((!face_intecepted[0]) && (!face_intecepted[1])) && (face_intecepted[2] && face_intecepted[3] &&
+
+            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
                     face_intecepted[4] && face_intecepted[5])) {
-                // New points are created splitting edges 0,2,8,10
-                // Two new elements are created
-                //  NP1 = Point splitting Edge1 
+                //cut_edge = {3, 2, 11, 9};
+                //connec_order_in = {0, 1, 4, 5, 2, 3, 6, 7};
+                //connec_order_out1 = {0, 1, 4, 5, 3, 2, 6, 7};
+                //connec_order_out2 = {0, 1, 4, 5, 2, 3, 6, 7};
 
+                cut_edge[0] = 3;
+                cut_edge[1] = 1;
+                cut_edge[2] = 11;
+                cut_edge[3] = 9;
 
-                GtsPoint *p0 = point[3];
-                GtsPoint *p1 = point[1];
-                GtsPoint *p2 = point[11];
-                GtsPoint *p3 = point[9];
+                connec_order_in[0] = 0;
+                connec_order_in[1] = 1;
+                connec_order_in[2] = 4;
+                connec_order_in[3] = 5;
+                connec_order_in[4] = 2;
+                connec_order_in[5] = 3;
+                connec_order_in[6] = 6;
+                connec_order_in[7] = 7;
 
-                g_assert(p0 != NULL);
-                g_assert(p1 != NULL);
-                g_assert(p2 != NULL);
-                g_assert(p3 != NULL);
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 5;
+                connec_order_out1[4] = 3;
+                connec_order_out1[5] = 2;
+                connec_order_out1[6] = 7;
+                connec_order_out1[7] = 6;
 
-                conn_p[0] = AddPointOnEdge(EdgeVerticesMap[3], hash_nodes, mesh->local_n_nodes, p0, coords);
-                conn_p[1] = AddPointOnEdge(EdgeVerticesMap[1], hash_nodes, mesh->local_n_nodes, p1, coords);
-                conn_p[2] = AddPointOnEdge(EdgeVerticesMap[11], hash_nodes, mesh->local_n_nodes, p2, coords);
-                conn_p[3] = AddPointOnEdge(EdgeVerticesMap[9], hash_nodes, mesh->local_n_nodes, p3, coords);
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 1;
+                connec_order_out2[2] = 4;
+                connec_order_out2[3] = 5;
+                connec_order_out2[4] = 2;
+                connec_order_out2[5] = 3;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
 
-                // Remove the parent element form the list and
-                // introduce two new children elements
-                // Elem 1:
-                // N0, NP1, NP2, N3, N4, NP3, NP4, N7
-                // Elem 2:
-                // NP1, N1, N2, NP2, NP3, N5, N6, NP4
-                // Reajustando o array de elementos.
-                // Inserindo mais um elemento entre os indices elements_ids[i] e 
-                // elements_ids[i]+1
-
-                shift_n_position_from_index(&mesh->elements, 1, elements_ids[iel]);
-
-
-
-                elem->nodes[0].id = original_conn[0];
-                elem->nodes[1].id = original_conn[1];
-                elem->nodes[2].id = conn_p[1];
-                elem->nodes[3].id = conn_p[0];
-                elem->nodes[4].id = original_conn[4];
-                elem->nodes[5].id = original_conn[5];
-                elem->nodes[6].id = conn_p[3];
-                elem->nodes[7].id = conn_p[2];
-
-                octant_t *elem2 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel] + 1);
-
-                elem2->nodes[0].id = conn_p[0];
-                elem2->nodes[1].id = conn_p[1];
-                elem2->nodes[2].id = original_conn[2];
-                elem2->nodes[3].id = original_conn[3];
-                elem2->nodes[4].id = conn_p[2];
-                elem2->nodes[5].id = conn_p[3];
-                elem2->nodes[6].id = original_conn[7];
-                elem2->nodes[7].id = original_conn[7];
-
-                elem2->pad = elem->pad;
-                elem2->level = elem->level;
-
-
-            } else if ((!face_intecepted[2]) && (!face_intecepted[3]) && (face_intecepted[0] && face_intecepted[1] &&
+            } else if ((face_intecepted[2]) && (face_intecepted[3]) && (!face_intecepted[0] && !face_intecepted[1] &&
                     face_intecepted[4] && face_intecepted[5])) {
-                // New points are created splitting edges 0,2,8,10
-                // Two new elements are created
-                //  NP1 = Point splitting Edge1  
-                GtsPoint *p0 = point[0];
-                GtsPoint *p1 = point[2];
-                GtsPoint *p2 = point[8];
-                GtsPoint *p3 = point[10];
+                //cut_edge = {0, 2, 8, 10};
+                //connec_order_in = {0, 3, 4, 7, 1, 2, 5, 6};
+                //connec_order_out1 = {0, 3, 4, 7, 1, 2, 5, 6};
+                //connec_order_out2 = {0, 3, 4, 7, 1, 2, 5, 6};
 
-                g_assert(p0 != NULL);
-                g_assert(p1 != NULL);
-                g_assert(p2 != NULL);
-                g_assert(p3 != NULL);
+                cut_edge[0] = 0;
+                cut_edge[1] = 2;
+                cut_edge[2] = 8;
+                cut_edge[3] = 10;
 
-                conn_p[0] = AddPointOnEdge(EdgeVerticesMap[0 ], hash_nodes, mesh->local_n_nodes, p0, coords);
-                conn_p[1] = AddPointOnEdge(EdgeVerticesMap[2 ], hash_nodes, mesh->local_n_nodes, p1, coords);
-                conn_p[2] = AddPointOnEdge(EdgeVerticesMap[8 ], hash_nodes, mesh->local_n_nodes, p2, coords);
-                conn_p[3] = AddPointOnEdge(EdgeVerticesMap[10], hash_nodes, mesh->local_n_nodes, p3, coords);
+                connec_order_in[0] = 0;
+                connec_order_in[1] = 3;
+                connec_order_in[2] = 4;
+                connec_order_in[3] = 7;
+                connec_order_in[4] = 1;
+                connec_order_in[5] = 2;
+                connec_order_in[6] = 5;
+                connec_order_in[7] = 6;
 
-                // Remove the parent element form the list and
-                // introduce two new children elements
-                // Elem 1:
-                // N0, NP1, NP2, N3, N4, NP3, NP4, N7
-                // Elem 2:
-                // NP1, N1, N2, NP2, NP3, N5, N6, NP4
-                // Reajustando o array de elementos.
-                // Inserindo mais um elemento entre os indices elements_ids[i] e 
-                // elements_ids[i]+1
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 1;
+                connec_order_out1[5] = 2;
+                connec_order_out1[6] = 5;
+                connec_order_out1[7] = 6;
 
-                shift_n_position_from_index(&mesh->elements, 1, elements_ids[iel]);
-
-
-                elem->nodes[0].id = original_conn[0];
-                elem->nodes[1].id = conn_p[0];
-                elem->nodes[2].id = conn_p[1];
-                elem->nodes[3].id = original_conn[3];
-                elem->nodes[4].id = original_conn[4];
-                elem->nodes[5].id = conn_p[2];
-                elem->nodes[6].id = conn_p[3];
-                elem->nodes[7].id = original_conn[4];
-
-                octant_t *elem2 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel] + 1);
-
-                elem2->nodes[0].id = conn_p[0];
-                elem2->nodes[1].id = original_conn[1];
-                elem2->nodes[2].id = original_conn[2];
-                elem2->nodes[3].id = conn_p[1];
-                elem2->nodes[4].id = conn_p[2];
-                elem2->nodes[5].id = original_conn[5];
-                elem2->nodes[6].id = original_conn[6];
-                elem2->nodes[7].id = conn_p[3];
-
-                elem2->pad = elem->pad;
-                elem2->level = elem->level;
-
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 3;
+                connec_order_out2[2] = 4;
+                connec_order_out2[3] = 7;
+                connec_order_out2[4] = 1;
+                connec_order_out2[5] = 2;
+                connec_order_out2[6] = 5;
+                connec_order_out2[7] = 6;
 
             } else if ((!face_intecepted[4]) && (!face_intecepted[5]) && (face_intecepted[0] && face_intecepted[1] &&
                     face_intecepted[2] && face_intecepted[3])) {
-                // New points are created splitting edges 0,2,8,10
-                // Two new elements are created
-                //  NP1 = Point splitting Edge1  
-                GtsPoint *p0 = point[4];
-                GtsPoint *p1 = point[5];
-                GtsPoint *p2 = point[6];
-                GtsPoint *p3 = point[7];
+                //cut_edge = {4, 5, 6, 7};
+                //connec_order_in = {0, 1, 2, 3, 4, 5, 6, 7};
+                //connec_order_out1 = {0, 1, 2, 3, 4, 5, 6, 7};
+                //connec_order_out2 = {0, 1, 2, 3, 4, 5, 6, 7};
 
-                g_assert(p0 != NULL);
-                g_assert(p1 != NULL);
-                g_assert(p2 != NULL);
-                g_assert(p3 != NULL);
-                // Remove the parent element form the list and
-                // introduce two new children elements
-                // Elem 1:
-                // N0, NP1, NP2, N3, N4, NP3, NP4, N7
-                // Elem 2:
-                // NP1, N1, N2, NP2, NP3, N5, N6, NP4
-                // Reajustando o array de elementos.
-                // Inserindo mais um elemento entre os indices elements_ids[i] e 
-                // elements_ids[i]+1
+                cut_edge[0] = 4;
+                cut_edge[1] = 5;
+                cut_edge[2] = 6;
+                cut_edge[3] = 7;
 
-                shift_n_position_from_index(&mesh->elements, 1, elements_ids[iel]);
+                connec_order_in[0] = 0;
+                connec_order_in[1] = 1;
+                connec_order_in[2] = 2;
+                connec_order_in[3] = 3;
+                connec_order_in[4] = 4;
+                connec_order_in[5] = 5;
+                connec_order_in[6] = 6;
+                connec_order_in[7] = 7;
 
-                conn_p[0] = AddPointOnEdge(EdgeVerticesMap[4 ], hash_nodes, mesh->local_n_nodes, p0, coords);
-                conn_p[1] = AddPointOnEdge(EdgeVerticesMap[5 ], hash_nodes, mesh->local_n_nodes, p1, coords);
-                conn_p[2] = AddPointOnEdge(EdgeVerticesMap[6 ], hash_nodes, mesh->local_n_nodes, p2, coords);
-                conn_p[3] = AddPointOnEdge(EdgeVerticesMap[7 ], hash_nodes, mesh->local_n_nodes, p3, coords);
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 2;
+                connec_order_out1[3] = 3;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 5;
+                connec_order_out1[6] = 6;
+                connec_order_out1[7] = 7;
 
-
-                elem->nodes[0].id = original_conn[0];
-                elem->nodes[1].id = original_conn[1];
-                elem->nodes[2].id = original_conn[2];
-                elem->nodes[3].id = original_conn[3];
-                elem->nodes[4].id = conn_p[0];
-                elem->nodes[5].id = conn_p[1];
-                elem->nodes[6].id = conn_p[2];
-                elem->nodes[7].id = conn_p[3];
-
-                octant_t *elem2 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel] + 1);
-
-                elem2->nodes[0].id = conn_p[0];
-                elem2->nodes[1].id = conn_p[1];
-                elem2->nodes[2].id = conn_p[2];
-                elem2->nodes[3].id = conn_p[3];
-                elem2->nodes[4].id = original_conn[4];
-                elem2->nodes[5].id = original_conn[5];
-                elem2->nodes[6].id = original_conn[6];
-                elem2->nodes[7].id = original_conn[7];
-
-                elem2->pad = elem->pad;
-                elem2->level = elem->level;
-
-
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 1;
+                connec_order_out2[2] = 2;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 4;
+                connec_order_out2[5] = 5;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
             }
+
+            GtsPoint *p0 = point[cut_edge[0]];
+            GtsPoint *p1 = point[cut_edge[1]];
+            GtsPoint *p2 = point[cut_edge[2]];
+            GtsPoint *p3 = point[cut_edge[3]];
+
+            g_assert(p0 != NULL);
+            g_assert(p1 != NULL);
+            g_assert(p2 != NULL);
+            g_assert(p3 != NULL);
+
+            conn_p[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
+            conn_p[1] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p1, coords);
+            conn_p[2] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p2, coords);
+            conn_p[3] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p3, coords);
+
+            octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+            elem1->nodes[connec_order_out1[0]].id = original_conn[connec_order_in[0]];
+            elem1->nodes[connec_order_out1[1]].id = original_conn[connec_order_in[1]];
+            elem1->nodes[connec_order_out1[2]].id = original_conn[connec_order_in[2]];
+            elem1->nodes[connec_order_out1[3]].id = original_conn[connec_order_in[3]];
+
+            elem1->nodes[connec_order_out1[4]].id = conn_p[0];
+            elem1->nodes[connec_order_out1[5]].id = conn_p[1];
+            elem1->nodes[connec_order_out1[6]].id = conn_p[2];
+            elem1->nodes[connec_order_out1[7]].id = conn_p[3];
+
+            octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+            id_offset++;
+
+            elem2->nodes[connec_order_out2[0]].id = conn_p[0];
+            elem2->nodes[connec_order_out2[1]].id = conn_p[1];
+            elem2->nodes[connec_order_out2[2]].id = conn_p[2];
+            elem2->nodes[connec_order_out2[3]].id = conn_p[3];
+
+            elem2->nodes[connec_order_out2[4]].id = original_conn[connec_order_in[4]];
+            elem2->nodes[connec_order_out2[5]].id = original_conn[connec_order_in[5]];
+            elem2->nodes[connec_order_out2[6]].id = original_conn[connec_order_in[6]];
+            elem2->nodes[connec_order_out2[7]].id = original_conn[connec_order_in[7]];
+
+            elem2->pad = elem->pad;
+            elem2->level = elem->level;
+
+            /*
+
+                        if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
+                                face_intecepted[4] && face_intecepted[5])) {
+
+                            // New points are created splitting edges 0,2,8,10
+                            // Two new elements are created
+                            //  NP1 = Point splitting Edge1 
+
+                            printf("primeiro\n");
+
+                            GtsPoint *p0 = point[3];
+                            GtsPoint *p1 = point[1];
+                            GtsPoint *p2 = point[11];
+                            GtsPoint *p3 = point[9];
+
+                            g_assert(p0 != NULL);
+                            g_assert(p1 != NULL);
+                            g_assert(p2 != NULL);
+                            g_assert(p3 != NULL);
+
+                            conn_p[0] = AddPointOnEdge(Edge2GNode[3], hash_nodes, mesh->local_n_nodes, p0, coords);
+                            conn_p[1] = AddPointOnEdge(Edge2GNode[1], hash_nodes, mesh->local_n_nodes, p1, coords);
+                            conn_p[2] = AddPointOnEdge(Edge2GNode[11], hash_nodes, mesh->local_n_nodes, p2, coords);
+                            conn_p[3] = AddPointOnEdge(Edge2GNode[9], hash_nodes, mesh->local_n_nodes, p3, coords);
+
+                            // Remove the parent element form the list and
+                            // introduce two new children elements
+                            // Elem 1:
+                            // N0, NP1, NP2, N3, N4, NP3, NP4, N7
+                            // Elem 2:
+                            // NP1, N1, N2, NP2, NP3, N5, N6, NP4
+                            // Reajustando o array de elementos.
+                            // Inserindo mais um elemento entre os indices elements_ids[i] e 
+                            // elements_ids[i]+1
+
+                            octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elem->id + id_offset);
+
+                            elem1->nodes[0].id = original_conn[0];
+                            elem1->nodes[1].id = original_conn[1];
+                            elem1->nodes[4].id = original_conn[4];
+                            elem1->nodes[5].id = original_conn[5];
+
+                            elem1->nodes[3].id = conn_p[0];
+                            elem1->nodes[2].id = conn_p[1];
+                            elem1->nodes[6].id = conn_p[3];
+                            elem1->nodes[7].id = conn_p[2];
+
+                            //shift_n_position_from_index(&mesh->elements, 1, elem->id);
+
+                            //octant_t *elem2 = (octant_t*) sc_array_index(&mesh->elements, elem->id + id_offset + 1);
+                            octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+                            id_offset++;
+
+                            elem2->nodes[0].id = conn_p[0];
+                            elem2->nodes[1].id = conn_p[1];
+                            elem2->nodes[4].id = conn_p[2];
+                            elem2->nodes[5].id = conn_p[3];
+                            elem2->nodes[2].id = original_conn[2];
+                            elem2->nodes[3].id = original_conn[3];
+                            elem2->nodes[6].id = original_conn[6];
+                            elem2->nodes[7].id = original_conn[7];
+
+                            elem2->pad = elem->pad;
+                            elem2->level = elem->level;
+
+
+                        } else if ((face_intecepted[2]) && (face_intecepted[3]) && (!face_intecepted[0] && !face_intecepted[1] &&
+                                face_intecepted[4] && face_intecepted[5])) {
+                            // New points are created splitting edges 0,2,8,10
+                            // Two new elements are created
+                            //  NP1 = Point splitting Edge1  
+                            GtsPoint *p0 = point[0];
+                            GtsPoint *p1 = point[2];
+                            GtsPoint *p2 = point[8];
+                            GtsPoint *p3 = point[10];
+
+                            printf("segundo %d\n",point[0]);
+
+                            g_assert(p0 != NULL);
+                            g_assert(p1 != NULL);
+                            g_assert(p2 != NULL);
+                            g_assert(p3 != NULL);
+
+                            conn_p[0] = AddPointOnEdge(Edge2GNode[0 ], hash_nodes, mesh->local_n_nodes, p0, coords);
+                            conn_p[1] = AddPointOnEdge(Edge2GNode[2 ], hash_nodes, mesh->local_n_nodes, p1, coords);
+                            conn_p[2] = AddPointOnEdge(Edge2GNode[8 ], hash_nodes, mesh->local_n_nodes, p2, coords);
+                            conn_p[3] = AddPointOnEdge(Edge2GNode[10], hash_nodes, mesh->local_n_nodes, p3, coords);
+
+                            // Remove the parent element form the list and
+                            // introduce two new children elements
+                            // Elem 1:
+                            // N0, NP1, NP2, N3, N4, NP3, NP4, N7
+                            // Elem 2:
+                            // NP1, N1, N2, NP2, NP3, N5, N6, NP4
+                            // Reajustando o array de elementos.
+                            // Inserindo mais um elemento entre os indices elements_ids[i] e 
+                            // elements_ids[i]+1
+
+                            octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elem->id + id_offset);
+
+                            elem1->nodes[0].id = original_conn[0];
+                            elem1->nodes[1].id = conn_p[0];
+                            elem1->nodes[2].id = conn_p[1];
+                            elem1->nodes[3].id = original_conn[3];
+                            elem1->nodes[4].id = original_conn[4];
+                            elem1->nodes[5].id = conn_p[2];
+                            elem1->nodes[6].id = conn_p[3];
+                            elem1->nodes[7].id = original_conn[7];
+
+                            //shift_n_position_from_index(&mesh->elements, 1, elem->id);
+
+                            //octant_t *elem2 = (octant_t*) sc_array_index(&mesh->elements, elem->id + id_offset + 1);
+                            octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+                            id_offset++;
+
+                            elem2->nodes[0].id = conn_p[0];
+                            elem2->nodes[1].id = original_conn[1];
+                            elem2->nodes[2].id = original_conn[2];
+                            elem2->nodes[3].id = conn_p[1];
+                            elem2->nodes[4].id = conn_p[2];
+                            elem2->nodes[5].id = original_conn[5];
+                            elem2->nodes[6].id = original_conn[6];
+                            elem2->nodes[7].id = conn_p[3];
+
+                            elem2->pad = elem->pad;
+                            elem2->level = elem->level;
+
+                        } else if ((!face_intecepted[4]) && (!face_intecepted[5]) && (face_intecepted[0] && face_intecepted[1] &&
+                                face_intecepted[2] && face_intecepted[3])) {
+                            // New points are created splitting edges 0,2,8,10
+                            // Two new elements are created
+                            //  NP1 = Point splitting Edge1  
+                            GtsPoint *p0 = point[4];
+                            GtsPoint *p1 = point[5];
+                            GtsPoint *p2 = point[6];
+                            GtsPoint *p3 = point[7];
+
+                            g_assert(p0 != NULL);
+                            g_assert(p1 != NULL);
+                            g_assert(p2 != NULL);
+                            g_assert(p3 != NULL);
+
+                            // Remove the parent element form the list and
+                            // introduce two new children elements
+                            // Elem 1:
+                            // N0, NP1, NP2, N3, N4, NP3, NP4, N7
+                            // Elem 2:
+                            // NP1, N1, N2, NP2, NP3, N5, N6, NP4
+                            // Reajustando o array de elementos.
+                            // Inserindo mais um elemento entre os indices elements_ids[i] e 
+                            // elements_ids[i]+1
+                            conn_p[0] = AddPointOnEdge(Edge2GNode[4 ], hash_nodes, mesh->local_n_nodes, p0, coords);
+                            conn_p[1] = AddPointOnEdge(Edge2GNode[5 ], hash_nodes, mesh->local_n_nodes, p1, coords);
+                            conn_p[2] = AddPointOnEdge(Edge2GNode[6 ], hash_nodes, mesh->local_n_nodes, p2, coords);
+                            conn_p[3] = AddPointOnEdge(Edge2GNode[7 ], hash_nodes, mesh->local_n_nodes, p3, coords);
+
+                            fprintf(fdbg, " Conn_p %d, %d, %d, %d\n", conn_p[0], conn_p[1], conn_p[2], conn_p[3]);
+                            octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elem->id + id_offset);
+
+                            elem1->nodes[0].id = original_conn[0];
+                            elem1->nodes[1].id = original_conn[1];
+                            elem1->nodes[2].id = original_conn[2];
+                            elem1->nodes[3].id = original_conn[3];
+                            elem1->nodes[4].id = conn_p[0];
+                            elem1->nodes[5].id = conn_p[1];
+                            elem1->nodes[6].id = conn_p[2];
+                            elem1->nodes[7].id = conn_p[3];
+
+                            //shift_n_position_from_index(&mesh->elements, 1, elem->id);
+
+                            //octant_t *elem2 = (octant_t*) sc_array_index(&mesh->elements, elem->id + id_offset + 1);
+                            octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+                            id_offset++;
+
+                            elem2->nodes[0].id = conn_p[0];
+                            elem2->nodes[1].id = conn_p[1];
+                            elem2->nodes[2].id = conn_p[2];
+                            elem2->nodes[3].id = conn_p[3];
+                            elem2->nodes[4].id = original_conn[4];
+                            elem2->nodes[5].id = original_conn[5];
+                            elem2->nodes[6].id = original_conn[6];
+                            elem2->nodes[7].id = original_conn[7];
+
+                            elem2->pad = elem->pad;
+                            elem2->level = elem->level;
+                        }
+             */
 #endif
 
             for (int edge = 0; edge < 12; edge++) {
@@ -573,15 +802,23 @@ void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
                 point[edge] = NULL;
             }
-
         }
-
-
     }
+
+    mesh->local_n_elements = mesh->elements.elem_count;
+    //mesh->local_n_nodes = coords.size()/3;
+
+    //MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+    //MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+
+    if (mesh->mpi_rank == 0) {
+        printf("Total number of elements: %lld\n", mesh->local_n_elements);
+        printf("Total number of nodes: %lld\n", mesh->local_n_nodes);
+    }
+
 
     fclose(fdbg);
     sc_hash_array_destroy(hash_nodes);
-
 }
 
 /*
@@ -598,8 +835,8 @@ int AddPointOnEdge(int* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p,
     if (r != NULL) {
         r->coord[0] = key.coord[0];
         r->coord[1] = key.coord[1];
-        npoints++;
         r->node_id = npoints;
+        npoints++;
         coords.push_back(p->x);
         coords.push_back(p->y);
         coords.push_back(p->z);
@@ -624,6 +861,16 @@ void shift_n_position_from_index(sc_array_t *elements, uint32_t n, uint32_t inde
         new_pos->x = old_pos->x;
         new_pos->y = old_pos->y;
         new_pos->z = old_pos->z;
-        memcpy(new_pos->nodes, old_pos->nodes, 8 * sizeof (octant_node_t));
+
+        //new_pos->nodes->id = old_pos->nodes->id
+
+        for (int i = 0; i < 8; i++) {
+            new_pos->nodes[i].id = old_pos->nodes[i].id;
+            new_pos->nodes[i].x = old_pos->nodes[i].x;
+            new_pos->nodes[i].y = old_pos->nodes[i].y;
+            new_pos->nodes[i].z = old_pos->nodes[i].z;
+        }
+
+        //memcpy(new_pos->nodes, old_pos->nodes, 8 * sizeof (octant_node_t));
     }
 }
