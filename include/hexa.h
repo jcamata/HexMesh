@@ -29,6 +29,7 @@ typedef struct {
     int8_t     pml_id;
     int        n_mat;
     octant_node_t nodes[8];
+    int32_t    id;
 } octant_t;
 
 typedef struct shared_node
@@ -102,7 +103,7 @@ typedef struct {
 
 
 
-
+void copy_octant(octant_t *orig, octant_t* dest);
 
 void hexa_init(int argc, char* argv[], hexa_tree_t* mesh);
 

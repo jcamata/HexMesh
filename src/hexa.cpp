@@ -20,6 +20,12 @@ inline int get_hexa_id(int nx, int ny, int i, int j, int k)
 
 void AddPMLElements(hexa_tree_t* mesh);
 
+void copy_octant(octant_t *orig, octant_t* dest)
+{
+    memcpy(dest, orig, sizeof(octant_t));
+}
+
+
 void hexa_tree_init(hexa_tree_t* mesh, int max_levels)
 {
     sc_array_init(&mesh->elements, sizeof(octant_t));    

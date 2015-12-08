@@ -214,8 +214,8 @@ int hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename)
 int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords = NULL)
 {
  
-  const int32_t Ncells = mesh->elements.elem_count;
-  const int32_t Ntotal = mesh->nodes.elem_count; 
+  const int32_t Ncells = mesh->local_n_elements;
+  const int32_t Ntotal = mesh->local_n_nodes; 
   
 
 #ifdef VTK_ASCII
@@ -338,7 +338,7 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
   fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"ElemType\" format=\"%s\">\n", VTK_LOCIDX, VTK_FORMAT_STRING);
   for (il = 0, sk = 1; il < Ncells; ++il, ++sk) {
         octant_t *h     = (octant_t*) sc_array_index(&mesh->elements, il);
-        fprintf (vtufile, " %d", h->n_mat);
+        fprintf (vtufile, " %d", h->pad);
         if (!(sk % 20) && il != (Ncells - 1))
             fprintf (vtufile, "\n         ");
   }
