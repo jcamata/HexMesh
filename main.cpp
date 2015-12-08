@@ -47,8 +47,8 @@ int main(int argc, char** argv) {
 
 
     hexa_mesh(&mesh);
-    //GetMeshFromSurface(&mesh, "./input/Bathymetry.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
-    GetMeshFromSurface(&mesh, "./input/01.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
+    GetMeshFromSurface(&mesh, "./input/Bathymetry.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
+    //GetMeshFromSurface(&mesh, "./input/01.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
 
 
     GetInterceptedElements(&mesh, coords, element_ids);

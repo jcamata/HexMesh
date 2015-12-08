@@ -69,13 +69,35 @@ int EdgeVerticesMap[12][2] = {
     {7, 4}
 };
 
+int EdgeVerticesMap_surf_diagonal[12][2] = {
+    {0, 5},
+    {1, 4},
+    {3, 6},
+    {2, 7},
+    {0, 7},
+    {3, 4},
+    {1, 6},
+    {2, 5},
+    {4, 6},
+    {5, 7},
+    {0, 2},
+    {1, 3}
+};
+
+int EdgeVerticesMap_vol_diagonal[4][2] = {
+    {0, 6},
+    {1, 7},
+    {2, 4},
+    {3, 5}
+};
+
 int FaceEdgesMap[6][4] = {
     {4, 11, 7, 3},
     {5, 1, 6, 9},
     {0, 5, 8, 4},
     {2, 6, 10, 7},
-    {0, 1, 2, 3},
-    {8, 9, 10, 11}
+    {8, 9, 10, 11},
+    {0, 1, 2, 3}
 };
 
 int EdgeEdgeMap[12][4] = {
@@ -262,9 +284,9 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
         }
         elem->pad = 0;
 
-        //mesh->gdata.s = SurfaceRead("./input/templete2.gts");
-        //mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
-        //mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
+        mesh->gdata.s = SurfaceRead("./input/template2_2.gts");
+        mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+        mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
 
         if (gts_bb_tree_is_overlapping(mesh->gdata.bbt, box)) {
             elements_ids.push_back(iel);
@@ -369,11 +391,6 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
     int Edge2GNode[12][2];
     int conn_p[4];
     int original_conn[8];
-    int connec_order_in[8];
-    int connec_order_out1[8];
-    int connec_order_out2[8];
-    int cut_edge[4];
-
     FILE * fdbg;
 
     int id_offset = 0;
@@ -384,12 +401,16 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
     for (int iel = 0; iel < elements_ids.size(); ++iel) {
         octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-        elem->pad = 0;
+        //elem->pad = 0;
 
         for (int i = 0; i < 8; i++) original_conn[i] = elem->nodes[i].id;
 
         //double z = (coords[original_conn[0]+2] + coords[original_conn[2]+2])*0.5;
         //if(z >= 0.0) continue;
+
+        int edge_list[4];
+        int ed_cont = 0;
+
         for (int edge = 0; edge < 12; ++edge) {
             point[edge] = NULL;
             int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
@@ -412,13 +433,15 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 GtsBBox *b = GTS_BBOX(list->data);
                 point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
                 if (point[edge]) {
-                    fprintf(fdbg, "edge, %d\n ", edge);
+                    //fprintf(fdbg, "edge, %d\n ", edge);
+                    edge_list[ed_cont] = edge;
+                    ed_cont++;
                     break;
                 }
                 list = list->next;
             }
         }
-        fprintf(fdbg, "\n ");
+        //fprintf(fdbg, "\n ");
 
         //check parallel faces
         for (int face = 0; face < 6; ++face) {
@@ -433,9 +456,11 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             if (face_intecepted[face]) continue;
         }
 
-        fprintf(fdbg, "Elem. %d: %d %d %d %d %d %d\n", elements_ids[iel], face_intecepted[0],
+        fprintf(fdbg, "Faces:  Elem. %d: %d %d %d %d %d %d\n", elements_ids[iel], face_intecepted[0],
                 face_intecepted[1], face_intecepted[2],
                 face_intecepted[3], face_intecepted[4], face_intecepted[5]);
+        fprintf(fdbg, "Edges:  Elem. %d: %d %d %d %d\n", elements_ids[iel], edge_list[0],
+                edge_list[1], edge_list[2], edge_list[3]);
 
         int n_parallel_faces = (face_intecepted[0] && face_intecepted[1]) +
                 (face_intecepted[2] && face_intecepted[3]) +
@@ -444,124 +469,126 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
         if (n_parallel_faces == 2) {
             // Apply template 1.
             elem->pad = 1;
+
 #if 0
 
             if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
                     face_intecepted[4] && face_intecepted[5])) {
-                //cut_edge = {3, 2, 11, 9};
-                //connec_order_in = {0, 1, 4, 5, 2, 3, 6, 7};
-                //connec_order_out1 = {0, 1, 4, 5, 3, 2, 6, 7};
-                //connec_order_out2 = {0, 1, 4, 5, 2, 3, 6, 7};
+                int cut_edge[4] = {3, 2, 11, 9};
+                int connec_order_in[8] = {0, 1, 4, 5, 2, 3, 6, 7};
+                int connec_order_out1[8] = {0, 1, 4, 5, 3, 2, 6, 7};
+                int connec_order_out2[8] = {0, 1, 4, 5, 2, 3, 6, 7};
+                /*
+                                cut_edge[0] = 3;
+                                cut_edge[1] = 1;
+                                cut_edge[2] = 11;
+                                cut_edge[3] = 9;
 
-                cut_edge[0] = 3;
-                cut_edge[1] = 1;
-                cut_edge[2] = 11;
-                cut_edge[3] = 9;
+                                connec_order_in[0] = 0;
+                                connec_order_in[1] = 1;
+                                connec_order_in[2] = 4;
+                                connec_order_in[3] = 5;
+                                connec_order_in[4] = 2;
+                                connec_order_in[5] = 3;
+                                connec_order_in[6] = 6;
+                                connec_order_in[7] = 7;
 
-                connec_order_in[0] = 0;
-                connec_order_in[1] = 1;
-                connec_order_in[2] = 4;
-                connec_order_in[3] = 5;
-                connec_order_in[4] = 2;
-                connec_order_in[5] = 3;
-                connec_order_in[6] = 6;
-                connec_order_in[7] = 7;
+                                connec_order_out1[0] = 0;
+                                connec_order_out1[1] = 1;
+                                connec_order_out1[2] = 4;
+                                connec_order_out1[3] = 5;
+                                connec_order_out1[4] = 3;
+                                connec_order_out1[5] = 2;
+                                connec_order_out1[6] = 7;
+                                connec_order_out1[7] = 6;
 
-                connec_order_out1[0] = 0;
-                connec_order_out1[1] = 1;
-                connec_order_out1[2] = 4;
-                connec_order_out1[3] = 5;
-                connec_order_out1[4] = 3;
-                connec_order_out1[5] = 2;
-                connec_order_out1[6] = 7;
-                connec_order_out1[7] = 6;
-
-                connec_order_out2[0] = 0;
-                connec_order_out2[1] = 1;
-                connec_order_out2[2] = 4;
-                connec_order_out2[3] = 5;
-                connec_order_out2[4] = 2;
-                connec_order_out2[5] = 3;
-                connec_order_out2[6] = 6;
-                connec_order_out2[7] = 7;
-
+                                connec_order_out2[0] = 0;
+                                connec_order_out2[1] = 1;
+                                connec_order_out2[2] = 4;
+                                connec_order_out2[3] = 5;
+                                connec_order_out2[4] = 2;
+                                connec_order_out2[5] = 3;
+                                connec_order_out2[6] = 6;
+                                connec_order_out2[7] = 7;
+                 */
             } else if ((face_intecepted[2]) && (face_intecepted[3]) && (!face_intecepted[0] && !face_intecepted[1] &&
                     face_intecepted[4] && face_intecepted[5])) {
-                //cut_edge = {0, 2, 8, 10};
-                //connec_order_in = {0, 3, 4, 7, 1, 2, 5, 6};
-                //connec_order_out1 = {0, 3, 4, 7, 1, 2, 5, 6};
-                //connec_order_out2 = {0, 3, 4, 7, 1, 2, 5, 6};
+                int cut_edge[4] = {0, 2, 8, 10};
+                int connec_order_in[8] = {0, 3, 4, 7, 1, 2, 5, 6};
+                int connec_order_out1[8] = {0, 3, 4, 7, 1, 2, 5, 6};
+                int connec_order_out2[8] = {0, 3, 4, 7, 1, 2, 5, 6};
+                /*
+                                cut_edge[0] = 0;
+                                cut_edge[1] = 2;
+                                cut_edge[2] = 8;
+                                cut_edge[3] = 10;
 
-                cut_edge[0] = 0;
-                cut_edge[1] = 2;
-                cut_edge[2] = 8;
-                cut_edge[3] = 10;
+                                connec_order_in[0] = 0;
+                                connec_order_in[1] = 3;
+                                connec_order_in[2] = 4;
+                                connec_order_in[3] = 7;
+                                connec_order_in[4] = 1;
+                                connec_order_in[5] = 2;
+                                connec_order_in[6] = 5;
+                                connec_order_in[7] = 6;
 
-                connec_order_in[0] = 0;
-                connec_order_in[1] = 3;
-                connec_order_in[2] = 4;
-                connec_order_in[3] = 7;
-                connec_order_in[4] = 1;
-                connec_order_in[5] = 2;
-                connec_order_in[6] = 5;
-                connec_order_in[7] = 6;
+                                connec_order_out1[0] = 0;
+                                connec_order_out1[1] = 3;
+                                connec_order_out1[2] = 4;
+                                connec_order_out1[3] = 7;
+                                connec_order_out1[4] = 1;
+                                connec_order_out1[5] = 2;
+                                connec_order_out1[6] = 5;
+                                connec_order_out1[7] = 6;
 
-                connec_order_out1[0] = 0;
-                connec_order_out1[1] = 3;
-                connec_order_out1[2] = 4;
-                connec_order_out1[3] = 7;
-                connec_order_out1[4] = 1;
-                connec_order_out1[5] = 2;
-                connec_order_out1[6] = 5;
-                connec_order_out1[7] = 6;
-
-                connec_order_out2[0] = 0;
-                connec_order_out2[1] = 3;
-                connec_order_out2[2] = 4;
-                connec_order_out2[3] = 7;
-                connec_order_out2[4] = 1;
-                connec_order_out2[5] = 2;
-                connec_order_out2[6] = 5;
-                connec_order_out2[7] = 6;
-
+                                connec_order_out2[0] = 0;
+                                connec_order_out2[1] = 3;
+                                connec_order_out2[2] = 4;
+                                connec_order_out2[3] = 7;
+                                connec_order_out2[4] = 1;
+                                connec_order_out2[5] = 2;
+                                connec_order_out2[6] = 5;
+                                connec_order_out2[7] = 6;
+                 */
             } else if ((!face_intecepted[4]) && (!face_intecepted[5]) && (face_intecepted[0] && face_intecepted[1] &&
                     face_intecepted[2] && face_intecepted[3])) {
-                //cut_edge = {4, 5, 6, 7};
-                //connec_order_in = {0, 1, 2, 3, 4, 5, 6, 7};
-                //connec_order_out1 = {0, 1, 2, 3, 4, 5, 6, 7};
-                //connec_order_out2 = {0, 1, 2, 3, 4, 5, 6, 7};
+                int cut_edge[4] = {4, 5, 6, 7};
+                int connec_order_in[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+                int connec_order_out1[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+                int connec_order_out2[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+                /*
+                                cut_edge[0] = 4;
+                                cut_edge[1] = 5;
+                                cut_edge[2] = 6;
+                                cut_edge[3] = 7;
 
-                cut_edge[0] = 4;
-                cut_edge[1] = 5;
-                cut_edge[2] = 6;
-                cut_edge[3] = 7;
+                                connec_order_in[0] = 0;
+                                connec_order_in[1] = 1;
+                                connec_order_in[2] = 2;
+                                connec_order_in[3] = 3;
+                                connec_order_in[4] = 4;
+                                connec_order_in[5] = 5;
+                                connec_order_in[6] = 6;
+                                connec_order_in[7] = 7;
 
-                connec_order_in[0] = 0;
-                connec_order_in[1] = 1;
-                connec_order_in[2] = 2;
-                connec_order_in[3] = 3;
-                connec_order_in[4] = 4;
-                connec_order_in[5] = 5;
-                connec_order_in[6] = 6;
-                connec_order_in[7] = 7;
+                                connec_order_out1[0] = 0;
+                                connec_order_out1[1] = 1;
+                                connec_order_out1[2] = 2;
+                                connec_order_out1[3] = 3;
+                                connec_order_out1[4] = 4;
+                                connec_order_out1[5] = 5;
+                                connec_order_out1[6] = 6;
+                                connec_order_out1[7] = 7;
 
-                connec_order_out1[0] = 0;
-                connec_order_out1[1] = 1;
-                connec_order_out1[2] = 2;
-                connec_order_out1[3] = 3;
-                connec_order_out1[4] = 4;
-                connec_order_out1[5] = 5;
-                connec_order_out1[6] = 6;
-                connec_order_out1[7] = 7;
-
-                connec_order_out2[0] = 0;
-                connec_order_out2[1] = 1;
-                connec_order_out2[2] = 2;
-                connec_order_out2[3] = 3;
-                connec_order_out2[4] = 4;
-                connec_order_out2[5] = 5;
-                connec_order_out2[6] = 6;
-                connec_order_out2[7] = 7;
+                                connec_order_out2[0] = 0;
+                                connec_order_out2[1] = 1;
+                                connec_order_out2[2] = 2;
+                                connec_order_out2[3] = 3;
+                                connec_order_out2[4] = 4;
+                                connec_order_out2[5] = 5;
+                                connec_order_out2[6] = 6;
+                                connec_order_out2[7] = 7;
+                 */
             }
 
             GtsPoint *p0 = point[cut_edge[0]];
@@ -802,7 +829,184 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
                 point[edge] = NULL;
             }
+
         }
+
+        //check the diagonals in the surface and find the intersections
+        GtsSegment * segments_s[12];
+        GtsPoint * point_s[12];
+        int Edge2GNode_s[12][2];
+
+        for (int edge = 0; edge < 12; ++edge) {
+            point_s[edge] = NULL;
+            int node1 = elem->nodes[EdgeVerticesMap_surf_diagonal[edge][0]].id;
+            int node2 = elem->nodes[EdgeVerticesMap_surf_diagonal[edge][1]].id;
+
+            fprintf(fdbg, " Nodes diagonal : %d, %d\n", node1, node2);
+
+            Edge2GNode_s[edge][0] = node1 <= node2 ? node1 : node2;
+            Edge2GNode_s[edge][1] = node1 >= node2 ? node1 : node2;
+
+            GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+            GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+            segments_s[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+            GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments_s[edge]);
+            GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+            if (list == NULL) continue;
+            while (list) {
+                GtsBBox *b = GTS_BBOX(list->data);
+                point_s[edge] = SegmentTriangleIntersection(segments_s[edge], GTS_TRIANGLE(b->bounded));
+                if (point_s[edge]) {
+                    fprintf(fdbg, " edges diagonal : %d\n", edge);
+                    //edge_list[ed_cont] = edge;
+                    //ed_cont++;
+                    break;
+                }
+                list = list->next;
+            }
+        }
+
+
+
+        if (n_parallel_faces == 1) {
+            // Apply template 1.
+            elem->pad = 2;
+
+
+
+#if 1
+            int conn_t2[6];
+
+            //if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
+            //      face_intecepted[4] && face_intecepted[5])) {
+            //int cut_edge[6] = {1, 3, 6, 7};
+            //int connec_order_in[8] = {0, 1, 4, 5, 2, 3, 6, 7};
+            //int connec_order_out1[8] = {0, 1, 4, 5, 3, 2, 6, 7};
+            //int connec_order_out2[8] = {0, 1, 4, 5, 2, 3, 6, 7};
+            //}
+/*
+            //Edge 0
+            if (((face_intecepted[]) && (face_intecepted[])) && (!face_intecepted[] && !face_intecepted[] &&
+                    face_intecepted[] && face_intecepted[])) {
+                printf("Entrou na 0!");
+            }
+            
+            //Edge 1
+            if (((face_intecepted[]) && (face_intecepted[])) && (!face_intecepted[] && !face_intecepted[] &&
+                    face_intecepted[] && face_intecepted[])) {
+                printf("Entrou na 1!");
+            }
+            
+            //Edge 2
+            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[4] && !face_intecepted[2] &&
+                    face_intecepted[3] && face_intecepted[5])) {
+                printf("Entrou na 2!");
+            }
+  */          
+            
+            
+            //Edge 3
+            
+            //Edge 4
+            //Edge 5
+            //Edge 6
+            //Edge 7
+            //Edge 8
+            //Edge 9
+            //Edge 10
+            //Edge 11
+
+            GtsPoint *p0 = point[3];
+            GtsPoint *p1 = point[1];
+            GtsPoint *p2 = point[7];
+            GtsPoint *p3 = point[6];
+
+            GtsPoint *p4 = point_s[5];
+            GtsPoint *p5 = point_s[7];
+
+            g_assert(p0 != NULL);
+            g_assert(p1 != NULL);
+            g_assert(p2 != NULL);
+            g_assert(p3 != NULL);
+            g_assert(p4 != NULL);
+            g_assert(p5 != NULL);
+
+            conn_t2[0] = AddPointOnEdge(Edge2GNode[3], hash_nodes, mesh->local_n_nodes, p0, coords);
+            conn_t2[1] = AddPointOnEdge(Edge2GNode[1], hash_nodes, mesh->local_n_nodes, p1, coords);
+            conn_t2[2] = AddPointOnEdge(Edge2GNode[7], hash_nodes, mesh->local_n_nodes, p2, coords);
+            conn_t2[3] = AddPointOnEdge(Edge2GNode[6], hash_nodes, mesh->local_n_nodes, p3, coords);
+
+            // add 2 extra points in the surface
+            conn_t2[4] = AddPointOnEdge(Edge2GNode_s[5], hash_nodes, mesh->local_n_nodes, p4, coords);
+            conn_t2[5] = AddPointOnEdge(Edge2GNode_s[7], hash_nodes, mesh->local_n_nodes, p5, coords);
+
+            octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+            elem1->nodes[0].id = original_conn[0];
+            elem1->nodes[1].id = original_conn[1];
+            elem1->nodes[4].id = original_conn[4];
+            elem1->nodes[5].id = original_conn[5];
+
+            elem1->nodes[2].id = conn_t2[1];
+            elem1->nodes[3].id = conn_t2[0];
+            elem1->nodes[6].id = conn_t2[5];
+            elem1->nodes[7].id = conn_t2[4];
+
+            octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+
+            elem2->nodes[0].id = conn_t2[4];
+            elem2->nodes[1].id = conn_t2[5];
+            elem2->nodes[2].id = conn_t2[3];
+            elem2->nodes[3].id = conn_t2[2];
+
+            elem2->nodes[4].id = original_conn[4];
+            elem2->nodes[5].id = original_conn[5];
+            elem2->nodes[6].id = original_conn[6];
+            elem2->nodes[7].id = original_conn[7];
+
+            elem2->pad = 3;
+            elem2->level = elem->level;
+
+            octant_t* elem3 = (octant_t*) sc_array_push(&mesh->elements);
+
+            elem3->nodes[2].id = original_conn[2];
+            elem3->nodes[3].id = original_conn[3];
+
+            elem3->nodes[0].id = conn_t2[0];
+            elem3->nodes[1].id = conn_t2[1];
+            elem3->nodes[4].id = conn_t2[4];
+            elem3->nodes[5].id = conn_t2[5];
+            elem3->nodes[6].id = conn_t2[3];
+            elem3->nodes[7].id = conn_t2[2];
+
+            elem3->pad = 4;
+            elem3->level = elem->level;
+
+#endif
+            for (int edge = 0; edge < 12; edge++) {
+
+                if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+                point[edge] = NULL;
+                point_s[edge] = NULL;
+            }
+
+        }
+
+        if (n_parallel_faces == 0) {
+            // Apply template 1.
+            elem->pad = 3;
+
+            for (int edge = 0; edge < 12; edge++) {
+
+                if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+                point[edge] = NULL;
+            }
+
+        }
+
+
     }
 
     mesh->local_n_elements = mesh->elements.elem_count;
