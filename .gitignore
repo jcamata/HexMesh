@@ -2,5 +2,14 @@
 *.pvtu
 *.unv
 *output*
-
-
+*.hgt
+*.dbg
+*~
+*.gts
+*.stl
+*.dbf
+*.shp
+*.shx
+*.srtm
+*.o
+surface.dat
