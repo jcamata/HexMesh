@@ -14,7 +14,7 @@ It is written in C++/MPI. Additional routines are written in Matlab for the prep
 ## REFERENCES
 
 If you use the library, please cite the following paper:
-1. J. Camata, A. Coutinho . Parallel implementation and performance analysis of a linear octree finite element mesh generation scheme, _ Concurrency and Computation: Practice and Experience_ (2013), pp. 826-842. (http://dx.doi.org/10.1002/cpe.2869)
+1. J. Camata, A. Coutinho . Parallel implementation and performance analysis of a linear octree finite element mesh generation scheme, _ Concurrency and Computation: Practice and Experience _ (2013), pp. 826-842. (http://dx.doi.org/10.1002/cpe.2869)
 
 ## INSTALLATION
 
@@ -35,10 +35,10 @@ To prepare the geometry files, modify the headers in mainSRTM.m (in particular c
 
 >> mainSRTM
 
-You need an internet connexion to download the topography, bathymetry and coastlines files (no connexion needed if they are already available on your computer). The output files are a topography GTS file topo.gts, a bathymetry GTS file bathy.gts, and a coastline file in text format coastline.dat.
+You need an internet connexion to download the topography, bathymetry and coastlines files (no connexion needed if they are already available on your computer). The output files are a topography STL file topo.stl and a bathymetry STL file bathy.stl. These files should be transformed to GTS using stl2gts command, and move to directory $(HEXHOME)/input, where $(HEXHOME) is the directory where hexmesh was compiled.
 
-To create the mesh, you should run (in a Terminal)
+To create the mesh, you should run (in a Terminal from the directory $(HEXMESH))
 
 >> mpirun -np <nb_proc> ./hexmesh <refine_level>
 
-where <nb_proc> is an integer specifying the number of processes used to create the mesh (each process creates its own VTK file), and <refine_level> is an integer specifying the number of level refinement of the 27-tree structure! (For now, the integer must be a power of 3: 1, 3, 9, 27 …). The files topo.gts, bathy.gts and coastline.dat should be in a repository ./input.
+where <nb_proc> is an integer specifying the number of processes used to create the mesh (each process creates its own VTK file), and <refine_level> is an integer specifying the number of level refinements of the 27-tree structure! (For now, the integer must be a power of 3: 1, 3, 9, 27 …). The files topo.gts, bathy.gts and coastline.dat should be in a repository ./input. By default, the depth of the mesh is the larger dimension of the two horizontal dimensions of the topography file.
