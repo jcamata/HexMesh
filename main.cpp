@@ -51,10 +51,10 @@ int main(int argc, char** argv) {
     //GetMeshFromSurface(&mesh, "./input/01.gts", "./input/Topo.gts", "./input/Argostoli_coastline.dat", coords);
 
 
-    GetInterceptedElements(&mesh, coords, element_ids);
-    printf(" Elements intercepted: %d\n", element_ids.size());
+    //GetInterceptedElements(&mesh, coords, element_ids);
+    //printf(" Elements intercepted: %d\n", element_ids.size());
 
-    ApllyTemplate(&mesh, coords, element_ids);
+    //ApllyTemplate(&mesh, coords, element_ids);
 
     hexa_mesh_write_vtk(&mesh, "mesh", &coords);
 

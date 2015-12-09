@@ -177,8 +177,9 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
     // Note that here we use a gts file.
     // There is a tool called stl2gts that convert STL files to GTS.
     // It is installed together with the gts library.
-    tree->gdata.s = SurfaceRead(surface_bathy);
-    tree_t.gdata.s = SurfaceRead(surface_topo);
+    tree->gdata.s = SurfaceRead(surface_topo);
+    //tree->gdata.s = SurfaceRead(surface_bathy);
+    //tree_t.gdata.s = SurfaceRead(surface_topo);
 
     FILE *fout = fopen("surface.dat", "w");
     gts_surface_print_stats(tree->gdata.s, fout);
@@ -186,7 +187,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
 
     // Get the surface bounding box
     tree->gdata.bbox = gts_bbox_surface(gts_bbox_class(), tree->gdata.s);
-    tree_t.gdata.bbox = gts_bbox_surface(gts_bbox_class(), tree_t.gdata.s);
+    //tree_t.gdata.bbox = gts_bbox_surface(gts_bbox_class(), tree_t.gdata.s);
     if (tree->mpi_rank == 0) {
         printf("Bounding box: \n");
         printf(" x ranges from %f to %f\n", tree->gdata.bbox->x1, tree->gdata.bbox->x2);
@@ -217,42 +218,43 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_bathy, const char
 
     // Build the bounding box tree
     tree->gdata.bbt = gts_bb_tree_surface(tree->gdata.s);
-    tree_t.gdata.bbt = gts_bb_tree_surface(tree_t.gdata.s);
+    //tree_t.gdata.bbt = gts_bb_tree_surface(tree_t.gdata.s);
 
-    p = gts_point_new(gts_point_class(), 0.0, 0.0, tree_t.gdata.bbox->z2);
+    p = gts_point_new(gts_point_class(), 0.0, 0.0, tree->gdata.bbox->z2);
 
     //GSList *list = gts_bb_tree_overlap(t, box);
     // Call the coastline reader
-    SetOfCoastLine scl;
-    Coastline_Reader(coastline, &scl);
+    //SetOfCoastLine scl;
+    //Coastline_Reader(coastline, &scl);
 
     for (int i = 0; i < nodes->elem_count; ++i) {
         octant_node_t* n = (octant_node_t*) sc_array_index(nodes, i);
         p->x = tree->gdata.bbox->x1 + n->x*dx;
         p->y = tree->gdata.bbox->y1 + n->y*dy;
-        double xp = tree->gdata.bbox->x1 + n->x*dx;
-        double yp = tree->gdata.bbox->y1 + n->y*dy;
+        //double xp = tree->gdata.bbox->x1 + n->x*dx;
+        //double yp = tree->gdata.bbox->y1 + n->y*dy;
         double d;
         double zmax;
-        for (int ii = 0; ii < scl.npart - 1; ++ii) {
-            int tes = pnpoly(scl.coastlines[ii].npoints, scl.coastlines[ii].points, xp, yp);
-            if (tes == 0) {
-                d = gts_bb_tree_point_distance(tree->gdata.bbt, p, distance, NULL);
-                zmax = 0;
-            } else {
-                d = gts_bb_tree_point_distance(tree_t.gdata.bbt, p, distance, NULL);
-                zmax = tree_t.gdata.bbox->z2 - d;
-                break;
-            }
-        }
+        //for (int ii = 0; ii < scl.npart - 1; ++ii) {
+        //    int tes = pnpoly(scl.coastlines[ii].npoints, scl.coastlines[ii].points, xp, yp);
+        //    if (tes == 0) {
+        d = gts_bb_tree_point_distance(tree->gdata.bbt, p, distance, NULL);
+        zmax = tree->gdata.bbox->z2 - d;
+        //        zmax = 0;
+        //    } else {
+        //        d = gts_bb_tree_point_distance(tree_t.gdata.bbt, p, distance, NULL);
+        //        zmax = tree_t.gdata.bbox->z2 - d;
+        //        break;
+        //    }
+        //}
 
-        dz = (zmax - zmin) / (double) tree->ncellz;
-        double z = zmax - (n->z) * dz;
+    dz = (zmax - zmin) / (double) tree->ncellz;
+    double z = zmax - (n->z) * dz;
 
-        coords[i * 3 + 0] = p->x;
-        coords[i * 3 + 1] = p->y;
-        coords[i * 3 + 2] = z;
-    }
+    coords[i * 3 + 0] = p->x;
+    coords[i * 3 + 1] = p->y;
+    coords[i * 3 + 2] = z;
+}
 }
 
 void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
@@ -470,125 +472,129 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             // Apply template 1.
             elem->pad = 1;
 
-#if 0
+            int cut_edge[4];
+            int connec_order_in[8];
+            int connec_order_out1[8];
+            int connec_order_out2[8];
+#if 1
 
             if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
                     face_intecepted[4] && face_intecepted[5])) {
-                int cut_edge[4] = {3, 2, 11, 9};
-                int connec_order_in[8] = {0, 1, 4, 5, 2, 3, 6, 7};
-                int connec_order_out1[8] = {0, 1, 4, 5, 3, 2, 6, 7};
-                int connec_order_out2[8] = {0, 1, 4, 5, 2, 3, 6, 7};
-                /*
-                                cut_edge[0] = 3;
-                                cut_edge[1] = 1;
-                                cut_edge[2] = 11;
-                                cut_edge[3] = 9;
+                //int cut_edge[4] = {3, 2, 11, 9};
+                //int connec_order_in[8] = {0, 1, 4, 5, 2, 3, 6, 7};
+                //int connec_order_out1[8] = {0, 1, 4, 5, 3, 2, 6, 7};
+                //int connec_order_out2[8] = {0, 1, 4, 5, 2, 3, 6, 7};
 
-                                connec_order_in[0] = 0;
-                                connec_order_in[1] = 1;
-                                connec_order_in[2] = 4;
-                                connec_order_in[3] = 5;
-                                connec_order_in[4] = 2;
-                                connec_order_in[5] = 3;
-                                connec_order_in[6] = 6;
-                                connec_order_in[7] = 7;
+                cut_edge[0] = 3;
+                cut_edge[1] = 1;
+                cut_edge[2] = 11;
+                cut_edge[3] = 9;
 
-                                connec_order_out1[0] = 0;
-                                connec_order_out1[1] = 1;
-                                connec_order_out1[2] = 4;
-                                connec_order_out1[3] = 5;
-                                connec_order_out1[4] = 3;
-                                connec_order_out1[5] = 2;
-                                connec_order_out1[6] = 7;
-                                connec_order_out1[7] = 6;
+                connec_order_in[0] = 0;
+                connec_order_in[1] = 1;
+                connec_order_in[2] = 4;
+                connec_order_in[3] = 5;
+                connec_order_in[4] = 2;
+                connec_order_in[5] = 3;
+                connec_order_in[6] = 6;
+                connec_order_in[7] = 7;
 
-                                connec_order_out2[0] = 0;
-                                connec_order_out2[1] = 1;
-                                connec_order_out2[2] = 4;
-                                connec_order_out2[3] = 5;
-                                connec_order_out2[4] = 2;
-                                connec_order_out2[5] = 3;
-                                connec_order_out2[6] = 6;
-                                connec_order_out2[7] = 7;
-                 */
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 5;
+                connec_order_out1[4] = 3;
+                connec_order_out1[5] = 2;
+                connec_order_out1[6] = 7;
+                connec_order_out1[7] = 6;
+
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 1;
+                connec_order_out2[2] = 4;
+                connec_order_out2[3] = 5;
+                connec_order_out2[4] = 2;
+                connec_order_out2[5] = 3;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
             } else if ((face_intecepted[2]) && (face_intecepted[3]) && (!face_intecepted[0] && !face_intecepted[1] &&
                     face_intecepted[4] && face_intecepted[5])) {
-                int cut_edge[4] = {0, 2, 8, 10};
-                int connec_order_in[8] = {0, 3, 4, 7, 1, 2, 5, 6};
-                int connec_order_out1[8] = {0, 3, 4, 7, 1, 2, 5, 6};
-                int connec_order_out2[8] = {0, 3, 4, 7, 1, 2, 5, 6};
-                /*
-                                cut_edge[0] = 0;
-                                cut_edge[1] = 2;
-                                cut_edge[2] = 8;
-                                cut_edge[3] = 10;
+                //int cut_edge[4] = {0, 2, 8, 10};
+                //int connec_order_in[8] = {0, 3, 4, 7, 1, 2, 5, 6};
+                //int connec_order_out1[8] = {0, 3, 4, 7, 1, 2, 5, 6};
+                //int connec_order_out2[8] = {0, 3, 4, 7, 1, 2, 5, 6};
 
-                                connec_order_in[0] = 0;
-                                connec_order_in[1] = 3;
-                                connec_order_in[2] = 4;
-                                connec_order_in[3] = 7;
-                                connec_order_in[4] = 1;
-                                connec_order_in[5] = 2;
-                                connec_order_in[6] = 5;
-                                connec_order_in[7] = 6;
+                cut_edge[0] = 0;
+                cut_edge[1] = 2;
+                cut_edge[2] = 8;
+                cut_edge[3] = 10;
 
-                                connec_order_out1[0] = 0;
-                                connec_order_out1[1] = 3;
-                                connec_order_out1[2] = 4;
-                                connec_order_out1[3] = 7;
-                                connec_order_out1[4] = 1;
-                                connec_order_out1[5] = 2;
-                                connec_order_out1[6] = 5;
-                                connec_order_out1[7] = 6;
+                connec_order_in[0] = 0;
+                connec_order_in[1] = 3;
+                connec_order_in[2] = 4;
+                connec_order_in[3] = 7;
+                connec_order_in[4] = 1;
+                connec_order_in[5] = 2;
+                connec_order_in[6] = 5;
+                connec_order_in[7] = 6;
 
-                                connec_order_out2[0] = 0;
-                                connec_order_out2[1] = 3;
-                                connec_order_out2[2] = 4;
-                                connec_order_out2[3] = 7;
-                                connec_order_out2[4] = 1;
-                                connec_order_out2[5] = 2;
-                                connec_order_out2[6] = 5;
-                                connec_order_out2[7] = 6;
-                 */
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 1;
+                connec_order_out1[5] = 2;
+                connec_order_out1[6] = 5;
+                connec_order_out1[7] = 6;
+
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 3;
+                connec_order_out2[2] = 4;
+                connec_order_out2[3] = 7;
+                connec_order_out2[4] = 1;
+                connec_order_out2[5] = 2;
+                connec_order_out2[6] = 5;
+                connec_order_out2[7] = 6;
+
             } else if ((!face_intecepted[4]) && (!face_intecepted[5]) && (face_intecepted[0] && face_intecepted[1] &&
                     face_intecepted[2] && face_intecepted[3])) {
-                int cut_edge[4] = {4, 5, 6, 7};
-                int connec_order_in[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-                int connec_order_out1[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-                int connec_order_out2[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-                /*
-                                cut_edge[0] = 4;
-                                cut_edge[1] = 5;
-                                cut_edge[2] = 6;
-                                cut_edge[3] = 7;
+                //int cut_edge[4] = {4, 5, 6, 7};
+                //int connec_order_in[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+                //int connec_order_out1[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+                //int connec_order_out2[8] = {0, 1, 2, 3, 4, 5, 6, 7};
 
-                                connec_order_in[0] = 0;
-                                connec_order_in[1] = 1;
-                                connec_order_in[2] = 2;
-                                connec_order_in[3] = 3;
-                                connec_order_in[4] = 4;
-                                connec_order_in[5] = 5;
-                                connec_order_in[6] = 6;
-                                connec_order_in[7] = 7;
+                cut_edge[0] = 4;
+                cut_edge[1] = 5;
+                cut_edge[2] = 6;
+                cut_edge[3] = 7;
 
-                                connec_order_out1[0] = 0;
-                                connec_order_out1[1] = 1;
-                                connec_order_out1[2] = 2;
-                                connec_order_out1[3] = 3;
-                                connec_order_out1[4] = 4;
-                                connec_order_out1[5] = 5;
-                                connec_order_out1[6] = 6;
-                                connec_order_out1[7] = 7;
+                connec_order_in[0] = 0;
+                connec_order_in[1] = 1;
+                connec_order_in[2] = 2;
+                connec_order_in[3] = 3;
+                connec_order_in[4] = 4;
+                connec_order_in[5] = 5;
+                connec_order_in[6] = 6;
+                connec_order_in[7] = 7;
 
-                                connec_order_out2[0] = 0;
-                                connec_order_out2[1] = 1;
-                                connec_order_out2[2] = 2;
-                                connec_order_out2[3] = 3;
-                                connec_order_out2[4] = 4;
-                                connec_order_out2[5] = 5;
-                                connec_order_out2[6] = 6;
-                                connec_order_out2[7] = 7;
-                 */
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 2;
+                connec_order_out1[3] = 3;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 5;
+                connec_order_out1[6] = 6;
+                connec_order_out1[7] = 7;
+
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 1;
+                connec_order_out2[2] = 2;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 4;
+                connec_order_out2[5] = 5;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
             }
 
             GtsPoint *p0 = point[cut_edge[0]];
@@ -860,8 +866,6 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 point_s[edge] = SegmentTriangleIntersection(segments_s[edge], GTS_TRIANGLE(b->bounded));
                 if (point_s[edge]) {
                     fprintf(fdbg, " edges diagonal : %d\n", edge);
-                    //edge_list[ed_cont] = edge;
-                    //ed_cont++;
                     break;
                 }
                 list = list->next;
@@ -878,6 +882,14 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
 #if 1
             int conn_t2[6];
+            int cut_edge[4];
+            int cut_edge_s[2];
+            int connec_order_in1[8];
+            int connec_order_out1[8];
+            int connec_order_in2[8];
+            int connec_order_out2[8];
+            int connec_order_in3[8];
+            int connec_order_out3[8];
 
             //if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
             //      face_intecepted[4] && face_intecepted[5])) {
@@ -886,45 +898,841 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             //int connec_order_out1[8] = {0, 1, 4, 5, 3, 2, 6, 7};
             //int connec_order_out2[8] = {0, 1, 4, 5, 2, 3, 6, 7};
             //}
-/*
+
             //Edge 0
-            if (((face_intecepted[]) && (face_intecepted[])) && (!face_intecepted[] && !face_intecepted[] &&
-                    face_intecepted[] && face_intecepted[])) {
+            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[3] && !face_intecepted[4] &&
+                    face_intecepted[2] && face_intecepted[5])) {
                 printf("Entrou na 0!");
+
+                cut_edge[0] = 3;
+                cut_edge[1] = 1;
+                cut_edge[2] = 4;
+                cut_edge[3] = 5;
+
+                cut_edge_s[0] = 4;
+                cut_edge_s[1] = 6;
+
+                connec_order_in1[0] = 2;
+                connec_order_in1[1] = 3;
+                connec_order_in1[2] = 6;
+                connec_order_in1[3] = 7;
+                connec_order_in1[4] = 0;
+                connec_order_in1[5] = 1;
+                connec_order_in1[6] = 4;
+                connec_order_in1[7] = 5;
+
+                connec_order_out1[0] = 2;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 6;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 0;
+                connec_order_out1[5] = 1;
+                connec_order_out1[6] = 4;
+                connec_order_out1[7] = 5;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 1;
+                connec_order_in2[2] = 2;
+                connec_order_in2[3] = 3;
+                connec_order_in2[4] = 4;
+                connec_order_in2[5] = 5;
+                connec_order_in2[6] = 6;
+                connec_order_in2[7] = 7;
+
+                connec_order_out2[0] = 2;
+                connec_order_out2[1] = 3;
+                connec_order_out2[2] = 5;
+                connec_order_out2[3] = 4;
+                connec_order_out2[4] = 4;
+                connec_order_out2[5] = 5;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
+                connec_order_in3[0] = 0;
+                connec_order_in3[1] = 1;
+                connec_order_in3[2] = 2;
+                connec_order_in3[3] = 3;
+                connec_order_in3[4] = 4;
+                connec_order_in3[5] = 5;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 0;
+                connec_order_out3[1] = 1;
+                connec_order_out3[2] = 1;
+                connec_order_out3[3] = 0;
+                connec_order_out3[4] = 2;
+                connec_order_out3[5] = 3;
+                connec_order_out3[6] = 4;
+                connec_order_out3[7] = 5;
             }
-            
+
             //Edge 1
-            if (((face_intecepted[]) && (face_intecepted[])) && (!face_intecepted[] && !face_intecepted[] &&
-                    face_intecepted[] && face_intecepted[])) {
+            if (((face_intecepted[1]) && (face_intecepted[2])) && (!face_intecepted[0] && !face_intecepted[4] &&
+                    face_intecepted[3] && face_intecepted[5])) {
                 printf("Entrou na 1!");
+
+                cut_edge[0] = 0;
+                cut_edge[1] = 2;
+                cut_edge[2] = 5;
+                cut_edge[3] = 6;
+
+                cut_edge_s[0] = 1;
+                cut_edge_s[1] = 3;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 3;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 7;
+                connec_order_in1[4] = 1;
+                connec_order_in1[5] = 2;
+                connec_order_in1[6] = 5;
+                connec_order_in1[7] = 6;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 0;
+                connec_order_out1[5] = 1;
+                connec_order_out1[6] = 4;
+                connec_order_out1[7] = 5;
+
+                connec_order_in2[0] = 4;
+                connec_order_in2[1] = 5;
+                connec_order_in2[2] = 6;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 0;
+                connec_order_in2[5] = 1;
+                connec_order_in2[6] = 2;
+                connec_order_in2[7] = 3;
+
+                connec_order_out2[0] = 4;
+                connec_order_out2[1] = 5;
+                connec_order_out2[2] = 6;
+                connec_order_out2[3] = 7;
+                connec_order_out2[4] = 4;
+                connec_order_out2[5] = 2;
+                connec_order_out2[6] = 3;
+                connec_order_out2[7] = 5;
+
+                connec_order_in3[0] = 1;
+                connec_order_in3[1] = 2;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 3;
+                connec_order_in3[4] = 4;
+                connec_order_in3[5] = 5;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 1;
+                connec_order_out3[1] = 2;
+                connec_order_out3[2] = 0;
+                connec_order_out3[3] = 1;
+                connec_order_out3[4] = 4;
+                connec_order_out3[5] = 2;
+                connec_order_out3[6] = 3;
+                connec_order_out3[7] = 5;
             }
-            
+
             //Edge 2
-            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[4] && !face_intecepted[2] &&
+            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[4] &&
                     face_intecepted[3] && face_intecepted[5])) {
                 printf("Entrou na 2!");
+
+                cut_edge[0] = 3;
+                cut_edge[1] = 1;
+                cut_edge[2] = 7;
+                cut_edge[3] = 6;
+
+                cut_edge_s[0] = 5;
+                cut_edge_s[1] = 7;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 1;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 5;
+                connec_order_in1[4] = 2;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 6;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 5;
+                connec_order_out1[4] = 1;
+                connec_order_out1[5] = 0;
+                connec_order_out1[6] = 5;
+                connec_order_out1[7] = 4;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 1;
+                connec_order_in2[2] = 2;
+                connec_order_in2[3] = 3;
+                connec_order_in2[4] = 4;
+                connec_order_in2[5] = 5;
+                connec_order_in2[6] = 6;
+                connec_order_in2[7] = 7;
+
+                connec_order_out2[0] = 4;
+                connec_order_out2[1] = 5;
+                connec_order_out2[2] = 3;
+                connec_order_out2[3] = 2;
+                connec_order_out2[4] = 4;
+                connec_order_out2[5] = 5;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
+                connec_order_in3[0] = 2;
+                connec_order_in3[1] = 3;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 4;
+                connec_order_in3[5] = 5;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 2;
+                connec_order_out3[1] = 3;
+                connec_order_out3[2] = 0;
+                connec_order_out3[3] = 1;
+                connec_order_out3[4] = 4;
+                connec_order_out3[5] = 5;
+                connec_order_out3[6] = 3;
+                connec_order_out3[7] = 2;
+
             }
-  */          
-            
-            
+
+
+
             //Edge 3
-            
+            if (((face_intecepted[0]) && (face_intecepted[2])) && (!face_intecepted[1] && !face_intecepted[4] &&
+                    face_intecepted[3] && face_intecepted[5])) {
+                printf("Entrou na 3!");
+
+                cut_edge[0] = 0;
+                cut_edge[1] = 2;
+                cut_edge[2] = 4;
+                cut_edge[3] = 7;
+
+                cut_edge_s[0] = 0;
+                cut_edge_s[1] = 2;
+
+                connec_order_in1[0] = 1;
+                connec_order_in1[1] = 2;
+                connec_order_in1[2] = 5;
+                connec_order_in1[3] = 6;
+                connec_order_in1[4] = 0;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 4;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 1;
+                connec_order_out1[1] = 2;
+                connec_order_out1[2] = 5;
+                connec_order_out1[3] = 6;
+                connec_order_out1[4] = 0;
+                connec_order_out1[5] = 1;
+                connec_order_out1[6] = 4;
+                connec_order_out1[7] = 5;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 1;
+                connec_order_in2[2] = 2;
+                connec_order_in2[3] = 3;
+                connec_order_in2[4] = 4;
+                connec_order_in2[5] = 5;
+                connec_order_in2[6] = 6;
+                connec_order_in2[7] = 7;
+
+                connec_order_out2[0] = 2;
+                connec_order_out2[1] = 4;
+                connec_order_out2[2] = 5;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 4;
+                connec_order_out2[5] = 5;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
+                connec_order_in3[0] = 0;
+                connec_order_in3[1] = 3;
+                connec_order_in3[2] = 1;
+                connec_order_in3[3] = 2;
+                connec_order_in3[4] = 4;
+                connec_order_in3[5] = 5;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 0;
+                connec_order_out3[1] = 3;
+                connec_order_out3[2] = 0;
+                connec_order_out3[3] = 1;
+                connec_order_out3[4] = 2;
+                connec_order_out3[5] = 4;
+                connec_order_out3[6] = 5;
+                connec_order_out3[7] = 3;
+
+            }
+
+
             //Edge 4
+            if (((face_intecepted[0]) && (face_intecepted[2])) && (!face_intecepted[1] && !face_intecepted[3] &&
+                    face_intecepted[4] && face_intecepted[5])) {
+                printf("Entrou na 4!");
+
+                cut_edge[0] = 0;
+                cut_edge[1] = 3;
+                cut_edge[2] = 11;
+                cut_edge[3] = 8;
+
+                cut_edge_s[0] = 10;
+                cut_edge_s[1] = 8;
+
+                connec_order_in1[0] = 1;
+                connec_order_in1[1] = 2;
+                connec_order_in1[2] = 5;
+                connec_order_in1[3] = 6;
+                connec_order_in1[4] = 0;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 4;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 1;
+                connec_order_out1[1] = 2;
+                connec_order_out1[2] = 5;
+                connec_order_out1[3] = 6;
+                connec_order_out1[4] = 0;
+                connec_order_out1[5] = 1;
+                connec_order_out1[6] = 4;
+                connec_order_out1[7] = 5;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 1;
+                connec_order_in2[2] = 4;
+                connec_order_in2[3] = 5;
+                connec_order_in2[4] = 2;
+                connec_order_in2[5] = 3;
+                connec_order_in2[6] = 6;
+                connec_order_in2[7] = 7;
+
+                connec_order_out2[0] = 1;
+                connec_order_out2[1] = 4;
+                connec_order_out2[2] = 2;
+                connec_order_out2[3] = 5;
+                connec_order_out2[4] = 2;
+                connec_order_out2[5] = 3;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
+                connec_order_in3[0] = 0;
+                connec_order_in3[1] = 4;
+                connec_order_in3[2] = 1;
+                connec_order_in3[3] = 2;
+                connec_order_in3[4] = 3;
+                connec_order_in3[5] = 5;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 0;
+                connec_order_out3[1] = 4;
+                connec_order_out3[2] = 0;
+                connec_order_out3[3] = 4;
+                connec_order_out3[4] = 1;
+                connec_order_out3[5] = 3;
+                connec_order_out3[6] = 5;
+                connec_order_out3[7] = 2;
+
+            }
             //Edge 5
+            if (((face_intecepted[1]) && (face_intecepted[2])) && (!face_intecepted[0] && !face_intecepted[3] &&
+                    face_intecepted[4] && face_intecepted[5])) {
+                printf("Entrou na 5!");
+
+                cut_edge[0] = 1;
+                cut_edge[1] = 0;
+                cut_edge[2] = 8;
+                cut_edge[3] = 9;
+
+                cut_edge_s[0] = 11;
+                cut_edge_s[1] = 9;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 3;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 7;
+                connec_order_in1[4] = 1;
+                connec_order_in1[5] = 2;
+                connec_order_in1[6] = 5;
+                connec_order_in1[7] = 6;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 1;
+                connec_order_out1[5] = 4;
+                connec_order_out1[6] = 2;
+                connec_order_out1[7] = 5;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 1;
+                connec_order_in2[2] = 4;
+                connec_order_in2[3] = 5;
+                connec_order_in2[4] = 2;
+                connec_order_in2[5] = 3;
+                connec_order_in2[6] = 6;
+                connec_order_in2[7] = 7;
+
+                connec_order_out2[0] = 4;
+                connec_order_out2[1] = 0;
+                connec_order_out2[2] = 5;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 2;
+                connec_order_out2[5] = 3;
+                connec_order_out2[6] = 6;
+                connec_order_out2[7] = 7;
+
+                connec_order_in3[0] = 1;
+                connec_order_in3[1] = 5;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 2;
+                connec_order_in3[4] = 3;
+                connec_order_in3[5] = 4;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 1;
+                connec_order_out3[1] = 5;
+                connec_order_out3[2] = 1;
+                connec_order_out3[3] = 0;
+                connec_order_out3[4] = 4;
+                connec_order_out3[5] = 2;
+                connec_order_out3[6] = 3;
+                connec_order_out3[7] = 5;
+
+            }
             //Edge 6
+            if (((face_intecepted[1]) && (face_intecepted[3])) && (!face_intecepted[0] && !face_intecepted[2] &&
+                    face_intecepted[4] && face_intecepted[5])) {
+                printf("Entrou na 6!");
+
+                cut_edge[0] = 2;
+                cut_edge[1] = 1;
+                cut_edge[2] = 9;
+                cut_edge[3] = 10;
+
+                cut_edge_s[0] = 10;
+                cut_edge_s[1] = 8;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 1;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 5;
+                connec_order_in1[4] = 2;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 6;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 5;
+                connec_order_out1[4] = 2;
+                connec_order_out1[5] = 4;
+                connec_order_out1[6] = 3;
+                connec_order_out1[7] = 6;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 3;
+                connec_order_in2[2] = 4;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 1;
+                connec_order_in2[5] = 2;
+                connec_order_in2[6] = 5;
+                connec_order_in2[7] = 6;
+
+                connec_order_out2[0] = 0;
+                connec_order_out2[1] = 3;
+                connec_order_out2[2] = 4;
+                connec_order_out2[3] = 7;
+                connec_order_out2[4] = 1;
+                connec_order_out2[5] = 2;
+                connec_order_out2[6] = 5;
+                connec_order_out2[7] = 6;
+
+                connec_order_in3[0] = 2;
+                connec_order_in3[1] = 6;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 3;
+                connec_order_in3[5] = 4;
+                connec_order_in3[6] = 5;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 2;
+                connec_order_out3[1] = 6;
+                connec_order_out3[2] = 4;
+                connec_order_out3[3] = 2;
+                connec_order_out3[4] = 0;
+                connec_order_out3[5] = 5;
+                connec_order_out3[6] = 3;
+                connec_order_out3[7] = 1;
+
+            }
             //Edge 7
+            if (((face_intecepted[0]) && (face_intecepted[3])) && (!face_intecepted[1] && !face_intecepted[2] &&
+                    face_intecepted[4] && face_intecepted[5])) {
+                printf("Entrou na 7!");
+
+                cut_edge[0] = 3;
+                cut_edge[1] = 11;
+                cut_edge[2] = 2;
+                cut_edge[3] = 5;
+
+                cut_edge_s[0] = 10;
+                cut_edge_s[1] = 8;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 1;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 5;
+                connec_order_in1[4] = 2;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 6;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 5;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 0;
+                connec_order_out1[6] = 5;
+                connec_order_out1[7] = 1;
+
+                connec_order_in2[0] = 0;
+                connec_order_in2[1] = 3;
+                connec_order_in2[2] = 4;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 1;
+                connec_order_in2[5] = 2;
+                connec_order_in2[6] = 5;
+                connec_order_in2[7] = 6;
+
+                connec_order_out2[0] = 4;
+                connec_order_out2[1] = 2;
+                connec_order_out2[2] = 5;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 1;
+                connec_order_out2[5] = 2;
+                connec_order_out2[6] = 5;
+                connec_order_out2[7] = 6;
+
+                connec_order_in3[0] = 3;
+                connec_order_in3[1] = 7;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 2;
+                connec_order_in3[5] = 4;
+                connec_order_in3[6] = 5;
+                connec_order_in3[7] = 6;
+
+                connec_order_out3[0] = 3;
+                connec_order_out3[1] = 7;
+                connec_order_out3[2] = 0;
+                connec_order_out3[3] = 4;
+                connec_order_out3[4] = 2;
+                connec_order_out3[5] = 1;
+                connec_order_out3[6] = 5;
+                connec_order_out3[7] = 3;
+
+            }
+
+
             //Edge 8
+            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[3] && !face_intecepted[5] &&
+                    face_intecepted[2] && face_intecepted[4])) {
+                printf("Entrou na 8!");
+
+                cut_edge[0] = 11;
+                cut_edge[1] = 9;
+                cut_edge[2] = 4;
+                cut_edge[3] = 5;
+
+                cut_edge_s[0] = 5;
+                cut_edge_s[1] = 7;
+
+                connec_order_in1[0] = 2;
+                connec_order_in1[1] = 3;
+                connec_order_in1[2] = 6;
+                connec_order_in1[3] = 7;
+                connec_order_in1[4] = 0;
+                connec_order_in1[5] = 1;
+                connec_order_in1[6] = 4;
+                connec_order_in1[7] = 5;
+
+                connec_order_out1[0] = 2;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 6;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 5;
+                connec_order_out1[6] = 0;
+                connec_order_out1[7] = 1;
+
+                connec_order_in2[0] = 4;
+                connec_order_in2[1] = 3;
+                connec_order_in2[2] = 6;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 0;
+                connec_order_in2[5] = 1;
+                connec_order_in2[6] = 2;
+                connec_order_in2[7] = 3;
+
+                connec_order_out2[0] = 2;
+                connec_order_out2[1] = 3;
+                connec_order_out2[2] = 5;
+                connec_order_out2[3] = 4;
+                connec_order_out2[4] = 0;
+                connec_order_out2[5] = 1;
+                connec_order_out2[6] = 2;
+                connec_order_out2[7] = 3;
+
+                connec_order_in3[0] = 4;
+                connec_order_in3[1] = 5;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 2;
+                connec_order_in3[5] = 3;
+                connec_order_in3[6] = 6;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 4;
+                connec_order_out3[1] = 5;
+                connec_order_out3[2] = 2;
+                connec_order_out3[3] = 3;
+                connec_order_out3[4] = 5;
+                connec_order_out3[5] = 4;
+                connec_order_out3[6] = 1;
+                connec_order_out3[7] = 0;
+
+
+            }
+
+
             //Edge 9
+            if (((face_intecepted[1]) && (face_intecepted[2])) && (!face_intecepted[0] && !face_intecepted[5] &&
+                    face_intecepted[3] && face_intecepted[4])) {
+                printf("Entrou na 9!");
+
+                cut_edge[0] = 8;
+                cut_edge[1] = 10;
+                cut_edge[2] = 5;
+                cut_edge[3] = 6;
+
+                cut_edge_s[0] = 0;
+                cut_edge_s[1] = 2;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 3;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 7;
+                connec_order_in1[4] = 1;
+                connec_order_in1[5] = 2;
+                connec_order_in1[6] = 5;
+                connec_order_in1[7] = 6;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 3;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 7;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 5;
+                connec_order_out1[6] = 0;
+                connec_order_out1[7] = 1;
+
+                connec_order_in2[0] = 4;
+                connec_order_in2[1] = 5;
+                connec_order_in2[2] = 6;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 0;
+                connec_order_in2[5] = 1;
+                connec_order_in2[6] = 2;
+                connec_order_in2[7] = 3;
+
+                connec_order_out2[0] = 4;
+                connec_order_out2[1] = 2;
+                connec_order_out2[2] = 3;
+                connec_order_out2[3] = 5;
+                connec_order_out2[4] = 0;
+                connec_order_out2[5] = 1;
+                connec_order_out2[6] = 2;
+                connec_order_out2[7] = 3;
+
+                connec_order_in3[0] = 5;
+                connec_order_in3[1] = 6;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 2;
+                connec_order_in3[5] = 3;
+                connec_order_in3[6] = 4;
+                connec_order_in3[7] = 7;
+
+                connec_order_out3[0] = 5;
+                connec_order_out3[1] = 6;
+                connec_order_out3[2] = 4;
+                connec_order_out3[3] = 2;
+                connec_order_out3[4] = 3;
+                connec_order_out3[5] = 5;
+                connec_order_out3[6] = 0;
+                connec_order_out3[7] = 1;
+
+            }
             //Edge 10
+            if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[5] &&
+                    face_intecepted[3] && face_intecepted[4])) {
+                printf("Entrou na 10!");
+
+                cut_edge[0] = 9;
+                cut_edge[1] = 11;
+                cut_edge[2] = 6;
+                cut_edge[3] = 7;
+
+                cut_edge_s[0] = 6;
+                cut_edge_s[1] = 4;
+
+                connec_order_in1[0] = 0;
+                connec_order_in1[1] = 1;
+                connec_order_in1[2] = 4;
+                connec_order_in1[3] = 5;
+                connec_order_in1[4] = 2;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 6;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 0;
+                connec_order_out1[1] = 1;
+                connec_order_out1[2] = 4;
+                connec_order_out1[3] = 5;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 5;
+                connec_order_out1[6] = 0;
+                connec_order_out1[7] = 1;
+
+                connec_order_in2[0] = 4;
+                connec_order_in2[1] = 5;
+                connec_order_in2[2] = 6;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 0;
+                connec_order_in2[5] = 1;
+                connec_order_in2[6] = 2;
+                connec_order_in2[7] = 3;
+
+                connec_order_out2[0] = 5;
+                connec_order_out2[1] = 4;
+                connec_order_out2[2] = 2;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 0;
+                connec_order_out2[5] = 1;
+                connec_order_out2[6] = 2;
+                connec_order_out2[7] = 3;
+
+                connec_order_in3[0] = 6;
+                connec_order_in3[1] = 7;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 2;
+                connec_order_in3[5] = 3;
+                connec_order_in3[6] = 4;
+                connec_order_in3[7] = 5;
+
+                connec_order_out3[0] = 6;
+                connec_order_out3[1] = 7;
+                connec_order_out3[2] = 5;
+                connec_order_out3[3] = 4;
+                connec_order_out3[4] = 2;
+                connec_order_out3[5] = 3;
+                connec_order_out3[6] = 1;
+                connec_order_out3[7] = 0;
+
+            }
             //Edge 11
+            if (((face_intecepted[0]) && (face_intecepted[2])) && (!face_intecepted[1] && !face_intecepted[5] &&
+                    face_intecepted[3] && face_intecepted[4])) {
+                printf("Entrou na 11!");
 
-            GtsPoint *p0 = point[3];
-            GtsPoint *p1 = point[1];
-            GtsPoint *p2 = point[7];
-            GtsPoint *p3 = point[6];
+                cut_edge[0] = 8;
+                cut_edge[1] = 10;
+                cut_edge[2] = 4;
+                cut_edge[3] = 7;
 
-            GtsPoint *p4 = point_s[5];
-            GtsPoint *p5 = point_s[7];
+                cut_edge_s[0] = 1;
+                cut_edge_s[1] = 3;
+
+                connec_order_in1[0] = 1;
+                connec_order_in1[1] = 2;
+                connec_order_in1[2] = 5;
+                connec_order_in1[3] = 6;
+                connec_order_in1[4] = 0;
+                connec_order_in1[5] = 3;
+                connec_order_in1[6] = 4;
+                connec_order_in1[7] = 7;
+
+                connec_order_out1[0] = 1;
+                connec_order_out1[1] = 2;
+                connec_order_out1[2] = 5;
+                connec_order_out1[3] = 6;
+                connec_order_out1[4] = 4;
+                connec_order_out1[5] = 5;
+                connec_order_out1[6] = 0;
+                connec_order_out1[7] = 1;
+
+                connec_order_in2[0] = 4;
+                connec_order_in2[1] = 5;
+                connec_order_in2[2] = 6;
+                connec_order_in2[3] = 7;
+                connec_order_in2[4] = 0;
+                connec_order_in2[5] = 1;
+                connec_order_in2[6] = 2;
+                connec_order_in2[7] = 3;
+
+                connec_order_out2[0] = 2;
+                connec_order_out2[1] = 4;
+                connec_order_out2[2] = 5;
+                connec_order_out2[3] = 3;
+                connec_order_out2[4] = 0;
+                connec_order_out2[5] = 1;
+                connec_order_out2[6] = 2;
+                connec_order_out2[7] = 3;
+
+                connec_order_in3[0] = 4;
+                connec_order_in3[1] = 7;
+                connec_order_in3[2] = 0;
+                connec_order_in3[3] = 1;
+                connec_order_in3[4] = 2;
+                connec_order_in3[5] = 3;
+                connec_order_in3[6] = 5;
+                connec_order_in3[7] = 6;
+
+                connec_order_out3[0] = 4;
+                connec_order_out3[1] = 7;
+                connec_order_out3[2] = 2;
+                connec_order_out3[3] = 4;
+                connec_order_out3[4] = 5;
+                connec_order_out3[5] = 3;
+                connec_order_out3[6] = 0;
+                connec_order_out3[7] = 1;
+
+            }
+
+            GtsPoint *p0 = point[cut_edge[0]];
+            GtsPoint *p1 = point[cut_edge[1]];
+            GtsPoint *p2 = point[cut_edge[2]];
+            GtsPoint *p3 = point[cut_edge[3]];
+
+            GtsPoint *p4 = point_s[cut_edge_s[0]];
+            GtsPoint *p5 = point_s[cut_edge_s[1]];
 
             g_assert(p0 != NULL);
             g_assert(p1 != NULL);
@@ -933,53 +1741,53 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             g_assert(p4 != NULL);
             g_assert(p5 != NULL);
 
-            conn_t2[0] = AddPointOnEdge(Edge2GNode[3], hash_nodes, mesh->local_n_nodes, p0, coords);
-            conn_t2[1] = AddPointOnEdge(Edge2GNode[1], hash_nodes, mesh->local_n_nodes, p1, coords);
-            conn_t2[2] = AddPointOnEdge(Edge2GNode[7], hash_nodes, mesh->local_n_nodes, p2, coords);
-            conn_t2[3] = AddPointOnEdge(Edge2GNode[6], hash_nodes, mesh->local_n_nodes, p3, coords);
+            conn_t2[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
+            conn_t2[1] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p1, coords);
+            conn_t2[2] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p2, coords);
+            conn_t2[3] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p3, coords);
 
             // add 2 extra points in the surface
-            conn_t2[4] = AddPointOnEdge(Edge2GNode_s[5], hash_nodes, mesh->local_n_nodes, p4, coords);
-            conn_t2[5] = AddPointOnEdge(Edge2GNode_s[7], hash_nodes, mesh->local_n_nodes, p5, coords);
+            conn_t2[4] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[0]], hash_nodes, mesh->local_n_nodes, p4, coords);
+            conn_t2[5] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[1]], hash_nodes, mesh->local_n_nodes, p5, coords);
 
             octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
-            elem1->nodes[0].id = original_conn[0];
-            elem1->nodes[1].id = original_conn[1];
-            elem1->nodes[4].id = original_conn[4];
-            elem1->nodes[5].id = original_conn[5];
+            elem1->nodes[connec_order_in1[0]].id = original_conn[connec_order_out1[0]];
+            elem1->nodes[connec_order_in1[1]].id = original_conn[connec_order_out1[1]];
+            elem1->nodes[connec_order_in1[2]].id = original_conn[connec_order_out1[2]];
+            elem1->nodes[connec_order_in1[3]].id = original_conn[connec_order_out1[3]];
 
-            elem1->nodes[2].id = conn_t2[1];
-            elem1->nodes[3].id = conn_t2[0];
-            elem1->nodes[6].id = conn_t2[5];
-            elem1->nodes[7].id = conn_t2[4];
+            elem1->nodes[connec_order_in1[4]].id = conn_t2[connec_order_out1[4]];
+            elem1->nodes[connec_order_in1[5]].id = conn_t2[connec_order_out1[5]];
+            elem1->nodes[connec_order_in1[6]].id = conn_t2[connec_order_out1[6]];
+            elem1->nodes[connec_order_in1[7]].id = conn_t2[connec_order_out1[7]];
 
             octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
 
-            elem2->nodes[0].id = conn_t2[4];
-            elem2->nodes[1].id = conn_t2[5];
-            elem2->nodes[2].id = conn_t2[3];
-            elem2->nodes[3].id = conn_t2[2];
+            elem2->nodes[connec_order_in2[0]].id = conn_t2[connec_order_out2[0]];
+            elem2->nodes[connec_order_in2[1]].id = conn_t2[connec_order_out2[1]];
+            elem2->nodes[connec_order_in2[2]].id = conn_t2[connec_order_out2[2]];
+            elem2->nodes[connec_order_in2[3]].id = conn_t2[connec_order_out2[3]];
 
-            elem2->nodes[4].id = original_conn[4];
-            elem2->nodes[5].id = original_conn[5];
-            elem2->nodes[6].id = original_conn[6];
-            elem2->nodes[7].id = original_conn[7];
+            elem2->nodes[connec_order_in2[4]].id = original_conn[connec_order_out2[4]];
+            elem2->nodes[connec_order_in2[5]].id = original_conn[connec_order_out2[5]];
+            elem2->nodes[connec_order_in2[6]].id = original_conn[connec_order_out2[6]];
+            elem2->nodes[connec_order_in2[7]].id = original_conn[connec_order_out2[7]];
 
             elem2->pad = 3;
             elem2->level = elem->level;
 
             octant_t* elem3 = (octant_t*) sc_array_push(&mesh->elements);
 
-            elem3->nodes[2].id = original_conn[2];
-            elem3->nodes[3].id = original_conn[3];
+            elem3->nodes[connec_order_in3[0]].id = original_conn[connec_order_out3[0]];
+            elem3->nodes[connec_order_in3[1]].id = original_conn[connec_order_out3[1]];
 
-            elem3->nodes[0].id = conn_t2[0];
-            elem3->nodes[1].id = conn_t2[1];
-            elem3->nodes[4].id = conn_t2[4];
-            elem3->nodes[5].id = conn_t2[5];
-            elem3->nodes[6].id = conn_t2[3];
-            elem3->nodes[7].id = conn_t2[2];
+            elem3->nodes[connec_order_in3[2]].id = conn_t2[connec_order_out3[2]];
+            elem3->nodes[connec_order_in3[3]].id = conn_t2[connec_order_out3[3]];
+            elem3->nodes[connec_order_in3[4]].id = conn_t2[connec_order_out3[4]];
+            elem3->nodes[connec_order_in3[5]].id = conn_t2[connec_order_out3[5]];
+            elem3->nodes[connec_order_in3[6]].id = conn_t2[connec_order_out3[6]];
+            elem3->nodes[connec_order_in3[7]].id = conn_t2[connec_order_out3[7]];
 
             elem3->pad = 4;
             elem3->level = elem->level;
@@ -993,6 +1801,10 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             }
 
         }
+
+
+
+
 
         if (n_parallel_faces == 0) {
             // Apply template 1.
