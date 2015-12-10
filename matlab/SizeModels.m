@@ -17,3 +17,31 @@ loncrop = [l(5)+l(6)/60 l(7)+l(8)/60];
 xlon = lonlat2m(loncrop,[1 1]*mean(latcrop));
 s = abs([diff(xlon) diff(xlat)])/1000
 
+return
+
+% find appropriate size of elements for different layers of a model
+vp = [5800 6800 8100];
+vs = [3200 3900 4491];
+fc = 3;
+L = 110e3;
+vw = 1450;
+
+
+fmax = fc*2.5;
+lambdamin = vs/fmax;
+lambdamax = vp/fc;
+lambdaminw = vw/fmax;
+
+% element size
+SizElts = [lambdaminw lambdamin]
+
+% number of elements per side
+N = ceil(L./SizElts)
+
+% refinement level
+nl = 3.^(1:14);
+lev = zeros(size(N));
+for i1 = length(nl):-1:1
+    lev(N<=nl(i1)) = i1;
+end
+lev
