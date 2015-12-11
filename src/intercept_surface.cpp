@@ -262,7 +262,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, vector<doub
 void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, const char* surface_bathy) {
     sc_array_t *elements = &mesh->elements;
     GtsBBox *box;
-    
+
     //hexa_tree_t bathy;
 
     mesh->gdata.s = SurfaceRead(surface_bathy);
@@ -406,14 +406,14 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
     for (int iel = 0; iel < elements_ids.size(); ++iel) {
         octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-        //elem->pad = 0;
+        elem->pad = -1;
 
         for (int i = 0; i < 8; i++) original_conn[i] = elem->nodes[i].id;
 
         //double z = (coords[original_conn[0]+2] + coords[original_conn[2]+2])*0.5;
         //if(z >= 0.0) continue;
 
-        int edge_list[4];
+        bool edge_list[12];
         int ed_cont = 0;
 
         for (int edge = 0; edge < 12; ++edge) {
@@ -421,7 +421,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
             int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
 
-            fprintf(fdbg, " Nodes : %d, %d\n", node1, node2);
+            //fprintf(fdbg, " Nodes : %d, %d\n", node1, node2);
 
             Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
             Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
@@ -432,14 +432,14 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
             GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
             GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-
+edge_list[edge] = false;
             if (list == NULL) continue;
             while (list) {
                 GtsBBox *b = GTS_BBOX(list->data);
                 point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
                 if (point[edge]) {
                     //fprintf(fdbg, "edge, %d\n ", edge);
-                    edge_list[ed_cont] = edge;
+                    edge_list[edge] = true;
                     ed_cont++;
                     break;
                 }
@@ -464,8 +464,11 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
         fprintf(fdbg, "Faces:  Elem. %d: %d %d %d %d %d %d\n", elements_ids[iel], face_intecepted[0],
                 face_intecepted[1], face_intecepted[2],
                 face_intecepted[3], face_intecepted[4], face_intecepted[5]);
-        fprintf(fdbg, "Edges:  Elem. %d: %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
-                edge_list[1], edge_list[2], edge_list[3], ed_cont++);
+        fprintf(fdbg, "Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+                edge_list[1], edge_list[2], edge_list[3],
+                edge_list[4], edge_list[5], edge_list[6],
+                edge_list[7], edge_list[8], edge_list[9],
+                edge_list[10], edge_list[11], ed_cont);
 
         int n_parallel_faces = (face_intecepted[0] && face_intecepted[1]) +
                 (face_intecepted[2] && face_intecepted[3]) +
@@ -479,7 +482,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             int connec_order_in[8];
             int connec_order_out1[8];
             int connec_order_out2[8];
-#if 1
+#if 0
 
             if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[3] &&
                     face_intecepted[4] && face_intecepted[5])) {
@@ -883,7 +886,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
 
 
-#if 1
+#if 0
             int conn_t2[6];
             int cut_edge[4];
             int cut_edge_s[2];
@@ -968,9 +971,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[5] = 3;
                 connec_order_out3[6] = 5;
                 connec_order_out3[7] = 4;
-            }
-
-            //Edge 1
+            }//Edge 1
             else if (((face_intecepted[1]) && (face_intecepted[2])) && (!face_intecepted[0] && !face_intecepted[4] &&
                     face_intecepted[3] && face_intecepted[5])) {
                 printf("Entrou na 1!");
@@ -1036,9 +1037,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[5] = 2;
                 connec_order_out3[6] = 3;
                 connec_order_out3[7] = 5;
-            }
-
-            //Edge 2
+            }//Edge 2
             else if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[4] &&
                     face_intecepted[3] && face_intecepted[5])) {
                 printf("Entrou na 2!");
@@ -1104,11 +1103,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[5] = 5;
                 connec_order_out3[6] = 3;
                 connec_order_out3[7] = 2;
-            }
-
-
-
-            //Edge 3
+            }//Edge 3
             else if (((face_intecepted[0]) && (face_intecepted[2])) && (!face_intecepted[1] && !face_intecepted[4] &&
                     face_intecepted[3] && face_intecepted[5])) {
                 printf("Entrou na 3!");
@@ -1175,10 +1170,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 5;
                 connec_order_out3[7] = 3;
 
-            }
-
-
-            //Edge 4
+            }//Edge 4
             else if (((face_intecepted[0]) && (face_intecepted[2])) && (!face_intecepted[1] && !face_intecepted[3] &&
                     face_intecepted[4] && face_intecepted[5])) {
                 printf("Entrou na 4!");
@@ -1245,8 +1237,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 5;
                 connec_order_out3[7] = 2;
 
-            }
-            //Edge 5
+            }//Edge 5
             else if (((face_intecepted[1]) && (face_intecepted[2])) && (!face_intecepted[0] && !face_intecepted[3] &&
                     face_intecepted[4] && face_intecepted[5])) {
                 printf("Entrou na 5!");
@@ -1313,8 +1304,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 3;
                 connec_order_out3[7] = 5;
 
-            }
-            //Edge 6
+            }//Edge 6
             else if (((face_intecepted[1]) && (face_intecepted[3])) && (!face_intecepted[0] && !face_intecepted[2] &&
                     face_intecepted[4] && face_intecepted[5])) {
                 printf("Entrou na 6!");
@@ -1381,8 +1371,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 3;
                 connec_order_out3[7] = 1;
 
-            }
-            //Edge 7
+            }//Edge 7
             else if (((face_intecepted[0]) && (face_intecepted[3])) && (!face_intecepted[1] && !face_intecepted[2] &&
                     face_intecepted[4] && face_intecepted[5])) {
                 printf("Entrou na 7!");
@@ -1449,10 +1438,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 5;
                 connec_order_out3[7] = 3;
 
-            }
-
-
-            //Edge 8
+            }//Edge 8
             else if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[3] && !face_intecepted[5] &&
                     face_intecepted[2] && face_intecepted[4])) {
                 printf("Entrou na 8!");
@@ -1520,10 +1506,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[7] = 0;
 
 
-            }
-
-
-            //Edge 9
+            }//Edge 9
             else if (((face_intecepted[1]) && (face_intecepted[2])) && (!face_intecepted[0] && !face_intecepted[5] &&
                     face_intecepted[3] && face_intecepted[4])) {
                 printf("Entrou na 9!");
@@ -1590,8 +1573,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 0;
                 connec_order_out3[7] = 1;
 
-            }
-            //Edge 10
+            }//Edge 10
             else if (((face_intecepted[0]) && (face_intecepted[1])) && (!face_intecepted[2] && !face_intecepted[5] &&
                     face_intecepted[3] && face_intecepted[4])) {
                 printf("Entrou na 10!");
@@ -1658,8 +1640,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out3[6] = 1;
                 connec_order_out3[7] = 0;
 
-            }
-            //Edge 11
+            }//Edge 11
             else if (((face_intecepted[0]) && (face_intecepted[2])) && (!face_intecepted[1] && !face_intecepted[5] &&
                     face_intecepted[3] && face_intecepted[4])) {
                 printf("Entrou na 11!");
@@ -1796,10 +1777,13 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
 #endif
             for (int edge = 0; edge < 12; edge++) {
+                if (point_s[edge]) gts_object_destroy(GTS_OBJECT(point_s[edge]));
+                point_s[edge] = NULL;
+            }
 
+            for (int edge = 0; edge < 12; edge++) {
                 if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
                 point[edge] = NULL;
-                point_s[edge] = NULL;
             }
 
         }
@@ -1818,8 +1802,8 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
             //fprintf(fdbg, " Nodes diagonal vol : %d, %d\n", node1, node2);
 
-            Edge2GNode_s[edge][0] = node1 <= node2 ? node1 : node2;
-            Edge2GNode_s[edge][1] = node1 >= node2 ? node1 : node2;
+            Edge2GNode_v[edge][0] = node1 <= node2 ? node1 : node2;
+            Edge2GNode_v[edge][1] = node1 >= node2 ? node1 : node2;
 
             GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
             GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -1834,6 +1818,8 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 point_v[edge] = SegmentTriangleIntersection(segments_v[edge], GTS_TRIANGLE(b->bounded));
                 if (point_v[edge]) {
                     //fprintf(fdbg, " edges diagonal vol: %d\n", edge);
+                    //           printf(" edges diagonal vol: %d\n", edge);
+
                     break;
                 }
                 list = list->next;
@@ -1841,8 +1827,8 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
         }
 
 
-
-        if (n_parallel_faces == 0 && ed_cont == 2) {
+        //        printf("n_parallel_faces %d, ed_cont, %d\n", n_parallel_faces, ed_cont);
+        if (n_parallel_faces == 0 && ed_cont == 3) {
             // Apply template 1.
             elem->pad = 5;
 
@@ -1875,7 +1861,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge_s[1] = 4;
                 cut_edge_s[2] = 10;
 
-                cut_edge_v[1] = 0;
+                cut_edge_v[0] = 0;
 
                 connec_order_in1[0] = 4;
                 connec_order_in1[1] = 5;
@@ -1951,7 +1937,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             }
 
             //Corner 1
-            if ((face_intecepted[0]) && (!face_intecepted[1]) && (!face_intecepted[3] && !face_intecepted[4] &&
+            if ((face_intecepted[1]) && (!face_intecepted[0]) && (!face_intecepted[3] && !face_intecepted[4] &&
                     face_intecepted[2] && face_intecepted[5])) {
                 printf("Entrou no 1!");
 
@@ -1963,25 +1949,25 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge_s[1] = 1;
                 cut_edge_s[2] = 11;
 
-                cut_edge_v[1] = 1;
+                cut_edge_v[0] = 1;
 
-                connec_order_in1[0] = 0;
-                connec_order_in1[1] = 1;
-                connec_order_in1[2] = 2;
-                connec_order_in1[3] = 3;
-                connec_order_in1[4] = 4;
-                connec_order_in1[5] = 5;
-                connec_order_in1[6] = 6;
-                connec_order_in1[7] = 7;
+                connec_order_in1[0] = 4;
+                connec_order_in1[1] = 5;
+                connec_order_in1[2] = 6;
+                connec_order_in1[3] = 7;
+                connec_order_in1[4] = 0;
+                connec_order_in1[5] = 1;
+                connec_order_in1[6] = 2;
+                connec_order_in1[7] = 3;
 
                 connec_order_out1[0] = 4;
-                connec_order_out1[1] = 0;
-                connec_order_out1[2] = 3;
-                connec_order_out1[3] = 6;
+                connec_order_out1[1] = 5;
+                connec_order_out1[2] = 6;
+                connec_order_out1[3] = 7;
                 connec_order_out1[4] = 4;
-                connec_order_out1[5] = 5;
-                connec_order_out1[6] = 6;
-                connec_order_out1[7] = 7;
+                connec_order_out1[5] = 0;
+                connec_order_out1[6] = 3;
+                connec_order_out1[7] = 6;
 
                 connec_order_in2[0] = 0;
                 connec_order_in2[1] = 1;
@@ -2048,20 +2034,20 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge[1] = 2;
                 cut_edge[2] = 1;
 
-                cut_edge_s[0] = 6;
-                cut_edge_s[1] = 1;
-                cut_edge_s[2] = 11;
+                cut_edge_s[0] = 3;
+                cut_edge_s[1] = 7;
+                cut_edge_s[2] = 10;
 
-                cut_edge_v[1] = 2;
+                cut_edge_v[0] = 2;
 
                 connec_order_in1[0] = 4;
                 connec_order_in1[1] = 5;
                 connec_order_in1[2] = 6;
                 connec_order_in1[3] = 7;
-                connec_order_in1[4] = 0;
-                connec_order_in1[5] = 1;
-                connec_order_in1[6] = 2;
-                connec_order_in1[7] = 3;
+                connec_order_in1[4] = 1;
+                connec_order_in1[5] = 2;
+                connec_order_in1[6] = 3;
+                connec_order_in1[7] = 4;
 
                 connec_order_out1[0] = 4;
                 connec_order_out1[1] = 5;
@@ -2072,59 +2058,59 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out1[6] = 3;
                 connec_order_out1[7] = 6;
 
-                connec_order_in2[0] = 2;
-                connec_order_in2[1] = 3;
-                connec_order_in2[2] = 6;
-                connec_order_in2[3] = 7;
+                connec_order_in2[0] = 1;
+                connec_order_in2[1] = 2;
+                connec_order_in2[2] = 5;
+                connec_order_in2[3] = 6;
                 connec_order_in2[4] = 0;
-                connec_order_in2[5] = 1;
+                connec_order_in2[5] = 3;
                 connec_order_in2[6] = 4;
-                connec_order_in2[7] = 5;
+                connec_order_in2[7] = 7;
 
                 connec_order_out2[0] = 5;
                 connec_order_out2[1] = 1;
                 connec_order_out2[2] = 6;
                 connec_order_out2[3] = 3;
                 connec_order_out2[4] = 0;
-                connec_order_out2[5] = 1;
+                connec_order_out2[5] = 3;
                 connec_order_out2[6] = 4;
-                connec_order_out2[7] = 5;
+                connec_order_out2[7] = 7;
 
-                connec_order_in3[0] = 0;
+                connec_order_in3[0] = 2;
                 connec_order_in3[1] = 3;
-                connec_order_in3[2] = 4;
+                connec_order_in3[2] = 6;
                 connec_order_in3[3] = 7;
-                connec_order_in3[4] = 1;
-                connec_order_in3[5] = 2;
-                connec_order_in3[6] = 5;
-                connec_order_in3[7] = 6;
+                connec_order_in3[4] = 0;
+                connec_order_in3[5] = 1;
+                connec_order_in3[6] = 4;
+                connec_order_in3[7] = 5;
 
-                connec_order_out3[0] = 5;
-                connec_order_out3[1] = 2;
-                connec_order_out3[2] = 6;
-                connec_order_out3[3] = 4;
-                connec_order_out3[4] = 1;
-                connec_order_out3[5] = 2;
-                connec_order_out3[6] = 5;
-                connec_order_out3[7] = 6;
+                connec_order_out3[0] = 2;
+                connec_order_out3[1] = 5;
+                connec_order_out3[2] = 4;
+                connec_order_out3[3] = 6;
+                connec_order_out3[4] = 0;
+                connec_order_out3[5] = 1;
+                connec_order_out3[6] = 4;
+                connec_order_out3[7] = 5;
 
-                connec_order_in4[0] = 3;
+                connec_order_in4[0] = 2;
                 connec_order_in4[1] = 0;
                 connec_order_in4[2] = 1;
-                connec_order_in4[3] = 2;
+                connec_order_in4[3] = 3;
                 connec_order_in4[4] = 4;
                 connec_order_in4[5] = 5;
                 connec_order_in4[6] = 6;
                 connec_order_in4[7] = 7;
 
-                connec_order_out4[0] = 3;
-                connec_order_out4[1] = 1;
-                connec_order_out4[2] = 5;
-                connec_order_out4[3] = 2;
-                connec_order_out4[4] = 0;
-                connec_order_out4[5] = 3;
-                connec_order_out4[6] = 6;
-                connec_order_out4[7] = 4;
+                connec_order_out4[0] = 2;
+                connec_order_out4[1] = 5;
+                connec_order_out4[2] = 2;
+                connec_order_out4[3] = 1;
+                connec_order_out4[4] = 6;
+                connec_order_out4[5] = 4;
+                connec_order_out4[6] = 0;
+                connec_order_out4[7] = 3;
 
             }
 
@@ -2141,7 +2127,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge_s[1] = 2;
                 cut_edge_s[2] = 11;
 
-                cut_edge_v[1] = 3;
+                cut_edge_v[0] = 3;
 
                 connec_order_in1[0] = 4;
                 connec_order_in1[1] = 5;
@@ -2210,10 +2196,10 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 connec_order_out4[1] = 1;
                 connec_order_out4[2] = 5;
                 connec_order_out4[3] = 2;
-                connec_order_out4[4] = 0;
-                connec_order_out4[5] = 3;
-                connec_order_out4[6] = 6;
-                connec_order_out4[7] = 4;
+                connec_order_out4[4] = 3;
+                connec_order_out4[5] = 6;
+                connec_order_out4[6] = 4;
+                connec_order_out4[7] = 0;
 
             }
 
@@ -2231,7 +2217,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge_s[1] = 5;
                 cut_edge_s[2] = 8;
 
-                cut_edge_v[1] = 2;
+                cut_edge_v[0] = 2;
 
                 connec_order_in1[0] = 0;
                 connec_order_in1[1] = 1;
@@ -2308,7 +2294,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             }
 
             //Corner 5
-            if ((face_intecepted[0]) && (!face_intecepted[1]) && (!face_intecepted[3] && !face_intecepted[5] &&
+            if ((face_intecepted[1]) && (!face_intecepted[0]) && (!face_intecepted[3] && !face_intecepted[5] &&
                     face_intecepted[2] && face_intecepted[4])) {
                 printf("Entrou no 5!");
 
@@ -2320,7 +2306,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge_s[1] = 0;
                 cut_edge_s[2] = 9;
 
-                cut_edge_v[1] = 3;
+                cut_edge_v[0] = 3;
 
                 connec_order_in1[0] = 0;
                 connec_order_in1[1] = 1;
@@ -2402,15 +2388,15 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 printf("Entrou no 6!");
 
 
-                cut_edge[0] = 5;
-                cut_edge[1] = 6;
+                cut_edge[0] = 6;
+                cut_edge[1] = 10;
                 cut_edge[2] = 9;
 
                 cut_edge_s[0] = 2;
                 cut_edge_s[1] = 6;
                 cut_edge_s[2] = 8;
 
-                cut_edge_v[1] = 0;
+                cut_edge_v[0] = 0;
 
                 connec_order_in1[0] = 0;
                 connec_order_in1[1] = 1;
@@ -2501,7 +2487,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
                 cut_edge_s[1] = 3;
                 cut_edge_s[2] = 9;
 
-                cut_edge_v[1] = 1;
+                cut_edge_v[0] = 1;
 
                 connec_order_in1[0] = 0;
                 connec_order_in1[1] = 1;
@@ -2600,12 +2586,12 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             conn_t2[2] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p2, coords);
 
             // add 3 extra points in the surface
-            conn_t2[4] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[0]], hash_nodes, mesh->local_n_nodes, p4, coords);
-            conn_t2[5] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[1]], hash_nodes, mesh->local_n_nodes, p5, coords);
-            conn_t2[6] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[2]], hash_nodes, mesh->local_n_nodes, p5, coords);
+            conn_t2[3] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[0]], hash_nodes, mesh->local_n_nodes, p3, coords);
+            conn_t2[4] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[1]], hash_nodes, mesh->local_n_nodes, p4, coords);
+            conn_t2[5] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[2]], hash_nodes, mesh->local_n_nodes, p5, coords);
 
             // add 1 extra points in the volume
-            conn_t2[4] = AddPointOnEdge(Edge2GNode_s[cut_edge_v[0]], hash_nodes, mesh->local_n_nodes, p4, coords);
+            conn_t2[6] = AddPointOnEdge(Edge2GNode_s[cut_edge_v[0]], hash_nodes, mesh->local_n_nodes, p6, coords);
 
             octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
@@ -2631,7 +2617,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             elem2->nodes[connec_order_in2[6]].id = original_conn[connec_order_out2[6]];
             elem2->nodes[connec_order_in2[7]].id = original_conn[connec_order_out2[7]];
 
-            elem2->pad = 3;
+            elem2->pad = 6;
             elem2->level = elem->level;
 
             octant_t* elem3 = (octant_t*) sc_array_push(&mesh->elements);
@@ -2646,7 +2632,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             elem3->nodes[connec_order_in3[6]].id = original_conn[connec_order_out3[6]];
             elem3->nodes[connec_order_in3[7]].id = original_conn[connec_order_out3[7]];
 
-            elem3->pad = 3;
+            elem3->pad = 7;
             elem3->level = elem->level;
 
             octant_t* elem4 = (octant_t*) sc_array_push(&mesh->elements);
@@ -2661,8 +2647,8 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             elem4->nodes[connec_order_in4[6]].id = conn_t2[connec_order_out4[6]];
             elem4->nodes[connec_order_in4[7]].id = conn_t2[connec_order_out4[7]];
 
-            elem3->pad = 4;
-            elem3->level = elem->level;
+            elem4->pad = 8;
+            elem4->level = elem->level;
 
 
 #endif
@@ -2671,22 +2657,26 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
 
             for (int edge = 0; edge < 4; edge++) {
-
-                if (point_v[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+                if (point_v[edge]) gts_object_destroy(GTS_OBJECT(point_v[edge]));
                 point_v[edge] = NULL;
             }
 
             for (int edge = 0; edge < 12; edge++) {
-
-                if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
-                point[edge] = NULL;
+                if (point_s[edge]) gts_object_destroy(GTS_OBJECT(point_s[edge]));
                 point_s[edge] = NULL;
             }
 
+            for (int edge = 0; edge < 12; edge++) {
+                if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+                point[edge] = NULL;
+            }
 
         }
 
-
+    //if (elem->pad == -1) {
+    //    elem->pad = ed_cont;
+    //}
+        
     }
 
     mesh->local_n_elements = mesh->elements.elem_count;
@@ -2703,6 +2693,8 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
     fclose(fdbg);
     sc_hash_array_destroy(hash_nodes);
+
+
 }
 
 /*

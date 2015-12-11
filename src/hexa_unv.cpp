@@ -242,7 +242,7 @@ void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<d
 
     UNVIO_WriteNodes(out_file, mesh, coords);
     UNVIO_WriteElements(out_file, mesh);
-    UNVIO_WritePhysicalVolumes(out_file, mesh);
+    //UNVIO_WritePhysicalVolumes(out_file, mesh);
     out_file.close();
 
 }

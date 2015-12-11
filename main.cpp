@@ -52,9 +52,11 @@ int main(int argc, char** argv) {
 
 
     GetInterceptedElements(&mesh, coords, element_ids, "./input/Bathymetry.gts");
-    //GetInterceptedElements(&mesh, coords, element_ids, "./input/template2_2.gts");
+    //GetInterceptedElements(&mesh, coords, element_ids, "./input/template3_1.gts");
+    //GetInterceptedElements(&mesh, coords, element_ids, "./input/template1_z.gts");
 
-    printf(" Elements intercepted: %d\n", element_ids.size());
+
+    //printf(" Elements intercepted: %d\n", element_ids.size());
 
     ApllyTemplate(&mesh, coords, element_ids);
     //TO DO
@@ -62,7 +64,7 @@ int main(int argc, char** argv) {
     
     hexa_mesh_write_vtk(&mesh, "mesh", &coords);
 
-    //hexa_mesh_write_unv(&mesh, "test", &coords);
+    //hexa_mesh_write_unv(&mesh, "mesh", &coords);
     //hexa_mesh_write_vtk(&mesh,"template", NULL);
     //hexa_mesh_write_unv(&mesh,"teste", NULL);
 
