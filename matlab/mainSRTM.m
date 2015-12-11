@@ -61,18 +61,31 @@ if ~isempty(water)
         lat = [lat(:); water.Ocean{i1}(2,ind)'];
         z = [z(:); zeros(sum(ind),1)];
     end
+    for i1 = 1:length(water.Land)
+        lon1 = water.Land{i1}(1,1:end-1)';
+        lat1 = water.Land{i1}(2,1:end-1)';
+        ind = lon1>=loncrop(1) & lon1<=loncrop(2) ...
+            & lat1>=latcrop(1) & lat1<=latcrop(2);
+        lon = [lon(:); water.Land{i1}(1,ind)'];
+        lat = [lat(:); water.Land{i1}(2,ind)'];
+        z = [z(:); zeros(sum(ind),1)];
+    end
 else
     disp('no water body information found')
 end
 tri = delaunay(lon,lat);
 
 % transform heights in bathymetry to +9999
-in = false(size(lon));
+in = false(size(lon)); % in water
 for i1 = 1:length(water.Ocean)
     in = in | inpolygon(lon,lat,water.Ocean{i1}(1,:),water.Ocean{i1}(2,:));
 end
-z(~in) = 9999;
-% figure; trimesh(tri,lon,lat,z)
+in = ~in; % in land
+for i1 = 1:length(water.Land)
+    in = in | inpolygon(lon,lat,water.Land{i1}(1,:),water.Land{i1}(2,:));
+end
+z(in) = 9999;
+figure; trimesh(tri,lon,lat,z)
 
 
 % transform angles to meters
