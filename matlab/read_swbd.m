@@ -90,7 +90,7 @@ if ~ok
             fprintf('File "%s" downloaded from %s\n',file,url);
         end
     catch
-        disp(['no file ' file '.zip on http server'])
+        disp(['no file ' sprintf('%s%3.3d%s%2.2d',ew,abs(x),ns,abs(y)) '.zip on http server'])
     end
 %     for c = 'einsalf'
 %         [ok,name,fname,zip] = checkfile(file,c);

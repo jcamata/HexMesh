@@ -5,9 +5,9 @@ clear all
 % [ minlat° minlat' maxlat° maxlat' minlon° minlon' maxlon° maxlon']
 % l = [40 00 52 00  -5 00   8 00]; % France
 % l = [43 48 44 05   4 30   5 00]; % Cadarache, France
-l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
+% l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
 % l = [37 10 37 40 138 15 138 55]; % Kashiwazaki, Japan
-% l = [18 00 21 50 -158 50 -154 00]; % Mauna Loa, Hawai
+l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
@@ -46,7 +46,23 @@ outbathy = bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
 
 % get coastlines and rivers
-water = swbd_shore( [ loncrop latcrop ], outdir );
+[x,y] = ndgrid(latbnds(1:end-1), lonbnds(1:end-1));
+x = x(:); y = y(:);
+water = struct('Ocean',{[]},'River',{[]},'Lake',{[]}, 'Land',{[]},'Isle',{[]});
+for i1 = 1:length(x)
+    wat = swbd_shore( [ y(i1) y(i1)+1 x(i1) x(i1)+1 ], outdir );
+    if isempty(wat)
+        ocean = [ y(i1) y(i1) y(i1)+1 y(i1)+1 y(i1); 
+                  x(i1) x(i1)+1 x(i1)+1 x(i1) x(i1) ];
+        water.Ocean = [water.Ocean; {ocean}];
+    else
+        water.Ocean = [water.Ocean; wat.Ocean];
+        water.River = [water.River; wat.River];
+        water.Lake = [water.Lake; wat.Lake];
+        water.Land = [water.Land; wat.Land];
+        water.Isle = [water.Isle; wat.Isle];
+    end
+end
 
 % interpolate coastlines
 [lon,lat] = ndgrid(outbathy.lon(:),outbathy.lat(:));
@@ -78,7 +94,7 @@ tri = delaunay(lon,lat);
 % transform heights in bathymetry to +9999
 in = false(size(lon)); % in water
 for i1 = 1:length(water.Ocean)
-    in = in | inpolygon(lon,lat,water.Ocean{i1}(1,:),water.Ocean{i1}(2,:));
+    in = in | inpolygon(lat,lon,water.Ocean{i1}(2,:)',water.Ocean{i1}(1,:)');
 end
 in = ~in; % in land
 for i1 = 1:length(water.Land)
@@ -98,6 +114,7 @@ else
     error('the STL file is too large')
 end
 
+return
 % write STL files
 write_stl( fullfile(outdir,'topo.stl'), xtopo, ytopo, double(outtopo.z') );
 write_stl( fullfile(outdir,'bathy.stl'), [xbathy ybathy z], tri' );
