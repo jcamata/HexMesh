@@ -329,6 +329,9 @@ if merge
 	Y.z = zeros(length(Y.lat),length(Y.lon),'int16');
 	for n = 1:numel(X)
 		if ~isempty(X(n).z)
+            if any(size(X(n).z)~=sz)
+                X(n).z = X(n).z(1:3:end,1:3:end);
+            end
 			Y.z((sz(1)-1)*(X(n).lat(1)-Y.lat(1)) + (1:sz(1)),(sz(2)-1)*(X(n).lon(1)-Y.lon(1)) + (1:sz(2))) = X(n).z;
 		end
 	end
