@@ -416,7 +416,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
         bool edge_list[12];
         int ed_cont = 0;
 
-        for (int edge = 0; edge < 12; ++edge) {
+         for (int edge = 0; edge < 12; ++edge) {
             point[edge] = NULL;
             int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
             int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
@@ -432,7 +432,7 @@ void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
             segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
             GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
             GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-edge_list[edge] = false;
+            edge_list[edge] = false;
             if (list == NULL) continue;
             while (list) {
                 GtsBBox *b = GTS_BBOX(list->data);
@@ -445,8 +445,69 @@ edge_list[edge] = false;
                 }
                 list = list->next;
             }
+            // 
+            octant_node_t *gnode1 = (octant_node_t*) sc_array_index(&mesh->nodes, node1);
+            octant_node_t *gnode2 = (octant_node_t*) sc_array_index(&mesh->nodes, node2);
+
+            if (edge_list[edge] && gnode1->pad != 1 && gnode2->pad != 1) {
+
+                //GtsPoint *p0 = point[edge];
+                GtsPoint *p0 = gts_point_new(gts_point_class(),
+                        coords[node1 * 3],
+                        coords[node1 * 3 + 1],
+                        coords[node1 * 3 + 2]);
+                GtsPoint *p1 = gts_point_new(gts_point_class(),
+                        coords[node2 * 3],
+                        coords[node2 * 3 + 1],
+                        coords[node2 * 3 + 2]);
+
+
+                double d_c1 = gts_point_distance(point[edge], p0);
+                double d_c2 = gts_point_distance(point[edge], p1);
+
+                //printf("El: %d\n", elements_ids[iel]);
+                //printf("nodes  : %d, %d\n", node1, node2);
+                //printf("point : %f, %f, %f\n", point[edge]->x, point[edge]->y, point[edge]->z);
+                //printf("no 0 : %f, %f, %f\n", coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+                //printf("no 1 : %f, %f, %f\n", coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+                //printf("d_c0: %f, d_c1: %f\n", d_c0, d_c1);
+
+                if (edge == 4 || edge == 5 || edge == 6 || edge == 7) {
+                    if (coords[node2 * 3 + 2] == 0) {
+                        gnode1->pad = 1;
+                        coords[node1 * 3 + 2] = point[edge]->z;
+                    } else if (coords[node1 * 3 + 2] == 0) {
+                        gnode2->pad = 1;
+                        coords[node2 * 3 + 2] = point[edge]->z;
+                    } else {
+                        if (d_c1 >= d_c2) {
+                            coords[node2 * 3 + 2] = point[edge]->z;
+                            gnode2->pad = 1;
+
+                        } else {
+                            coords[node1 * 3 + 2] = point[edge]->z;
+                            gnode1->pad = 1;
+                        }
+                    }
+
+                } else {
+                    if (d_c1 >= d_c2) {
+                        coords[node2 * 3] = point[edge]->x;
+                        coords[node2 * 3 + 1] = point[edge]->y;
+                        gnode2->pad = 1;
+
+                    } else {
+                        coords[node1 * 3] = point[edge]->x;
+                        coords[node1 * 3 + 1] = point[edge]->y;
+                        gnode1->pad = 1;
+                    }
+                }
+
+
+
+            }
+
         }
-        //fprintf(fdbg, "\n ");
 
         //check parallel faces
         for (int face = 0; face < 6; ++face) {
