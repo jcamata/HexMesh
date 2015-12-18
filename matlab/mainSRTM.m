@@ -4,10 +4,10 @@ clear all
 % set bounds (in degrees and minutes)
 % [ minlat° minlat' maxlat° maxlat' minlon° minlon' maxlon° maxlon']
 % l = [40 00 52 00  -5 00   8 00]; % France
-% l = [43 48 44 05   4 30   5 00]; % Cadarache, France
-% l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
+% l = [43 48 44 05   5 30   6 00]; % Cadarache, France
+l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
 % l = [37 10 37 40 138 15 138 55]; % Kashiwazaki, Japan
-l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
+% l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
@@ -90,6 +90,8 @@ else
     disp('no water body information found')
 end
 tri = delaunay(lon,lat);
+[tri,xx] = cleanT(tri,[lon lat z],1e-8);
+lon = xx(:,1); lat = xx(:,2); z = xx(:,3);
 
 % transform heights in bathymetry to +9999
 in = false(size(lon)); % in water
@@ -103,7 +105,6 @@ end
 z(in) = 9999;
 figure; trimesh(tri,lon,lat,z)
 
-
 % transform angles to meters
 nmax = 1e4;
 if length(outtopo.lon)<nmax && length(outtopo.lat)<nmax
@@ -114,7 +115,6 @@ else
     error('the STL file is too large')
 end
 
-return
 % write STL files
 write_stl( fullfile(outdir,'topo.stl'), xtopo, ytopo, double(outtopo.z') );
 write_stl( fullfile(outdir,'bathy.stl'), [xbathy ybathy z], tri' );
