@@ -5,12 +5,15 @@ clear all
 % [ minlat° minlat' maxlat° maxlat' minlon° minlon' maxlon° maxlon']
 % l = [40 00 52 00  -5 00   8 00]; % France
 % l = [43 48 44 05   5 30   6 00]; % Cadarache, France
-l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
-% l = [37 10 37 40 138 15 138 55]; % Kashiwazaki, Japan
+% l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
+l = [37 10 37 40 138 15 138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
+
+% characteristic de-refinement length
+H = 0.01;
 
 % after the STL files are generated, you should run in Terminal
 % >> dos2unix bathy.stl
@@ -61,6 +64,22 @@ for i1 = 1:length(x)
         water.Lake = [water.Lake; wat.Lake];
         water.Land = [water.Land; wat.Land];
         water.Isle = [water.Isle; wat.Isle];
+    end
+end
+
+% de-refinement of coastline
+if ~isempty(water)
+    for i1 = 1:length(water.Ocean)
+        size(water.Ocean{i1})
+        dx = diff(water.Ocean{i1}(1,:));
+        dy = diff(water.Ocean{i1}(2,:));
+        h = sqrt(dx.^2+dy.^2);
+        indg = h>H;
+        indg(indg+1) = true;
+        n = max(floor(H/mean(h)));
+        indg(1:n:end) = true;
+        water.Ocean{i1} = water.Ocean{i1}(:,indg);
+        size(water.Ocean{i1})
     end
 end
 
@@ -115,6 +134,7 @@ else
     error('the STL file is too large')
 end
 
+return
 % write STL files
 write_stl( fullfile(outdir,'topo.stl'), xtopo, ytopo, double(outtopo.z') );
 write_stl( fullfile(outdir,'bathy.stl'), [xbathy ybathy z], tri' );
