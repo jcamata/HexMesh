@@ -21,6 +21,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, std::vector
 
 void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, const char* surface_bathy);
 void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
+void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 
 
 void AddPMLElements(hexa_tree_t* mesh);
@@ -58,7 +59,8 @@ int main(int argc, char** argv) {
 
     //printf(" Elements intercepted: %d\n", element_ids.size());
 
-    ApllyTemplate(&mesh, coords, element_ids);
+    CheckTemplate(&mesh, coords, element_ids);
+    //ApllyTemplate(&mesh, coords, element_ids);
     //TO DO
     //AddPMLElements(&mesh);
     

@@ -386,7 +386,582 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
             (E->z + D->z) / 2.);
 }
 
-//void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, sc_array_t* intercepted_elements) {
+void CheckTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
+	bool clamped = true;
+	GtsSegment * segments[12];
+	bool face_intecepted[6];
+	GtsPoint * point[12];
+	int Edge2GNode[12][2];
+
+
+	int original_conn[8];
+	FILE * fdbg;
+	int el_not_handle = 0;
+
+	fdbg = fopen("intercepted_faces.dbg", "w");
+
+	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (node_in_edge_t), edge_hash_fn, edge_equal_fn, &clamped);
+
+	for (int iel = 0; iel < elements_ids.size(); ++iel) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+		for (int i = 0; i < 8; i++) original_conn[i] = elem->nodes[i].id;
+
+		bool edge_list[12];
+		int ed_cont = 0;
+
+		for (int edge = 0; edge < 12; ++edge) {
+			point[edge] = NULL;
+			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+
+			Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+			Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+			segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+			edge_list[edge] = false;
+			if (list == NULL) continue;
+			while (list) {
+				GtsBBox *b = GTS_BBOX(list->data);
+				point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+				if (point[edge]) {
+					edge_list[edge] = true;
+					ed_cont++;
+					break;
+				}
+				list = list->next;
+			}
+		}
+
+
+		//check the diagonals in the surface and find the intersections
+		GtsSegment * segments_s[12];
+		GtsPoint * point_s[12];
+		int Edge2GNode_s[12][2];
+		bool edge_list_s[12];
+
+		for (int edge = 0; edge < 12; ++edge) {
+			point_s[edge] = NULL;
+			int node1 = elem->nodes[EdgeVerticesMap_surf_diagonal[edge][0]].id;
+			int node2 = elem->nodes[EdgeVerticesMap_surf_diagonal[edge][1]].id;
+
+			Edge2GNode_s[edge][0] = node1 <= node2 ? node1 : node2;
+			Edge2GNode_s[edge][1] = node1 >= node2 ? node1 : node2;
+
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+			segments_s[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments_s[edge]);
+			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+			edge_list_s[edge]=false;
+			if (list == NULL) continue;
+			while (list) {
+				GtsBBox *b = GTS_BBOX(list->data);
+				point_s[edge] = SegmentTriangleIntersection(segments_s[edge], GTS_TRIANGLE(b->bounded));
+				if (point_s[edge]) {
+					edge_list_s[edge]=true;
+					break;
+				}
+				list = list->next;
+			}
+		}
+
+		//check the diagonals in the volume and find the intersections
+		GtsSegment * segments_v[4];
+		GtsPoint * point_v[4];
+		int Edge2GNode_v[4][2];
+		bool edge_list_v[4];
+
+		for (int edge = 0; edge < 4; ++edge) {
+			point_v[edge] = NULL;
+			int node1 = elem->nodes[EdgeVerticesMap_vol_diagonal[edge][0]].id;
+			int node2 = elem->nodes[EdgeVerticesMap_vol_diagonal[edge][1]].id;
+
+			Edge2GNode_v[edge][0] = node1 <= node2 ? node1 : node2;
+			Edge2GNode_v[edge][1] = node1 >= node2 ? node1 : node2;
+
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+			segments_v[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments_v[edge]);
+			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+			edge_list_v[edge]=false;
+			if (list == NULL) continue;
+			while (list) {
+				GtsBBox *b = GTS_BBOX(list->data);
+				point_v[edge] = SegmentTriangleIntersection(segments_v[edge], GTS_TRIANGLE(b->bounded));
+				if (point_v[edge]) {
+					edge_list_v[edge]=true;
+					break;
+				}
+				list = list->next;
+			}
+		}
+
+		//check parallel faces
+		for (int face = 0; face < 6; ++face) {
+			face_intecepted[face] = false;
+			for (int fe = 0; fe < 4; ++fe) {
+				int edge = FaceEdgesMap[face][fe];
+				if (point[edge] != NULL) {
+					face_intecepted[face] = true;
+					break;
+				}
+			}
+			if (face_intecepted[face]) continue;
+		}
+
+		fprintf(fdbg, "Faces:  Elem. %d: %d %d %d %d %d %d\n", elements_ids[iel], face_intecepted[0],
+				face_intecepted[1], face_intecepted[2],
+				face_intecepted[3], face_intecepted[4], face_intecepted[5]);
+		fprintf(fdbg, "Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+				edge_list[1], edge_list[2], edge_list[3],
+				edge_list[4], edge_list[5], edge_list[6],
+				edge_list[7], edge_list[8], edge_list[9],
+				edge_list[10], edge_list[11], ed_cont);
+
+		int n_parallel_faces = (face_intecepted[0] && face_intecepted[1]) +
+				(face_intecepted[2] && face_intecepted[3]) +
+				(face_intecepted[4] && face_intecepted[5]);
+
+		//check complete face cut
+		for(int i = 0;i>6 ;i++){
+			if(edge_list[FaceEdgesMap[i][0]] && edge_list[FaceEdgesMap[i][1]] && edge_list[FaceEdgesMap[i][2]] && edge_list[FaceEdgesMap[i][3]]){
+				elem->pad=0;
+			}
+		}
+		//Bounding box intercepted
+		if(elem->pad == -1 && ed_cont == 0){
+			elem->pad = 0;
+		}
+
+		//elemento de coastline
+		if(elem->pad == -1 && ((edge_list[0]+edge_list[1]+edge_list[2]+edge_list[3])==4 || (edge_list[8]+edge_list[9]+edge_list[10]+edge_list[11])==4)){
+			//printf("Element: %d is a coastline element\n",elements_ids[iel]);
+			elem->pad = -10;
+			el_not_handle++;		}
+
+		if(elem->pad == -1 && (edge_list[4]+edge_list[5]+edge_list[6]+edge_list[7])==4 && ((edge_list[0]+edge_list[1]+edge_list[2]+edge_list[3])==1 || (edge_list[8]+edge_list[9]+edge_list[10]+edge_list[11])==1)){
+			//printf("Element: %d is a coastline element\n",elements_ids[iel]);
+			elem->pad = -10;
+			el_not_handle++;
+		}
+		// TODO
+		if(elem->pad == -1 && ((edge_list[0]+edge_list[1]+edge_list[2]+edge_list[3])==2||(edge_list[8]+edge_list[9]+edge_list[10]+edge_list[11])==2) && ed_cont == 2){
+			//printf("Element: %d is a coastline element\n",elements_ids[iel]);
+			elem->pad = -10;
+			el_not_handle++;
+		}
+
+		if(elem->pad == -1 && ((edge_list[0]+edge_list[1]+edge_list[2]+edge_list[3])==2||(edge_list[8]+edge_list[9]+edge_list[10]+edge_list[11])==2) && ed_cont == 6){
+			//printf("Element: %d is a coastline element\n",elements_ids[iel]);
+			elem->pad = -10;
+			el_not_handle++;
+		}
+
+		if(elem->pad == -1 && ed_cont == 1){
+			//printf("Element: %d is a coastline element\n",elements_ids[iel]);
+			elem->pad = -10;
+			el_not_handle++;
+		}
+
+		if(elem->pad == -1 && ((edge_list[0]+edge_list[1]+edge_list[2]+edge_list[3])==3 || (edge_list[8]+edge_list[9]+edge_list[10]+edge_list[11])==3)){
+			//printf("Element: %d is a coastline element\n",elements_ids[iel]);
+			elem->pad = -10;
+			el_not_handle++;
+		}
+
+
+		// element verification
+		if(elem->pad==-1){
+			if (n_parallel_faces == 2 && ed_cont == 4) {
+				// Check template 1.
+				if (    (!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11]) ) {
+
+					elem->pad = 1;
+
+				} else if (     (edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]) ) {
+
+					elem->pad = 1;
+
+				} else if (     (!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) ) {
+
+					elem->pad = 1;
+
+				} else {
+					elem->pad = -1;
+					printf("Warning: Bad Element: %d, case 1\n",elements_ids[iel]);
+					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+							edge_list[1], edge_list[2], edge_list[3],
+							edge_list[4], edge_list[5], edge_list[6],
+							edge_list[7], edge_list[8], edge_list[9],
+							edge_list[10], edge_list[11], ed_cont);
+					continue;
+				}
+			}
+
+			if (n_parallel_faces == 1 && ed_cont==4) {
+				// Check template 2.
+				//Edge 0
+				if ( (!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
+						(edge_list_s[4]) && (edge_list_s[6]) ) {
+
+					elem->pad = 2;
+
+				}//Edge 1
+				else if ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[1]) && (edge_list_s[3]) ) {
+
+					elem->pad = 2;
+
+				}//Edge 2
+				else if ((!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[5]) && (edge_list_s[7]) ) {
+
+					elem->pad = 2;
+
+				}//Edge 3
+				else if ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[0]) && (edge_list_s[2])) {
+
+					elem->pad = 2;
+
+				}//Edge 4
+				else if ((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11])&&
+						(edge_list_s[8]) && (edge_list_s[10])) {
+
+					elem->pad = 2;
+
+				}//Edge 5
+				else if ((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[9]) && (edge_list_s[11])) {
+
+					elem->pad = 2;
+
+				}//Edge 6
+				else if ((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[8]) && (edge_list_s[10])) {
+
+					elem->pad = 2;
+
+				}//Edge 7
+				else if ((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11])&&
+						(edge_list_s[9]) && (edge_list_s[11])) {
+
+					elem->pad = 2;
+
+				}//Edge 8
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11])&&
+						(edge_list_s[5]) && (edge_list_s[7])) {
+
+					elem->pad = 2;
+
+				}//Edge 9
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+						(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[0]) && (edge_list_s[2])) {
+
+					elem->pad = 2;
+
+				}//Edge 10
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11])&&
+						(edge_list_s[4]) && (edge_list_s[6])) {
+
+					elem->pad = 2;
+
+				}//Edge 11
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+						(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[1]) && (edge_list_s[3])) {
+
+					elem->pad = 2;
+
+				} else {
+					elem->pad = -1;
+					printf("Warning: Bad Element: %d, case 2\n",elements_ids[iel]);
+					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+							edge_list[1], edge_list[2], edge_list[3],
+							edge_list[4], edge_list[5], edge_list[6],
+							edge_list[7], edge_list[8], edge_list[9],
+							edge_list[10], edge_list[11], ed_cont);
+					continue;
+				}
+			}
+
+			if (n_parallel_faces == 0 && ed_cont == 3) {
+				// Check template 3.
+				//Corner 0
+				if ((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
+						(edge_list_s[4]) && (edge_list_s[0]) && (edge_list_s[10]) &&
+						(edge_list_v[0]) ) {
+
+					elem->pad = 3;
+
+				}//Corner 1
+				else if ((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
+						(edge_list_s[1]) && (edge_list_s[6]) && (edge_list_s[11])  &&
+						(edge_list_v[1]) ) {
+
+					elem->pad = 3;
+
+				} //Corner 2
+				else if ((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
+						(edge_list_s[3]) && (edge_list_s[7]) && (edge_list_s[10])  &&
+						(edge_list_v[2]) ) {
+
+					elem->pad = 3;
+
+				} //Corner 3
+				else if ((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
+						(edge_list_s[5]) && (edge_list_s[2]) && (edge_list_s[11])  &&
+						(edge_list_v[3]) ) {
+
+					elem->pad = 3;
+
+				} //Corner 4
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11]) &&
+						(edge_list_s[1]) && (edge_list_s[5]) && (edge_list_s[8])  &&
+						(edge_list_v[2]) ) {
+
+					elem->pad = 3;
+
+				} //Corner 5
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+						(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
+						(edge_list_s[7]) && (edge_list_s[0]) && (edge_list_s[9])  &&
+						(edge_list_v[3]) ) {
+
+					elem->pad = 3;
+
+				} //Corner 6
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11]) &&
+						(edge_list_s[2]) && (edge_list_s[6]) && (edge_list_s[8])  &&
+						(edge_list_v[0]) ) {
+
+					elem->pad = 3;
+
+				} //Corner 7
+				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11]) &&
+						(edge_list_s[4]) && (edge_list_s[3]) && (edge_list_s[9])  &&
+						(edge_list_v[1]) ) {
+					elem->pad = 3;
+				}else {
+					elem->pad = -1;
+					printf("Warning: Bad Element: %d, case 3\n",elements_ids[iel]);
+					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+							edge_list[1], edge_list[2], edge_list[3],
+							edge_list[4], edge_list[5], edge_list[6],
+							edge_list[7], edge_list[8], edge_list[9],
+							edge_list[10], edge_list[11], ed_cont);
+					continue;
+				}
+			}
+
+			if (n_parallel_faces == 2 && ed_cont == 5) {
+				// Check template 4.
+				//Corner 0
+				if (((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+						(!edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+						|| ((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+								(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+								(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11]))
+								|| ((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
+										(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+										(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]))) {
+
+					elem->pad = 4;
+
+				}//Corner 1
+				else if (((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+						|| ((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+								(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+								(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11]))
+								|| ((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+										(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+										(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]))) {
+
+					elem->pad = 4;
+
+				} //Corner 2
+				else if (((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+						|| ((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+								(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+								(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]))
+								|| ((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
+										(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+										(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11]))) {
+
+					elem->pad = 4;
+
+				} //Corner 3
+				else if (((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+						|| ((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+								(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+								(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11]))
+								|| ((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+										(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+										(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]))) {
+
+					elem->pad = 4;
+
+				} //Corner 4
+				else if (((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(!edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11]))
+						|| ((!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+								(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+								(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+								|| ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+										(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+										(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11]))) {
+
+					elem->pad = 4;
+
+				} //Corner 5
+				else if (((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
+						(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+						|| ((!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+								(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+								(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]))
+								|| ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+										(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
+										(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11]))) {
+
+					elem->pad = 4;
+
+				} //Corner 6
+				else if (((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+						(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11]))
+						|| ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+								(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+								(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11]))
+								|| ((!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+										(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+										(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11]))) {
+
+					elem->pad = 4;
+
+				} //Corner 7
+				else if (((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
+						(edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
+						(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11]))
+						|| ((!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
+								(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+								(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11]))
+								|| ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
+										(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
+										(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11]))) {
+
+					elem->pad = 4;
+
+				}else {
+					elem->pad = -1;
+					printf("Warning: Bad Element: %d, case 4\n",elements_ids[iel]);
+					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+							edge_list[1], edge_list[2], edge_list[3],
+							edge_list[4], edge_list[5], edge_list[6],
+							edge_list[7], edge_list[8], edge_list[9],
+							edge_list[10], edge_list[11], ed_cont);
+					continue;
+				}
+			}
+
+			//clean points
+			for (int edge = 0; edge < 4; edge++) {
+				if (point_v[edge]) gts_object_destroy(GTS_OBJECT(point_v[edge]));
+				point_v[edge] = NULL;
+			}
+
+			for (int edge = 0; edge < 12; edge++) {
+				if (point_s[edge]) gts_object_destroy(GTS_OBJECT(point_s[edge]));
+				point_s[edge] = NULL;
+			}
+
+			for (int edge = 0; edge < 12; edge++) {
+				if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+				point[edge] = NULL;
+			}
+		}
+
+		//element not handle
+		if(elem->pad==-1){
+			elem->pad = -10;
+			printf("Warning: Bad Element: %d, case -1\n",elements_ids[iel]);
+
+			printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
+										edge_list[1], edge_list[2], edge_list[3],
+										edge_list[4], edge_list[5], edge_list[6],
+										edge_list[7], edge_list[8], edge_list[9],
+										edge_list[10], edge_list[11], ed_cont);
+			el_not_handle++;
+		}
+	}
+
+	printf("el_not_handle: %d\n",el_not_handle);
+
+
+	fclose(fdbg);
+	sc_hash_array_destroy(hash_nodes);
+}
 
 void ApllyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
     bool clamped = true;
