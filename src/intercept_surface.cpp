@@ -11,8 +11,8 @@ using namespace std;
 #include "hexa.h"
 #include "hilbert.h"
 
-static unsigned nDims = 2;
-static unsigned nBits = 32;
+//static unsigned nDims = 2;
+//static unsigned nBits = 32;
 
 typedef struct {
 	bitmask_t coord[2];
@@ -87,6 +87,15 @@ int FaceEdgesMap[6][4] = {
 		{0, 1, 2, 3}
 };
 
+int FaceNodesMap[6][4] = {
+		{0,4,7,3},
+		{1,5,6,2},
+		{0,4,5,1},
+		{2,6,7,3},
+		{4,5,6,7},
+		{0,1,2,3}
+};
+
 int EdgeEdgeMap[12][4] = {
 		{3, 4, 1, 5}, // Edge 0
 		{0, 5, 2, 6}, // Edge 1
@@ -107,7 +116,7 @@ int EdgeEdgeMap[12][4] = {
 GtsSurface* SurfaceRead(const char* fname) {
 	FILE *gts_file;
 	GtsSurface *s;
-	GtsPoint *p;
+	//GtsPoint *p;
 	GtsFile *fp;
 
 	gts_file = fopen(fname, "r");
@@ -135,21 +144,21 @@ gdouble distance(GtsPoint *p, gpointer bounded) {
 	return gts_point_triangle_distance(p, t);
 }
 
-int AddPointOnEdge(int* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords);
+//int AddPointOnEdge(int* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords);
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, vector<double>& coords) {
 
-	GtsSurface *s;
-	GtsBBox *box;
-	GNode *t;
+	//GtsSurface *s;
+	//GtsBBox *box;
+	//GNode *t;
 	GtsPoint *p;
-	int nx, ny, nz;
+	//int nx, ny, nz;
 	double dx, dy, dz;
 	double d;
 	double zmax;
 
 	sc_array_t *nodes = &tree->nodes;
-	sc_array_t *elements = &tree->elements;
+	//sc_array_t *elements = &tree->elements;
 
 	// Note that here we use a gts file.
 	// There is a tool called stl2gts that convert STL files to GTS.
@@ -332,43 +341,8 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
 			(E->z + D->z) / 2.);
 }
 
-void CuttedEdges(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, GtsPoint* point[12], bool edge_list[12]){
-
-	GtsSegment * segments[12];
-	int Edge2GNode[12][2];
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-	for (int edge = 0; edge < 12; ++edge) {
-		point[edge] = NULL;
-		int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
-		int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-		Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
-		Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
-
-		GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
-		GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
-
-		segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
-		GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
-		GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-		edge_list[edge] = false;
-		if (list == NULL) continue;
-		while (list) {
-			GtsBBox *b = GTS_BBOX(list->data);
-			point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
-			if (point[edge]) {
-				edge_list[edge] = true;
-				break;
-			}
-			list = list->next;
-		}
-	}
-}
-
 void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
-	bool clamped = true;
 	bool face_intecepted[6];
-	int original_conn[8];
 	int el_not_handle = 0;
 	int el_0 = 0;
 	int el_1 = 0;
@@ -381,6 +355,9 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 	fdbg = fopen("intercepted_faces.dbg", "w");
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+		elem->pad=-1;
 
 		int Edge2GNode[12][2]={0};
 		int Edge2GNode_s[12][2]={0};
@@ -397,11 +374,6 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 		bool edge_list_s[12]={false};
 		bool edge_list_v[4]={false};
 		int ed_cont = 0;
-
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-		elem->pad=-1;
-
-		//for (int i = 0; i < 8; i++) original_conn[i] = elem->nodes[i].id;
 
 		for (int edge = 0; edge < 12; ++edge) {
 			point[edge] = NULL;
@@ -1020,7 +992,6 @@ void SideEL(hexa_tree_t *mesh,int x, int y, int z ,std::vector<int>& element_ids
 			}else if((elem->x==x+1)&&(elem->y==y+1)&&(elem->z==z)) {
 				element_ids_local.push_back(iel);
 			}
-
 		}else{
 			if((elem->x==x-1)&&(elem->y==y-1)&&(elem->z==z+1)){
 				element_ids_local.push_back(iel);
@@ -1081,388 +1052,9 @@ void SideEL(hexa_tree_t *mesh,int x, int y, int z ,std::vector<int>& element_ids
 	}
 }
 
-void template4to3(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel , GtsPoint * point[12], bool edge_list[12],double v1){
+void template2Rand(hexa_tree_t *mesh, std::vector<double>& coords,octant_t * elem, double v){
 
-	double d_c1;
-	double d_c2;
-
-	if(v1>2){
-		v1=2;
-	}
-
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-	/*
-	printf( "Edges: %d %d %d %d %d %d %d %d %d %d %d %d\n", edge_list[0],
-					edge_list[1], edge_list[2], edge_list[3],
-					edge_list[4], edge_list[5], edge_list[6],
-					edge_list[7], edge_list[8], edge_list[9],
-					edge_list[10], edge_list[11]);
-	 */
-	if(edge_list[0]&&edge_list[1]){
-		int node_change = 3*elem->nodes[1].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[0], p0);
-		d_c2 = gts_point_distance(point[1], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] + d_c2*v1;
-		//move 1
-
-	}else if(edge_list[1]&&edge_list[2]){
-		int node_change = 3*elem->nodes[2].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[2], p0);
-		d_c2 = gts_point_distance(point[1], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] - d_c2*v1;
-		//move 2
-
-	}else if(edge_list[2]&&edge_list[3]){
-		int node_change = 3*elem->nodes[3].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[2], p0);
-		d_c2 = gts_point_distance(point[3], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] - d_c2*v1;
-		//move 3
-
-	}else if(edge_list[3]&&edge_list[0]){
-		int node_change = 3*elem->nodes[0].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[0], p0);
-		d_c2 = gts_point_distance(point[3], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] + d_c2*v1;
-		//move 0
-
-	}else if(edge_list[8]&&edge_list[9]){
-		int node_change = 3*elem->nodes[5].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[8], p0);
-		d_c2 = gts_point_distance(point[9], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] + d_c2*v1;
-		//move 5
-
-	}else if(edge_list[9]&&edge_list[10]){
-		int node_change = 3*elem->nodes[6].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[10], p0);
-		d_c2 = gts_point_distance(point[9], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] - d_c2*v1;
-		//move 6
-
-	}else if(edge_list[10]&&edge_list[11]){
-		int node_change = 3*elem->nodes[7].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[10], p0);
-		d_c2 = gts_point_distance(point[11], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] - d_c2*v1;
-		//move 7
-
-	}else if(edge_list[11]&&edge_list[8]){
-		int node_change = 3*elem->nodes[4].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[8], p0);
-		d_c2 = gts_point_distance(point[11], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+1] = coords[node_change+1] + d_c2*v1;
-		//move 4
-
-	}else if( edge_list[0]&&edge_list[4] ){
-		int node_change = 3*elem->nodes[0].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[0], p0);
-		d_c2 = gts_point_distance(point[4], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 0
-
-	}else if( edge_list[3]&&edge_list[4] ){
-		int node_change = 3*elem->nodes[0].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[3], p0);
-		d_c2 = gts_point_distance(point[4], p0);
-
-		coords[node_change+1] = coords[node_change+1] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 0
-
-	}else if(edge_list[0]&&edge_list[5]){
-		int node_change = 3*elem->nodes[1].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[0], p0);
-		d_c2 = gts_point_distance(point[5], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 1
-
-	}else if(edge_list[1]&&edge_list[5]){
-		int node_change = 3*elem->nodes[1].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[1], p0);
-		d_c2 = gts_point_distance(point[5], p0);
-
-		coords[node_change+1] = coords[node_change+1] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 1
-
-	}else if(edge_list[1]&&edge_list[6]){
-		int node_change = 3*elem->nodes[2].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[1], p0);
-		d_c2 = gts_point_distance(point[6], p0);
-
-		coords[node_change+1] = coords[node_change+1] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 2
-
-	}else if(edge_list[2]&&edge_list[6]){
-		int node_change = 3*elem->nodes[2].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[2], p0);
-		d_c2 = gts_point_distance(point[6], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 2
-
-	}else if(edge_list[2]&&edge_list[7]){
-		int node_change = 3*elem->nodes[3].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[2], p0);
-		d_c2 = gts_point_distance(point[7], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 3
-
-	}else if(edge_list[3]&&edge_list[7]){
-		int node_change = 3*elem->nodes[3].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[3], p0);
-		d_c2 = gts_point_distance(point[7], p0);
-
-		coords[node_change+1] = coords[node_change+1] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] - d_c2*v1;
-		//move 3
-
-	}else if(edge_list[8]&&edge_list[4]){
-		int node_change = 3*elem->nodes[4].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[8], p0);
-		d_c2 = gts_point_distance(point[4], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 4
-
-	}else if(edge_list[11]&&edge_list[4]){
-		int node_change = 3*elem->nodes[4].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[11], p0);
-		d_c2 = gts_point_distance(point[4], p0);
-
-		coords[node_change+1] = coords[node_change+1] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 4
-
-	}else if(edge_list[8]&&edge_list[5]){
-		int node_change = 3*elem->nodes[5].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[8], p0);
-		d_c2 = gts_point_distance(point[5], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 5
-
-	}else if(edge_list[9]&&edge_list[5]){
-		int node_change = 3*elem->nodes[5].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[9], p0);
-		d_c2 = gts_point_distance(point[5], p0);
-
-		coords[node_change+1] = coords[node_change+1] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 5
-
-	}else if(edge_list[9]&&edge_list[6]){
-		int node_change = 3*elem->nodes[6].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[9], p0);
-		d_c2 = gts_point_distance(point[6], p0);
-
-		coords[node_change+1] = coords[node_change+1] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 6
-
-	}else if(edge_list[10]&&edge_list[6]){
-		int node_change = 3*elem->nodes[6].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[10], p0);
-		d_c2 = gts_point_distance(point[6], p0);
-
-		coords[node_change  ] = coords[node_change  ] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 6
-
-	}else if(edge_list[10]&&edge_list[7]){
-		int node_change = 3*elem->nodes[7].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[10], p0);
-		d_c2 = gts_point_distance(point[7], p0);
-
-		coords[node_change  ] = coords[node_change  ] + d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 7
-
-	}else if(edge_list[11]&&edge_list[7]){
-		int node_change = 3*elem->nodes[7].id;
-
-		GtsPoint *p0 = gts_point_new(gts_point_class(),
-				coords[node_change],
-				coords[node_change + 1],
-				coords[node_change + 2]);
-
-		d_c1 = gts_point_distance(point[11], p0);
-		d_c2 = gts_point_distance(point[7], p0);
-
-		coords[node_change+1] = coords[node_change+1] - d_c1*v1;
-		coords[node_change+2] = coords[node_change+2] + d_c2*v1;
-		//move 7
-	}
-}
-
-void template2Rand(hexa_tree_t *mesh, std::vector<double>& coords,octant_t * elem, int v){
-
-	double dx = coords[3*elem->nodes[1].id] - coords[3*elem->nodes[0].id] ;
+	double dx = coords[3*elem->nodes[1].id  ] - coords[3*elem->nodes[0].id  ] ;
 	double dy = coords[3*elem->nodes[2].id+1] - coords[3*elem->nodes[0].id+1] ;
 	double dz = coords[3*elem->nodes[0].id+2] - coords[3*elem->nodes[4].id+2] ;
 
@@ -1470,94 +1062,2500 @@ void template2Rand(hexa_tree_t *mesh, std::vector<double>& coords,octant_t * ele
 	dy = abs(dy);
 	dz = abs(dz);
 
-	for(int ii = 0;ii<8;ii++){
-
-		srand (time(NULL));
-		int v1 = -50 + rand() % 100;
-		srand (time(NULL));
-		int v2 = -50 + rand() % 100;
-		srand (time(NULL));
-		int v3 = -50 + rand() % 100;
-
-		int node_change = 3*elem->nodes[ii].id;
-		coords[node_change  ] = coords[node_change  ] + v*v1*dx*0.0001;
-		coords[node_change+1] = coords[node_change+1] + v*v2*dy*0.0001;
+	for(int i = 0;i<8;i++){
+		int v1 = (-50 + rand() % 100)*0.02;
+		int v2 = (-50 + rand() % 100)*0.02;
+		int v3 = (-50 + rand() % 100)*0.02;
+		int node_change = 3*elem->nodes[i].id;
+		coords[node_change  ] = coords[node_change  ] + v*v1*dx;
+		coords[node_change+1] = coords[node_change+1] + v*v2*dy;
 		if(elem->z>0){
-			coords[node_change+2] = coords[node_change+2] + v*v3*dz*0.0001;
-		}else if(elem->z==0 && ii>=4){
-			coords[node_change+2] = coords[node_change+2] + v*v3*dz*0.0001;
+			coords[node_change+2] = coords[node_change+2] + v*v3*dz;
+		}else if(elem->z==0 && i>=4){
+			coords[node_change+2] = coords[node_change+2] + v*v3*dz;
 		}
 	}
 }
 
 void ChangeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
-	bool clamped = true;
-	GtsPoint * point[12] = {NULL};
-	bool edge_list[12] = {false};
-	double d_c1;
-	double d_c2;
 	std::vector<int> element_ids_local;
 	double coords_orgi[24];
-	double v1 = 1.01;
-	double v2 = 1;
-	int iter_max = 70;
+	double v_1 = 1;
+	//double v_2 = 1;
+	int iter_max = 200;
+	int ref=0;
+
+	double tt=1.02;
+
 
 	FILE * fdbg;
 	fdbg = fopen("Change_template.txt", "w");
 
-	int not_deu = 0;
-	int deu = 0;
 	int nao_sei = 0;
 	int n_iter=0;
 	int var_aux[27];
+	int var_aux_1[27];
 	int el_4 = 0;
+
+	srand (time(NULL));
+
+	sc_array_t *elements = &mesh->elements;
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-		int cont_el_0=0;
-		int cont_el_1=0;
-		v2 = 1;
+		v_1 = 1;
+		//v_2 = 1;
 
 		if(elem->pad==4){
 
+			//printf("El:%d\n",elements_ids[iel]);
 			element_ids_local.clear();
 			SideEL(mesh, elem->x, elem->y, elem->z ,element_ids_local);
 
-			for(int co = 0; co < element_ids_local.size(); co++){
-				octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
-				var_aux[co]=h->pad;
+			fprintf(fdbg,"El: %d Case type 4\n",elements_ids[iel]);
+			fprintf(fdbg,"El:");
+			for(int co = 0; co<element_ids_local.size();co++){
+				fprintf(fdbg,"%d ",element_ids_local[co]);
+				if(element_ids_local[co]==elements_ids[iel]){ref=co;}
 			}
+			fprintf(fdbg,"\n");
+
+			fprintf(fdbg,"REF:%d \n",ref);
+
+			fprintf(fdbg,"Pad Original: ");
+			for(int c = 0; c < element_ids_local.size(); c++){
+				octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[c]);
+				var_aux[c]=h->pad;
+				fprintf(fdbg,"%d ",var_aux[c]);
+			}
+			fprintf(fdbg,"\n");
 
 			for(int n_nodes = 0; n_nodes<8;n_nodes++){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 				int node = 3*elem->nodes[n_nodes].id;
-				coords_orgi[3*n_nodes] = coords[node];
+				coords_orgi[3*n_nodes  ] = coords[node  ];
 				coords_orgi[3*n_nodes+1] = coords[node+1];
 				coords_orgi[3*n_nodes+2] = coords[node+2];
 			}
 
 			n_iter = 0;
 			bool flag1 = true;
-			bool flag2 = false;
+			bool flag2 = true;
 
 			while(n_iter<iter_max && flag1){
 
-				template2Rand(mesh, coords, elem, v2);
-
+				// move one node... try to change to template 1
+#if 0
+				template2Rand(mesh, coords, elem, v_1);
 				CheckTemplate(mesh, coords, element_ids_local,false);
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
-				for(int co = 0;co<element_ids_local.size();co++){
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
 					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
-					if(   ((var_aux[co]!=h->pad) && (h->id!=elem->id))   ){
-						flag2 = true;
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
 					}
 				}
 
-				if(elem->pad==4 || elem->pad==-10){
-					flag2=true;
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
 				}
 
-				if(flag2){
+				//if(elem->pad==4){
+				//	CuttedEdges (mesh, coords, elements_ids, iel, &point[12], &edge_list[12]);
+
+				GtsSegment * segments[12]={0};
+				int Edge2GNode[12][2];
+				GtsPoint * point[12] = {NULL};
+				bool edge_list[12] = {false};
+
+				for (int edge = 0; edge < 12; ++edge) {
+					point[edge] = NULL;
+
+					int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+					int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+					Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+					Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+					GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+
+					GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+					edge_list[edge] = false;
+
+					if (list == NULL) continue;
+					while (list) {
+						GtsBBox *b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							edge_list[edge] = true;
+							break;
+						}
+						list = list->next;
+					}
+				}
+
+				double d_c1=0;
+				double d_c2=0;
+
+				if(edge_list[0]&&edge_list[1]){
+					int node_change = 3*elem->nodes[1].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[1], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 1
+
+				}else if(edge_list[1]&&edge_list[2]){
+					int node_change = 3*elem->nodes[2].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[1], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 2
+
+				}else if(edge_list[2]&&edge_list[3]){
+					int node_change = 3*elem->nodes[3].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[3], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 3
+
+				}else if(edge_list[3]&&edge_list[0]){
+					int node_change = 3*elem->nodes[0].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[3], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 0
+
+				}else if(edge_list[8]&&edge_list[9]){
+					int node_change = 3*elem->nodes[5].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[9], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 5
+
+				}else if(edge_list[9]&&edge_list[10]){
+					int node_change = 3*elem->nodes[6].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[9], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 6
+
+				}else if(edge_list[10]&&edge_list[11]){
+					int node_change = 3*elem->nodes[7].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[11], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 7
+
+				}else if(edge_list[11]&&edge_list[8]){
+					int node_change = 3*elem->nodes[4].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[11], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 4
+
+				}else if( edge_list[0]&&edge_list[4] ){
+					int node_change = 3*elem->nodes[0].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 0
+
+				}else if( edge_list[3]&&edge_list[4] ){
+					int node_change = 3*elem->nodes[0].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[3], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 0
+
+				}else if(edge_list[0]&&edge_list[5]){
+					int node_change = 3*elem->nodes[1].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 1
+
+				}else if(edge_list[1]&&edge_list[5]){
+					int node_change = 3*elem->nodes[1].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[1], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 1
+
+				}else if(edge_list[1]&&edge_list[6]){
+					int node_change = 3*elem->nodes[2].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[1], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 2
+
+				}else if(edge_list[2]&&edge_list[6]){
+					int node_change = 3*elem->nodes[2].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 2
+
+				}else if(edge_list[2]&&edge_list[7]){
+					int node_change = 3*elem->nodes[3].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 3
+
+				}else if(edge_list[3]&&edge_list[7]){
+					int node_change = 3*elem->nodes[3].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[3], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 3
+
+				}else if(edge_list[8]&&edge_list[4]){
+					int node_change = 3*elem->nodes[4].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 4
+
+				}else if(edge_list[11]&&edge_list[4]){
+					int node_change = 3*elem->nodes[4].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[11], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 4
+
+				}else if(edge_list[8]&&edge_list[5]){
+					int node_change = 3*elem->nodes[5].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 5
+
+				}else if(edge_list[9]&&edge_list[5]){
+					int node_change = 3*elem->nodes[5].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[9], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 5
+
+				}else if(edge_list[9]&&edge_list[6]){
+					int node_change = 3*elem->nodes[6].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[9], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 6
+
+				}else if(edge_list[10]&&edge_list[6]){
+					int node_change = 3*elem->nodes[6].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 6
+
+				}else if(edge_list[10]&&edge_list[7]){
+					int node_change = 3*elem->nodes[7].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 7
+
+				}else if(edge_list[11]&&edge_list[7]){
+					int node_change = 3*elem->nodes[7].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[11], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 7
+				}
+
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+				//}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee mov 1 El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+#endif
+
+#if 0
+				template2Rand(mesh, coords, elem, v_1);
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				//template4to1(mesh, coords, elements_ids, iel, &point[12], &edge_list[12],1.1);
+				// move two nodes "or" one edge
+				//if(elem->pad==4){
+				//	CuttedEdges (mesh, coords, elements_ids, iel, &point[12], &edge_list[12]);
+
+				GtsSegment * segments[12]={0};
+				int Edge2GNode[12][2];
+				GtsPoint * point[12] = {NULL};
+				bool edge_list[12] = {false};
+
+				for (int edge = 0; edge < 12; ++edge) {
+					point[edge] = NULL;
+
+					int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+					int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+					Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+					Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+					GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					segments[edge] = 0;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+
+					GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+					edge_list[edge] = false;
+
+					if (list == NULL) continue;
+					while (list) {
+						GtsBBox *b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							edge_list[edge] = true;
+							break;
+						}
+						list = list->next;
+					}
+				}
+
+				d_c1=0;
+				d_c2=0;
+
+				if(edge_list[0]&&edge_list[1]){
+					int node_change = 3*elem->nodes[1].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[1], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+
+					node_change = 3*elem->nodes[5].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+
+					//move 1
+
+				}else if(edge_list[1]&&edge_list[2]){
+					int node_change = 3*elem->nodes[2].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[1], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+
+					node_change = 3*elem->nodes[6].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 2
+
+				}else if(edge_list[2]&&edge_list[3]){
+					int node_change = 3*elem->nodes[3].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[3], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+
+					node_change = 3*elem->nodes[7].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 3
+
+				}else if(edge_list[3]&&edge_list[0]){
+					int node_change = 3*elem->nodes[0].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[3], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+
+					node_change = 3*elem->nodes[4].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 0
+
+				}else if(edge_list[8]&&edge_list[9]){
+					int node_change = 3*elem->nodes[5].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[9], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+
+					node_change = 3*elem->nodes[1].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 5
+
+				}else if(edge_list[9]&&edge_list[10]){
+					int node_change = 3*elem->nodes[6].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[9], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+
+					node_change = 3*elem->nodes[2].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 6
+
+				}else if(edge_list[10]&&edge_list[11]){
+					int node_change = 3*elem->nodes[7].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[11], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+
+					node_change = 3*elem->nodes[3].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+					//move 7
+
+				}else if(edge_list[11]&&edge_list[8]){
+					int node_change = 3*elem->nodes[4].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[11], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+
+					node_change = 3*elem->nodes[0].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+					//move 4
+
+				}else if( edge_list[0]&&edge_list[4] ){
+					int node_change = 3*elem->nodes[0].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[3].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 0
+
+				}else if( edge_list[3]&&edge_list[4] ){
+					int node_change = 3*elem->nodes[0].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[3], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[1].id;
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 0
+
+				}else if(edge_list[0]&&edge_list[5]){
+					int node_change = 3*elem->nodes[1].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[0], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[2].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 1
+
+				}else if(edge_list[1]&&edge_list[5]){
+					int node_change = 3*elem->nodes[1].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[1], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[0].id;
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 1
+
+				}else if(edge_list[1]&&edge_list[6]){
+					int node_change = 3*elem->nodes[2].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[1], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[3].id;
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 2
+
+				}else if(edge_list[2]&&edge_list[6]){
+					int node_change = 3*elem->nodes[2].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[1].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 2
+
+				}else if(edge_list[2]&&edge_list[7]){
+					int node_change = 3*elem->nodes[3].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[2], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[0].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 3
+
+				}else if(edge_list[3]&&edge_list[7]){
+					int node_change = 3*elem->nodes[3].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[3], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+
+					node_change = 3*elem->nodes[2].id;
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+					//move 3
+
+				}else if(edge_list[8]&&edge_list[4]){
+					int node_change = 3*elem->nodes[4].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[7].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 4
+
+				}else if(edge_list[11]&&edge_list[4]){
+					int node_change = 3*elem->nodes[4].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[11], p0);
+					d_c2 = gts_point_distance(point[4], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[5].id;
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 4
+
+				}else if(edge_list[8]&&edge_list[5]){
+					int node_change = 3*elem->nodes[5].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[8], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[6].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 5
+
+				}else if(edge_list[9]&&edge_list[5]){
+					int node_change = 3*elem->nodes[5].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[9], p0);
+					d_c2 = gts_point_distance(point[5], p0);
+
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[4].id;
+					coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 5
+
+				}else if(edge_list[9]&&edge_list[6]){
+					int node_change = 3*elem->nodes[6].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[9], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[7].id;
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 6
+
+				}else if(edge_list[10]&&edge_list[6]){
+					int node_change = 3*elem->nodes[6].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[6], p0);
+
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[5].id;
+					coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 6
+
+				}else if(edge_list[10]&&edge_list[7]){
+					int node_change = 3*elem->nodes[7].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[10], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[4].id;
+					coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 7
+
+				}else if(edge_list[11]&&edge_list[7]){
+					int node_change = 3*elem->nodes[7].id;
+
+					GtsPoint *p0 = gts_point_new(gts_point_class(),
+							coords[node_change],
+							coords[node_change + 1],
+							coords[node_change + 2]);
+
+					d_c1 = gts_point_distance(point[11], p0);
+					d_c2 = gts_point_distance(point[7], p0);
+
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+
+					node_change = 3*elem->nodes[6].id;
+					coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+					coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+					//move 7
+				}
+
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+				//}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee mov 2 El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+#endif
+
+#if 0
+				template2Rand(mesh, coords, elem, v_1);
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				//template4to2(mesh, coords, elements_ids, iel, &point[12], &edge_list[12],1.1);
+				if(elem->pad==4){
+
+					GtsSegment * segments[12]={0};
+					int Edge2GNode[12][2];
+					GtsPoint * point[12] = {NULL};
+					bool edge_list[12] = {false};
+
+					for (int edge = 0; edge < 12; ++edge) {
+						point[edge] = NULL;
+
+						int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+						int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+						Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+						Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+
+						GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+						edge_list[edge] = false;
+
+						if (list == NULL) continue;
+						while (list) {
+							GtsBBox *b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								edge_list[edge] = true;
+								break;
+							}
+							list = list->next;
+						}
+					}
+
+					double d_c1;
+					double d_c2;
+
+					if(edge_list[0]&&edge_list[1]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[2]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[3]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[0]){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+						}
+						//move 0
+
+					}else if(edge_list[8]&&edge_list[9]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[10]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[11]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] - d_c2*tt;
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[8]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+1] = coords[node_change+1] + d_c2*tt;
+						}
+						//move 4
+
+					}else if( edge_list[0]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 0
+
+					}else if( edge_list[3]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 0
+
+					}else if(edge_list[0]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] - d_c2*tt;
+						}
+						//move 3
+
+					}else if(edge_list[8]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 4
+
+					}else if(edge_list[11]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 4
+
+					}else if(edge_list[8]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change  ] = coords[node_change  ] + d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1<=d_c2){
+							coords[node_change+1] = coords[node_change+1] - d_c1*tt;
+						}else{
+							coords[node_change+2] = coords[node_change+2] + d_c2*tt;
+						}
+						//move 7
+					}
+
+					CheckTemplate(mesh, coords, element_ids_local,false);
+					elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					fprintf(fdbg,"Pad local:    ");
+					for(int co = 0; co < element_ids_local.size(); co++){
+						octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+						var_aux_1[co]=h->pad;
+						fprintf(fdbg,"%d ",h->pad);
+					}
+					fprintf(fdbg,"\n");
+
+					if(elem->pad!=4 && elem->pad!=-10){
+						flag2=false;
+						for(int co = 0; co < element_ids_local.size(); co++){
+							if(element_ids_local[co]!=elements_ids[iel]){
+								if(var_aux[co]==var_aux_1[co]){
+									flag2=false;
+								}else{
+									if(var_aux_1[co]==4){
+										flag2=true;
+										break;
+									}else if(var_aux_1[co]==-10){
+										flag2=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee mov 3 El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+#endif
+
+#if 0 //isso aqui não funciona...
+
+				if (elem->z!=0){
+
+					if(n_iter==0){
+						printf("entrou aqui EL: %d\n",elements_ids[iel]);
+					}
+
+					elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					double dz = (coords[3*elem->nodes[4].id+ 3]-coords[3*elem->nodes[0].id+ 3]);
+					dz = abs(dz);
+
+					double nn = (50 - rand() % 100)*0.1;
+
+					for(int co = 0; co<8; co++){
+						int node_change = 3*elem->nodes[co].id;
+						coords[node_change + 3] = coords[node_change + 3] + dz*nn;
+					}
+
+					CheckTemplate(mesh, coords, element_ids_local,false);
+					elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					fprintf(fdbg,"Pad local:    ");
+					for(int co = 0; co < element_ids_local.size(); co++){
+						octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+						var_aux_1[co]=h->pad;
+						fprintf(fdbg,"%d ",h->pad);
+					}
+					fprintf(fdbg,"\n");
+
+					if(elem->pad!=4 && elem->pad!=-10){
+						flag2=false;
+						for(int co = 0; co < element_ids_local.size(); co++){
+							if(element_ids_local[co]!=elements_ids[iel]){
+								if(var_aux[co]==var_aux_1[co]){
+									flag2=false;
+								}else{
+									if(var_aux_1[co]==4){
+										flag2=true;
+										break;
+									}else if(var_aux_1[co]==-10){
+										flag2=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+
+					if(!flag2){
+						flag1=false;
+						flag2=false;
+						printf("To livreeeee todos juntinhos El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+						break;
+					}
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+#endif
+
+#if 0
+
+				template2Rand(mesh, coords, elem, v_1);
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if(elem->pad==4){
+					//	CuttedEdges (mesh, coords, elements_ids, iel, &point[12], &edge_list[12]);
+
+					GtsSegment * segments[12]={0};
+					int Edge2GNode[12][2];
+					GtsPoint * point[12] = {NULL};
+					bool edge_list[12] = {false};
+
+					for (int edge = 0; edge < 12; ++edge) {
+						point[edge] = NULL;
+
+						int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+						int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+						Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+						Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+
+						GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+						edge_list[edge] = false;
+
+						if (list == NULL) continue;
+						while (list) {
+							GtsBBox *b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								edge_list[edge] = true;
+								break;
+							}
+							list = list->next;
+						}
+					}
+
+					double d_c1;
+					double d_c2;
+
+					double ref1 = 	coords[3*elem->nodes[0].id ] ;
+					double ref2 = 	coords[3*elem->nodes[0].id + 1 ] ;
+					double ref3 = coords[3*elem->nodes[0].id + 3 ] ;
+					double dx = coords[3*elem->nodes[1].id ] - coords[3*elem->nodes[0].id ];
+					double dy = coords[3*elem->nodes[2].id +1] - coords[3*elem->nodes[1].id+1 ];
+					double dz = coords[3*elem->nodes[0].id +2] - coords[3*elem->nodes[4].id+2 ];
+
+					if(edge_list[0]&&edge_list[1]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[2]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change  ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[3]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change  ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[0]){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change  ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 0
+
+					}else if(edge_list[8]&&edge_list[9]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[10]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[11]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[8]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 4
+
+					}else if( edge_list[0]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +2  ] =coords[node_change +2  ] -ref3-dz/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+2]*sin(alpha);
+							coords[node_change +2  ] = coords[node_change]*sin(alpha) +coords[node_change +2  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +2  ] =coords[node_change +1  ] + ref3 + dz/2;
+						}
+						//move 0
+
+					}else if( edge_list[3]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 0
+
+					}else if(edge_list[0]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 3
+
+					}else if(edge_list[8]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 4
+
+					}else if(edge_list[11]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 4
+
+					}else if(edge_list[8]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c1/d_c2);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 7
+					}
+
+
+					CheckTemplate(mesh, coords, element_ids_local,false);
+					elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					fprintf(fdbg,"Pad local:    ");
+					for(int co = 0; co < element_ids_local.size(); co++){
+						octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+						var_aux_1[co]=h->pad;
+						fprintf(fdbg,"%d ",h->pad);
+					}
+					fprintf(fdbg,"\n");
+
+					if(elem->pad!=4 && elem->pad!=-10){
+						flag2=false;
+						for(int co = 0; co < element_ids_local.size(); co++){
+							if(element_ids_local[co]!=elements_ids[iel]){
+								if(var_aux[co]==var_aux_1[co]){
+									flag2=false;
+								}else{
+									if(var_aux_1[co]==4){
+										flag2=true;
+										break;
+									}else if(var_aux_1[co]==-10){
+										flag2=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand tipo 4 rodei a bahiana El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if( flag2 ){
 					for(int n_nodes = 0; n_nodes<8;n_nodes++){
 						int node = 3*elem->nodes[n_nodes].id;
 						coords[node]   = coords_orgi[3*n_nodes];
@@ -1566,67 +3564,1760 @@ void ChangeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 					}
 				}
 
-				//			printf("iter: %d, v2: %f \n",n_iter,v2);
 
-				v2= v2+2;
+#endif
+
+#if 0
+				template2Rand(mesh, coords, elem, v_1);
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if(elem->pad==4){
+					//	CuttedEdges (mesh, coords, elements_ids, iel, &point[12], &edge_list[12]);
+
+					GtsSegment * segments[12]={0};
+					int Edge2GNode[12][2];
+					GtsPoint * point[12] = {NULL};
+					bool edge_list[12] = {false};
+
+					for (int edge = 0; edge < 12; ++edge) {
+						point[edge] = NULL;
+
+						int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+						int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+						Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+						Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+
+						GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+						edge_list[edge] = false;
+
+						if (list == NULL) continue;
+						while (list) {
+							GtsBBox *b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								edge_list[edge] = true;
+								break;
+							}
+							list = list->next;
+						}
+					}
+
+					double d_c1;
+					double d_c2;
+
+					double ref1 = 	coords[3*elem->nodes[0].id ] ;
+					double ref2 = 	coords[3*elem->nodes[0].id + 1 ] ;
+					double ref3 = coords[3*elem->nodes[0].id + 3 ] ;
+					double dx = coords[3*elem->nodes[1].id ] - coords[3*elem->nodes[0].id ];
+					double dy = coords[3*elem->nodes[2].id +1] - coords[3*elem->nodes[1].id+1 ];
+					double dz = coords[3*elem->nodes[0].id +2] - coords[3*elem->nodes[4].id+2 ];
+
+					if(edge_list[0]&&edge_list[1]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[2]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change  ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[3]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change  ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[0]){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change  ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 0
+
+					}else if(edge_list[8]&&edge_list[9]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[10]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[11]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[8]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] -ref2-dy/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+1]*sin(alpha);
+							coords[node_change +1  ] = coords[node_change ]*sin(alpha) +coords[node_change +1  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +1  ] =coords[node_change +1  ] + ref2 + dy/2;
+						}
+						//move 4
+
+					}else if( edge_list[0]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change  ] = coords[node_change   ] - ref1 - dx*0.5;
+							coords[node_change +2  ] =coords[node_change +2  ] -ref3-dz/2;
+							coords[node_change  ] = coords[node_change  ]*cos(alpha)  - coords[node_change+2]*sin(alpha);
+							coords[node_change +2  ] = coords[node_change]*sin(alpha) +coords[node_change +2  ]*cos(alpha);
+							coords[node_change  ] = coords[node_change   ] + ref1 + dx*0.5;
+							coords[node_change +2  ] =coords[node_change +1  ] + ref3 + dz/2;
+						}
+						//move 0
+
+					}else if( edge_list[3]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 0
+
+					}else if(edge_list[0]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 3
+
+					}else if(edge_list[8]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 4
+
+					}else if(edge_list[11]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 4
+
+					}else if(edge_list[8]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change    ] = coords[node_change    ] - ref1 - dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change    ] = coords[node_change    ]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change    ]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change    ] = coords[node_change    ] + ref1 + dx*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						double alpha = atan(d_c2/d_c1);
+
+						for(int co = 0; co<8;co++){
+							node_change = 3*elem->nodes[co].id;
+							coords[node_change + 1] = coords[node_change + 1] - ref2 - dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] - ref3 - dz*0.5;
+							coords[node_change + 1] = coords[node_change + 1]*cos(alpha) - coords[node_change + 2]*sin(alpha);
+							coords[node_change + 2] = coords[node_change + 1]*sin(alpha) + coords[node_change + 2]*cos(alpha);
+							coords[node_change + 1] = coords[node_change + 1] + ref2 + dy*0.5;
+							coords[node_change + 2] = coords[node_change + 2] + ref3 + dz*0.5;
+						}
+						//move 7
+					}
+
+
+					CheckTemplate(mesh, coords, element_ids_local,false);
+					elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					fprintf(fdbg,"Pad local:    ");
+					for(int co = 0; co < element_ids_local.size(); co++){
+						octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+						var_aux_1[co]=h->pad;
+						fprintf(fdbg,"%d ",h->pad);
+					}
+					fprintf(fdbg,"\n");
+
+					if(elem->pad!=4 && elem->pad!=-10){
+						flag2=false;
+						for(int co = 0; co < element_ids_local.size(); co++){
+							if(element_ids_local[co]!=elements_ids[iel]){
+								if(var_aux[co]==var_aux_1[co]){
+									flag2=false;
+								}else{
+									if(var_aux_1[co]==4){
+										flag2=true;
+										break;
+									}else if(var_aux_1[co]==-10){
+										flag2=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand tipo 4 rodei a bahiana El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+
+
+#endif
+
+#if 0
+				template2Rand(mesh, coords, elem, v_1);
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if(elem->pad==4){
+					//	CuttedEdges (mesh, coords, elements_ids, iel, &point[12], &edge_list[12]);
+
+					GtsSegment * segments[12]={0};
+					int Edge2GNode[12][2];
+					GtsPoint * point[12] = {NULL};
+					bool edge_list[12] = {false};
+
+					for (int edge = 0; edge < 12; ++edge) {
+						point[edge] = NULL;
+
+						int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+						int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+						Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+						Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+
+						GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+						edge_list[edge] = false;
+
+						if (list == NULL) continue;
+						while (list) {
+							GtsBBox *b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								edge_list[edge] = true;
+								break;
+							}
+							list = list->next;
+						}
+					}
+
+					double d_c1;
+					double d_c2;
+
+					double dx = coords[3*elem->nodes[1].id    ] - coords[3*elem->nodes[0].id    ];
+					double dy = coords[3*elem->nodes[2].id + 1] - coords[3*elem->nodes[1].id + 1];
+					double dz = coords[3*elem->nodes[0].id + 2] - coords[3*elem->nodes[4].id + 2];
+
+					if(edge_list[0]&&edge_list[1]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[2]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[1], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[3]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[0]){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[3], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[5][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 0
+
+					}else if(edge_list[8]&&edge_list[9]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[10]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[9], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[11]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change +1  ] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change +1  ] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[8]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[11], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[4][co]].id;
+								if(dy*0.5>d_c2){
+									coords[node_change + 1] = coords[node_change +1  ] - (d_c2-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change +1  ] + (d_c2-dy*1.1);
+								}
+							}
+						}
+						//move 4
+
+					}else if( edge_list[0]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 0
+
+					}else if( edge_list[3]&&edge_list[4] ){
+						int node_change = 3*elem->nodes[0].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+
+						//move 0
+
+					}else if(edge_list[0]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[0], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[5]){
+						int node_change = 3*elem->nodes[1].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 1
+
+					}else if(edge_list[1]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[1], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[6]){
+						int node_change = 3*elem->nodes[2].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 2
+
+					}else if(edge_list[2]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[2], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 3
+
+					}else if(edge_list[3]&&edge_list[7]){
+						int node_change = 3*elem->nodes[3].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[3], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 3
+
+					}else if(edge_list[8]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 4
+
+					}else if(edge_list[11]&&edge_list[4]){
+						int node_change = 3*elem->nodes[4].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[4], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 4
+
+					}else if(edge_list[8]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[8], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[2][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[5]){
+						int node_change = 3*elem->nodes[5].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[5], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 5
+
+					}else if(edge_list[9]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[9], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[1][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[6]){
+						int node_change = 3*elem->nodes[6].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[6], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 6
+
+					}else if(edge_list[10]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[10], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dx*0.5>d_c1){
+									coords[node_change  ] = coords[node_change  ]-(d_c1-dx*1.1);
+								}else{
+									coords[node_change  ] = coords[node_change  ]+(d_c1-dx*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[3][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 7
+
+					}else if(edge_list[11]&&edge_list[7]){
+						int node_change = 3*elem->nodes[7].id;
+
+						GtsPoint *p0 = gts_point_new(gts_point_class(),
+								coords[node_change],
+								coords[node_change + 1],
+								coords[node_change + 2]);
+
+						d_c1 = gts_point_distance(point[11], p0);
+						d_c2 = gts_point_distance(point[7], p0);
+
+						if(d_c1>d_c2){
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dy*0.5>d_c1){
+									coords[node_change + 1] = coords[node_change + 1]-(d_c1-dy*1.1);
+								}else{
+									coords[node_change + 1] = coords[node_change + 1]+(d_c1-dy*1.1);
+								}
+							}
+						}else{
+							for(int co = 0; co<4;co++){
+								node_change = 3*elem->nodes[FaceNodesMap[0][co]].id;
+								if(dz*0.5>d_c2){
+									coords[node_change + 2] = coords[node_change +2  ] - (d_c2-dz*1.1);
+								}else{
+									coords[node_change + 2] = coords[node_change +2  ] + (d_c2-dz*1.1);
+								}
+							}
+						}
+						//move 7
+					}
+
+
+					CheckTemplate(mesh, coords, element_ids_local,false);
+					elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					fprintf(fdbg,"Pad local:    ");
+					for(int co = 0; co < element_ids_local.size(); co++){
+						octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+						var_aux_1[co]=h->pad;
+						fprintf(fdbg,"%d ",h->pad);
+					}
+					fprintf(fdbg,"\n");
+
+					if(elem->pad!=4 && elem->pad!=-10){
+						flag2=false;
+						for(int co = 0; co < element_ids_local.size(); co++){
+							if(element_ids_local[co]!=elements_ids[iel]){
+								if(var_aux[co]==var_aux_1[co]){
+									flag2=false;
+								}else{
+									if(var_aux_1[co]==4){
+										flag2=true;
+										break;
+									}else if(var_aux_1[co]==-10){
+										flag2=true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand tipo 4 movi minha fesse todinha :) El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+
+
+#endif
 				n_iter++;
-
+				v_1= 1;
 			}
 
 			el_4++;
 
-			//printf("EL: %d, pad: %d\n",elements_ids[iel], elem->pad);
-
 		}else if(elem->pad==-10){
 
-			fprintf(fdbg,"El: %d not handle\n",elements_ids[iel]);
+			v_1 = 0.75;
+			n_iter = 0;
+			bool flag1 = false;
+			bool flag2 = true;
 
+			fprintf(fdbg,"El: %d not handle\n",elements_ids[iel]);
+			//printf("El:%d\n",elements_ids[iel]);
+			element_ids_local.clear();
+			SideEL(mesh, elem->x, elem->y, elem->z ,element_ids_local);
+
+			fprintf(fdbg,"El: %d Case type 10\n",elements_ids[iel]);
+			fprintf(fdbg,"El:");
+			for(int co = 0; co<element_ids_local.size();co++){
+				fprintf(fdbg,"%d ",element_ids_local[co]);
+				if(element_ids_local[co]==elements_ids[iel]){ref=co;}
+			}
+			fprintf(fdbg,"\n");
+
+			fprintf(fdbg,"REF:%d \n",ref);
+
+			fprintf(fdbg,"Pad Original: ");
+			for(int c = 0; c < element_ids_local.size(); c++){
+				octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[c]);
+				var_aux[c]=h->pad;
+				fprintf(fdbg,"%d ",var_aux[c]);
+			}
+			fprintf(fdbg,"\n");
+
+			for(int n_nodes = 0; n_nodes<8;n_nodes++){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+				int node = 3*elem->nodes[n_nodes].id;
+				coords_orgi[3*n_nodes  ] = coords[node  ];
+				coords_orgi[3*n_nodes+1] = coords[node+1];
+				coords_orgi[3*n_nodes+2] = coords[node+2];
+			}
+
+			while(n_iter<iter_max && flag1){
+				template2Rand(mesh, coords, elem, v_1);
+				CheckTemplate(mesh, coords, element_ids_local,false);
+				elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+				fprintf(fdbg,"Pad local:    ");
+				for(int co = 0; co < element_ids_local.size(); co++){
+					octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids_local[co]);
+					var_aux_1[co]=h->pad;
+					fprintf(fdbg,"%d ",h->pad);
+				}
+				fprintf(fdbg,"\n");
+
+				if(elem->pad!=4 && elem->pad!=-10){
+					flag2=false;
+					for(int co = 0; co < element_ids_local.size(); co++){
+						if(element_ids_local[co]!=elements_ids[iel]){
+							if(var_aux[co]==var_aux_1[co]){
+								flag2=false;
+							}else{
+								if(var_aux_1[co]==4){
+									flag2=true;
+									break;
+								}else if(var_aux_1[co]==-10){
+									flag2=true;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if(!flag2){
+					flag1=false;
+					flag2=false;
+					printf("To livreeeee rand tipo 10 manuuu El:%d, n_iter:%d\n",elements_ids[iel],n_iter);
+					break;
+				}
+
+				if( flag2 ){
+					for(int n_nodes = 0; n_nodes<8;n_nodes++){
+						int node = 3*elem->nodes[n_nodes].id;
+						coords[node]   = coords_orgi[3*n_nodes];
+						coords[node+1] = coords_orgi[3*n_nodes+1];
+						coords[node+2] = coords_orgi[3*n_nodes+2];
+					}
+				}
+				n_iter++;
+			}
 			nao_sei++;
 
 		}
 
 	}
-	printf("\n case 4 %d\n", el_4);
 
 	fclose(fdbg);
-	/*
-	if(elem->pad==4){
-		CuttedEdges (mesh, coords, elements_ids, iel, &point[12], &edge_list[12]);
-		//template4to3(mesh, coords, elements_ids, iel, &point[12], &edge_list[12],v1);
-	}
-	 */
 }
 
 void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
 	bool clamped = true;
 	bool face_intecepted[6];
-	int Edge2GNode[12][2];
+	//int Edge2GNode[12][2];
 	int conn_p[4];
 	int original_conn[8];
 	FILE * fdbg;
-	int el_not_handle = 0;
+	//int el_not_handle = 0;
+
+	int Edge2GNode[12][2]={0};
+	int Edge2GNode_s[12][2]={0};
+	int Edge2GNode_v[4][2]={0};
+
+	GtsSegment * segments[12]={0};
+	GtsSegment * segments_s[12]={0};
+	GtsSegment * segments_v[4]={0};
+
+	GtsPoint * point[12]={NULL};
+	GtsPoint * point_s[12]={NULL};
+	GtsPoint * point_v[4]={NULL};
+	bool edge_list[12]={false};
+	bool edge_list_s[12]={false};
+	bool edge_list_v[4]={false};
+	int ed_cont = 0;
 
 	fdbg = fopen("intercepted_faces.dbg", "w");
 
 	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (node_in_edge_t), edge_hash_fn, edge_equal_fn, &clamped);
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
-
-		int Edge2GNode[12][2]={0};
-		int Edge2GNode_s[12][2]={0};
-		int Edge2GNode_v[4][2]={0};
-
-		GtsSegment * segments[12]={0};
-		GtsSegment * segments_s[12]={0};
-		GtsSegment * segments_v[4]={0};
-
-		GtsPoint * point[12]={NULL};
-		GtsPoint * point_s[12]={NULL};
-		GtsPoint * point_v[4]={NULL};
-		bool edge_list[12]={false};
-		bool edge_list_s[12]={false};
-		bool edge_list_v[4]={false};
-		int ed_cont = 0;
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
@@ -3782,10 +7473,10 @@ void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 	//MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	//MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 
-//	if (mesh->mpi_rank == 0) {
-//		printf("Total number of elements: %lld\n", mesh->local_n_elements);
-//		printf("Total number of nodes: %lld\n", mesh->local_n_nodes);
-//	}
+	//	if (mesh->mpi_rank == 0) {
+	//		printf("Total number of elements: %lld\n", mesh->local_n_elements);
+	//		printf("Total number of nodes: %lld\n", mesh->local_n_nodes);
+	//	}
 
 	fclose(fdbg);
 	sc_hash_array_destroy(hash_nodes);

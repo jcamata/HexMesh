@@ -48,17 +48,18 @@ int main(int argc, char** argv) {
 	GetMeshFromSurface(&mesh, "./input/topo_Arg_ref.gts", coords);
 	GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_ref.gts");
 	printf(" Elements intercepted: %d\n", element_ids.size());
+	//CheckTemplate(&mesh, coords, element_ids, true);
 
 	int nn =0;
-	while(nn<0){
-		CheckTemplate(&mesh, coords, element_ids, true);
-		ChangeTemplate(&mesh, coords, element_ids);
+	while(nn<10){
+		//ChangeTemplate(&mesh, coords, element_ids);
+		printf("inter: %d\n", nn);
 		CheckTemplate(&mesh, coords, element_ids, true);
 		nn++;
 	}
-	CheckTemplate(&mesh, coords, element_ids, true);
 
-	ApplyTemplate(&mesh, coords, element_ids);
+	//CheckTemplate(&mesh, coords, element_ids, true);
+	//ApplyTemplate(&mesh, coords, element_ids);
 
 	//TO DO
 	//AddPMLElements(&mesh,coords);
