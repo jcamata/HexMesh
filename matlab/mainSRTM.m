@@ -3,17 +3,26 @@ clear all
 
 % set bounds (in degrees and minutes)
 % [ minlat° minlat' maxlat° maxlat' minlon° minlon' maxlon° maxlon']
-% l = [40 00 52 00  -5 00   8 00]; % France
-% l = [43 48 44 05   5 30   6 00]; % Cadarache, France
-% l = [38 00 39 00  20 00  21 00]; % Kefalonia, Greece
-l = [37 10 37 40 138 15 138 55]; % Kashiwazaki, Japan
+% NOTE THAT YOU SHOULD CONSIDER A LARGER AREA THAN WHAT YOU INTEND TO MESH
+% l = [40 00 52 00   -5 00    8 00]; % France
+% l = [43 48 44 05    5 30    6 00]; % Cadarache, France
+% l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
+% l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+% l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
+l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
+% l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
 
-% characteristic de-refinement length
-H = 0.01;
+% characteristic length over which details of the coastline are removed
+% put H<=0 if you want no smoothing (this is very expensive because many
+% small elements will be created)
+H = 0.01; % in units of lon/lat
+
+% minimum water depth
+minwater = -10;
 
 % after the STL files are generated, you should run in Terminal
 % >> dos2unix bathy.stl
@@ -48,7 +57,7 @@ bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
 outbathy = bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
 
-% get coastlines and rivers
+% get coastlines (for now only treating Ocean and Land)
 [x,y] = ndgrid(latbnds(1:end-1), lonbnds(1:end-1));
 x = x(:); y = y(:);
 water = struct('Ocean',{[]},'River',{[]},'Lake',{[]}, 'Land',{[]},'Isle',{[]});
@@ -60,71 +69,70 @@ for i1 = 1:length(x)
         water.Ocean = [water.Ocean; {ocean}];
     else
         water.Ocean = [water.Ocean; wat.Ocean];
-        water.River = [water.River; wat.River];
-        water.Lake = [water.Lake; wat.Lake];
+%        water.River = [water.River; wat.River];
+%        water.Lake = [water.Lake; wat.Lake];
         water.Land = [water.Land; wat.Land];
-        water.Isle = [water.Isle; wat.Isle];
+%        water.Isle = [water.Isle; wat.Isle];
     end
 end
 
-% de-refinement of coastline
-if ~isempty(water)
-    for i1 = 1:length(water.Ocean)
-        size(water.Ocean{i1})
-        dx = diff(water.Ocean{i1}(1,:));
-        dy = diff(water.Ocean{i1}(2,:));
-        h = sqrt(dx.^2+dy.^2);
-        indg = h>H;
-        indg(indg+1) = true;
-        n = max(floor(H/mean(h)));
-        indg(1:n:end) = true;
-        water.Ocean{i1} = water.Ocean{i1}(:,indg);
-        size(water.Ocean{i1})
-    end
-end
+% smooth coastlines
+h = figure; 
+plotCoastline( water.Ocean, 'k-', h );
+plotCoastline( water.Land, 'b-', h );
+water = smoothCurve(water,H);
+plotCoastline( water.Ocean, 'r--o', h );
+plotCoastline( water.Land, 'r--o', h );
 
-% interpolate coastlines
-[lon,lat] = ndgrid(outbathy.lon(:),outbathy.lat(:));
-z = double(outbathy.z');
-if ~isempty(water)
-    for i1 = 1:length(water.Ocean)
-        lon1 = water.Ocean{i1}(1,1:end-1)';
-        lat1 = water.Ocean{i1}(2,1:end-1)';
-        ind = lon1>=loncrop(1) & lon1<=loncrop(2) ...
-            & lat1>=latcrop(1) & lat1<=latcrop(2);
-        lon = [lon(:); water.Ocean{i1}(1,ind)'];
-        lat = [lat(:); water.Ocean{i1}(2,ind)'];
-        z = [z(:); zeros(sum(ind),1)];
-    end
-    for i1 = 1:length(water.Land)
-        lon1 = water.Land{i1}(1,1:end-1)';
-        lat1 = water.Land{i1}(2,1:end-1)';
-        ind = lon1>=loncrop(1) & lon1<=loncrop(2) ...
-            & lat1>=latcrop(1) & lat1<=latcrop(2);
-        lon = [lon(:); water.Land{i1}(1,ind)'];
-        lat = [lat(:); water.Land{i1}(2,ind)'];
-        z = [z(:); zeros(sum(ind),1)];
-    end
+% integrate bathymetry and coastlines
+[tri,z] = bathymetryCoastline( outbathy, water, 3 );
+figure; trisurf( tri.ConnectivityList, tri.Points(:,1),tri.Points(:,2), z);
+xc = incenter(tri);
+Nc = size(xc,1);
+
+% construct function distance to coastline (positive on land) for all the
+% nodes, and also the center of the elements
+distOcean = makeLS( [[tri.Points(:,1) tri.Points(:,2)]; xc], water.Ocean );
+distLand = -makeLS( [[tri.Points(:,1) tri.Points(:,2)]; xc], water.Land );
+dist = min(abs([distOcean distLand]),[],2);
+ind = dist==abs(distOcean);
+dist(ind) = distOcean(ind);
+dist(~ind) = distLand(~ind);
+distc = dist(end-Nc+1:end);
+dist = dist(1:end-Nc);
+
+% replace positive values in water by default negative value
+ind = dist<0 & z>=0;
+z(ind) = minwater;
+
+% remove nodes on land (depending on value at center of element) and nodes
+% that are outside the bounding box
+ind = (xc(:,1)<loncrop(1)) | (xc(:,1)>loncrop(2)) | ...
+      (xc(:,2)<latcrop(1)) | (xc(:,2)>latcrop(2));
+ind = ind | (distc>0);
+if any(~ind)
+    tri = triangulation( tri.ConnectivityList(~ind,:), tri.Points(:,1),tri.Points(:,2),z);
+
+% add vertical elements to make sure the STL crosses the z=0 surface
+    altz = 100;
+    ind = abs(tri.Points(:,3))<1e-8;
+    bnd = freeBoundary(tri);
+    bnd = bnd(all(ind(bnd),2),:);
+    [bndnodes,~,indnodes] = unique(bnd);
+    indnodes = reshape(indnodes, size(bnd)) + size(tri.Points,1);
+    newnodes = [tri.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
+    newelts1 = [bnd indnodes(:,1)];
+    newelts2 = [bnd(:,2) indnodes(:,2) indnodes(:,1)];
+    Elts = [tri.ConnectivityList; newelts1; newelts2];
+    Nodes = [tri.Points; newnodes];
+    tri = triangulation( Elts, Nodes );
+    figure; trisurf( tri );
 else
-    disp('no water body information found')
+    tri = [];
 end
-tri = delaunay(lon,lat);
-[tri,xx] = cleanT(tri,[lon lat z],1e-8);
-lon = xx(:,1); lat = xx(:,2); z = xx(:,3);
 
-% transform heights in bathymetry to +9999
-in = false(size(lon)); % in water
-for i1 = 1:length(water.Ocean)
-    in = in | inpolygon(lat,lon,water.Ocean{i1}(2,:)',water.Ocean{i1}(1,:)');
-end
-in = ~in; % in land
-for i1 = 1:length(water.Land)
-    in = in | inpolygon(lon,lat,water.Land{i1}(1,:),water.Land{i1}(2,:));
-end
-z(in) = 9999;
-figure; trimesh(tri,lon,lat,z)
-
-% transform angles to meters
+return
+% prepare output
 nmax = 1e4;
 if length(outtopo.lon)<nmax && length(outtopo.lat)<nmax
     [xtopo,ytopo] = ndgrid(outtopo.lon,outtopo.lat);
@@ -134,10 +142,9 @@ else
     error('the STL file is too large')
 end
 
-return
 % write STL files
-write_stl( fullfile(outdir,'topo.stl'), xtopo, ytopo, double(outtopo.z') );
-write_stl( fullfile(outdir,'bathy.stl'), [xbathy ybathy z], tri' );
+write_stl(fullfile(outdir,'topo.stl'), xtopo, ytopo, double(outtopo.z'));
+write_stl(fullfile(outdir,'bathy.stl'), [xbathy ybathy z], tri' );
 
 
 
