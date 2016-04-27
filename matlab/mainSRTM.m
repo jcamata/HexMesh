@@ -7,10 +7,10 @@ clear all
 % l = [40 00 52 00   -5 00    8 00]; % France
 % l = [43 48 44 05    5 30    6 00]; % Cadarache, France
 % l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
-% l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
 % l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
-l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
+% l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
 % l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
 
 % choose output directory
@@ -114,7 +114,7 @@ if any(~ind)
     tri = triangulation( tri.ConnectivityList(~ind,:), tri.Points(:,1),tri.Points(:,2),z);
 
 % add vertical elements to make sure the STL crosses the z=0 surface
-    altz = 100;
+    altz = 1000;
     ind = abs(tri.Points(:,3))<1e-8;
     bnd = freeBoundary(tri);
     bnd = bnd(all(ind(bnd),2),:);
@@ -125,31 +125,24 @@ if any(~ind)
     newelts2 = [bnd(:,2) indnodes(:,2) indnodes(:,1)];
     Elts = [tri.ConnectivityList; newelts1; newelts2];
     Nodes = [tri.Points; newnodes];
+    clear tri
     tri = triangulation( Elts, Nodes );
     figure; trisurf( tri );
 else
     tri = [];
 end
 
-return
+% return
 % prepare output
 nmax = 1e4;
 if length(outtopo.lon)<nmax && length(outtopo.lat)<nmax
     [xtopo,ytopo] = ndgrid(outtopo.lon,outtopo.lat);
     [xtopo,ytopo] = lonlat2m(xtopo,ytopo);
-    [xbathy,ybathy] = lonlat2m(lon,lat);
+    [xbathy,ybathy] = lonlat2m(tri.Points(:,1),tri.Points(:,2));
 else
     error('the STL file is too large')
 end
-
+% return
 % write STL files
 write_stl(fullfile(outdir,'topo.stl'), xtopo, ytopo, double(outtopo.z'));
-write_stl(fullfile(outdir,'bathy.stl'), [xbathy ybathy z], tri' );
-
-
-
-
-
-
-
-
+write_stl(fullfile(outdir,'bathy.stl'), [xbathy ybathy tri.Points(:,3)], tri.ConnectivityList');
