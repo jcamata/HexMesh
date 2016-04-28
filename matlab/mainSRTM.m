@@ -19,7 +19,7 @@ outdir = '.';
 % characteristic length over which details of the coastline are removed
 % put H<=0 if you want no smoothing (this is very expensive because many
 % small elements will be created)
-H = 0.1; % in units of lon/lat
+H = .1; % in units of lon/lat
 
 % minimum water depth
 minwater = -10;
@@ -48,13 +48,17 @@ loncrop = [l(5)+l(6)/60 l(7)+l(8)/60];
 % get topography and plot
 topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
-outtopo = topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
+topo = topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
+nmax = 1e4;
+if length(topo.lon)>nmax || length(topo.lat)>nmax
+    error('the STL file will be too large')
+end
 
 % get bathymetry and plot
 bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
-outbathy = bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
+bathy = bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
 
 % get coastlines (for now only treating Ocean and Land)
@@ -85,42 +89,39 @@ plotCoastline( water.Ocean, 'r--o', h );
 plotCoastline( water.Land, 'r--o', h );
 
 % integrate bathymetry and coastlines
-[ trib, z, dist, distc, xc ] = altimetryCoastline( outbathy, water, 3 );
+bathy = altimetryCoastline( bathy, water, 3 );
+[dist,distc] = distanceCoastline( bathy, water );
+z = bathy.Points(:,3);
 
 % replace positive values in water by default negative value
 ind = dist<0 & z>=0;
 z(ind) = minwater;
 
-% remove nodes on land (depending on value at center of element) and nodes
-% that are outside the bounding box
-ind = (xc(:,1)<loncrop(1)) | (xc(:,1)>loncrop(2)) | ...
-      (xc(:,2)<latcrop(1)) | (xc(:,2)>latcrop(2));
-ind = ind | (distc>0);
-if any(~ind)
-    trib = triangulation( trib.ConnectivityList(~ind,:), ...
-                                   trib.Points(:,1), trib.Points(:,2), z );
+% remove nodes on land (depending on value at center of element)
+ind = distc>0;
+bathy = triangulation( bathy.ConnectivityList(~ind,:), ...
+                                   bathy.Points(:,1), bathy.Points(:,2), z );
 
 % add vertical elements to make sure the STL crosses the z=0 surface
-    altz = 1000;
-    ind = abs(trib.Points(:,3))<1e-8;
-    bnd = freeBoundary(trib);
-    bnd = bnd(all(ind(bnd),2),:);
-    [bndnodes,~,indnodes] = unique(bnd);
-    indnodes = reshape(indnodes, size(bnd)) + size(trib.Points,1);
-    newnodes = [trib.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
-    newelts1 = [bnd indnodes(:,1)];
-    newelts2 = [bnd(:,2) indnodes(:,2) indnodes(:,1)];
-    Elts = [trib.ConnectivityList; newelts1; newelts2];
-    Nodes = [trib.Points; newnodes];
-    clear trib
-    trib = triangulation( Elts, Nodes );
-    figure; trisurf( trib );
-else
-    trib = [];
-end
+altz = 1000;
+ind = abs(bathy.Points(:,3))<1e-8;
+bnd = freeBoundary(bathy);
+bnd = bnd(all(ind(bnd),2),:);
+[bndnodes,~,indnodes] = unique(bnd);
+indnodes = reshape(indnodes, size(bnd)) + size(bathy.Points,1);
+newnodes = [bathy.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
+newelts1 = [bnd indnodes(:,1)];
+newelts2 = [bnd(:,2) indnodes(:,2) indnodes(:,1)];
+Elts = [bathy.ConnectivityList; newelts1; newelts2];
+Nodes = [bathy.Points; newnodes];
+clear trib
+bathy = triangulation( Elts, Nodes );
+figure; trisurf( bathy );
 
 % integrate topography with coastline
-[ trit, z, dist, distc, xc ] = altimetryCoastline( outtopo, water );
+topo = altimetryCoastline( topo, water );
+[ dist, distc ] = distanceCoastline( topo, water );
+z = topo.Points(:,3);
 
 % replace all values in water by zero
 ind = dist<=0;
@@ -129,36 +130,23 @@ z(ind) = 0;
 % at distance H around the coastline, put all negative z on land to zero
 ind = dist>0 & dist<H & z<0;
 z(ind) = 0;
-
-% remove nodes that are outside the bounding box
-ind = (xc(:,1)<loncrop(1)) | (xc(:,1)>loncrop(2)) | ...
-      (xc(:,2)<latcrop(1)) | (xc(:,2)>latcrop(2));
-if any(~ind)
-    trit = triangulation( trit.ConnectivityList(~ind,:), ...
-                                   trit.Points(:,1), trit.Points(:,2), z );
-%    figure; trisurf( trit ); shading flat;
-else
-    trit = [];
-end
+topo = triangulation( topo.ConnectivityList, ...
+                                   topo.Points(:,1), topo.Points(:,2), z );
+%figure; trisurf( topo ); shading flat;
 
 return
 
 % write topography STL file
-nmax = 1e4;
-if length(outtopo.lon)<nmax && length(outtopo.lat)<nmax
-    if ~isempty(trit)
-        [xtopo,ytopo] = lonlat2m(trit.Points(:,1),trit.Points(:,2));
-        write_stl( fullfile(outdir,'topo.stl'), ...
-                  [xtopo ytopo trit.Points(:,3)], trit.ConnectivityList');
-    end
-else
-    error('the STL file is too large')
+if ~isempty(topo)
+    [xtopo,ytopo] = lonlat2m(topo.Points(:,1),topo.Points(:,2));
+    write_stl( fullfile(outdir,'topo.stl'), ...
+        [xtopo ytopo topo.Points(:,3)], topo.ConnectivityList');
 end
 
 % write bathymetry STL file
-if ~isempty(trib)
-    [xbathy,ybathy] = lonlat2m(trib.Points(:,1),trib.Points(:,2));
+if ~isempty(bathy)
+    [xbathy,ybathy] = lonlat2m(bathy.Points(:,1),bathy.Points(:,2));
     write_stl( fullfile(outdir,'bathy.stl'), ...
-                 [xbathy ybathy trib.Points(:,3)], trib.ConnectivityList');
+                 [xbathy ybathy bathy.Points(:,3)], bathy.ConnectivityList');
 end            
              
