@@ -47,8 +47,12 @@ ind = any( indin & ~indon, 2) | all( indin, 2 );
 
 % construct initial map of altitudes
 z = scatteredInterpolant( lon, lat, z );
-dt = triangulation( dt.ConnectivityList(ind,:), ...
-        dt.Points(:,1), dt.Points(:,2), z(dt.Points(:,1),dt.Points(:,2)) );
+z = z(dt.Points(:,1),dt.Points(:,2));
+
+% create final triangulation
+X = [ dt.Points(:,1:2) z ];
+T = cleanFlatT( dt.ConnectivityList(ind,:), X, 1e-10 );
+dt = triangulation( T, X(:,1), X(:,2), X(:,3) );
 
 %==================================
 % FUNCTION INTEGRATECOASTLINES

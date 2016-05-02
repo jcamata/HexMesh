@@ -7,11 +7,11 @@ clear all
 % l = [40 00 52 00   -5 00    8 00]; % France
 % l = [43 48 44 05    5 30    6 00]; % Cadarache, France
 % l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
-l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+% l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
 % l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 % l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
-% l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
+l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
@@ -97,10 +97,11 @@ z = bathy.Points(:,3);
 ind = dist<0 & z>=0;
 z(ind) = minwater;
 
-% remove nodes on land (depending on value at center of element)
+% remove elements on land (depending on value at center of element)
 ind = distc>0;
-bathy = triangulation( bathy.ConnectivityList(~ind,:), ...
-                                   bathy.Points(:,1), bathy.Points(:,2), z );
+X = [ bathy.Points(:,1:2) z ];
+T = cleanFlatT( bathy.ConnectivityList(~ind,:), X, 1e-10 );
+bathy = triangulation( T, X(:,1), X(:,2), X(:,3) );
 
 % add vertical elements to make sure the STL crosses the z=0 surface
 altz = 1000;
@@ -110,10 +111,11 @@ bnd = bnd(all(ind(bnd),2),:);
 [bndnodes,~,indnodes] = unique(bnd);
 indnodes = reshape(indnodes, size(bnd)) + size(bathy.Points,1);
 newnodes = [bathy.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
-newelts1 = [bnd indnodes(:,1)];
-newelts2 = [bnd(:,2) indnodes(:,2) indnodes(:,1)];
-Elts = [bathy.ConnectivityList; newelts1; newelts2];
 Nodes = [bathy.Points; newnodes];
+newelts = [ [bnd indnodes(:,1)]; 
+            [bnd(:,2) indnodes(:,2) indnodes(:,1)] ];
+newelts = cleanFlatT( newelts, Nodes, 1e-10 );
+Elts = [bathy.ConnectivityList; newelts];
 clear trib
 bathy = triangulation( Elts, Nodes );
 figure; trisurf( bathy );
@@ -130,11 +132,12 @@ z(ind) = 0;
 % at distance H around the coastline, put all negative z on land to zero
 ind = dist>0 & dist<H & z<0;
 z(ind) = 0;
-topo = triangulation( topo.ConnectivityList, ...
-                                   topo.Points(:,1), topo.Points(:,2), z );
+X = [ topo.Points(:,1:2) z ];
+T = cleanFlatT( topo.ConnectivityList, X, 1e-10 );
+topo = triangulation( T, X(:,1), X(:,2), X(:,3) );
 %figure; trisurf( topo ); shading flat;
 
-return
+% return
 
 % write topography STL file
 if ~isempty(topo)
