@@ -279,8 +279,10 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
         for(zz=0; zz < Ntotal; ++zz)
         {
             
-            VTK_FLOAT_TYPE wx  = (VTK_FLOAT_TYPE) (*coords)[zz*3  ];
-            VTK_FLOAT_TYPE wy  = (VTK_FLOAT_TYPE) (*coords)[zz*3+1];
+            //VTK_FLOAT_TYPE wx  = (VTK_FLOAT_TYPE) ((*coords)[zz*3  ] - (*coords)[0*3  ]);
+            //VTK_FLOAT_TYPE wy  = (VTK_FLOAT_TYPE) ((*coords)[zz*3+1] - (*coords)[0*3+1]);
+            VTK_FLOAT_TYPE wx  = (VTK_FLOAT_TYPE) ((*coords)[zz*3  ] );
+            VTK_FLOAT_TYPE wy  = (VTK_FLOAT_TYPE) ((*coords)[zz*3+1] );
             VTK_FLOAT_TYPE wz  = (VTK_FLOAT_TYPE) (*coords)[zz*3+2];
          
 #ifdef VTK_DOUBLES
@@ -338,7 +340,10 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
   fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"ElemType\" format=\"%s\">\n", VTK_LOCIDX, VTK_FORMAT_STRING);
   for (il = 0, sk = 1; il < Ncells; ++il, ++sk) {
         octant_t *h     = (octant_t*) sc_array_index(&mesh->elements, il);
-        fprintf (vtufile, " %d", h->pad);
+        fprintf (vtufile, " %d", h->n_mat);
+        //fprintf (vtufile, " %d", h->pad);
+        //fprintf (vtufile, " %d", h->tem);
+        //fprintf (vtufile, " %d", h->pml_id);
         if (!(sk % 20) && il != (Ncells - 1))
             fprintf (vtufile, "\n         ");
   }

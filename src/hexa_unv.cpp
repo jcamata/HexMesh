@@ -92,7 +92,7 @@ void UNVIO_WriteElements(std::ofstream &out_file, hexa_tree_t* mesh) {
     assign_elem_nodes[5] = 1;
     assign_elem_nodes[6] = 2;
     assign_elem_nodes[7] = 3;
-    */
+
     assign_elem_nodes[0] = 4; 
     assign_elem_nodes[1] = 5; 
     assign_elem_nodes[2] = 6;
@@ -101,6 +101,15 @@ void UNVIO_WriteElements(std::ofstream &out_file, hexa_tree_t* mesh) {
     assign_elem_nodes[5] = 1;
     assign_elem_nodes[6] = 2;
     assign_elem_nodes[7] = 3;
+    */
+    assign_elem_nodes[0] = 0;
+    assign_elem_nodes[1] = 1;
+    assign_elem_nodes[2] = 2;
+    assign_elem_nodes[3] = 3;
+    assign_elem_nodes[4] = 4;
+    assign_elem_nodes[5] = 5;
+    assign_elem_nodes[6] = 6;
+    assign_elem_nodes[7] = 7;
     
     
     for (int iel = 0; iel < n_elements; ++iel) {
