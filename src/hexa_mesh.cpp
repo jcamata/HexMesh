@@ -100,15 +100,15 @@ void hexa_mesh(hexa_tree_t* mesh)
             if(r != NULL)
             {
                 r->x     = node->x;
-                if(node->x == (mesh->ncellx+1) ) r->x = -mesh->max_step;
+                //if(node->x == (mesh->ncellx+1) ) r->x = -mesh->max_step;
                 if(node->x == (mesh->ncellx+2) ) r->x = mesh->ncellx+mesh->max_step;
-                
+
                 r->y     = node->y;
-                if(node->y == (mesh->ncelly+1) ) r->y = -mesh->max_step;
+                //if(node->y == (mesh->ncelly+1) ) r->y = -mesh->max_step;
                 if(node->y == (mesh->ncelly+2) ) r->y = mesh->ncelly+mesh->max_step;
 
                 r->z     = node->z;
-                if(node->z == (mesh->ncellz+1) ) r->z = -mesh->max_step;
+                //if(node->z == (mesh->ncellz+1) ) r->z = -mesh->max_step;
                 if(node->z == (mesh->ncellz+2) ) r->z = mesh->ncellz+mesh->max_step;
                
                 r->id    = num_indep_nodes;
