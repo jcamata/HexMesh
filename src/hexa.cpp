@@ -39,7 +39,7 @@ void hexa_element_init(octant_t *elem)
 {
     elem->level = 0;
     elem->x     = elem->y = elem->z;
-    elem->pad   = PML_NULL;
+    elem->pad   = 0;
     elem->pml_id= PML_NULL;
 }
 
@@ -109,6 +109,7 @@ void hexa_get_27tree(hexa_tree_t* mesh, int nx, int ny, int nz, int step, int le
             {
                 octant_t * elem = (octant_t*) sc_array_push(&mesh->elements);
                 elem->pad = 0;
+                elem->n_mat = 0;
                 hexa_element_init(elem);
                 hexa_element_conn(elem,x,y,z, step, level);
             }
@@ -134,6 +135,8 @@ void hexa_uniform_layer(hexa_tree_t* mesh, int nz, int coarse_step, int internal
             for(int nx=mesh->x_start; nx < mesh->x_end; nx+=coarse_step)
             {
                 octant_t * elem = (octant_t*) sc_array_push(&mesh->elements);
+                elem->pad = 0;
+                elem->n_mat = 0;
                 hexa_element_init(elem);
                 hexa_element_conn(elem,nx,ny,nz, coarse_step, level);
                 mesh->max_step = MAX(mesh->max_step,coarse_step);
