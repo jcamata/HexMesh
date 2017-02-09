@@ -86,6 +86,5 @@ static int elem_to_pml_map[NPML][8] = {
 
 void SetElemPML(hexa_tree_t* tree, octant_t *elem, int step);
 
-
 #endif	/* PML_H */
 
