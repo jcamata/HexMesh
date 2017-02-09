@@ -25,9 +25,13 @@ typedef struct {
 typedef struct {
     int32_t    x,y,z;
     int8_t     level;
-    int8_t     pad;
+    int8_t     ref;
+    int     pad;
+    int     tem;
     int8_t     pml_id;
     int        n_mat;
+    int edge_id[12];
+    bool edge_ref[12];
     octant_node_t nodes[8];
     int32_t    id;
 } octant_t;
@@ -126,6 +130,8 @@ void hexa_mesh(hexa_tree_t* tree);
 int  hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords);
 
 void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
+
+void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 
 void hexa_debug_face_hanging(hexa_tree_t* mesh);
 
