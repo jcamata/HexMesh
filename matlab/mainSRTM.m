@@ -2,16 +2,20 @@ close all
 clear all
 
 % set bounds (in degrees and minutes)
-% [ minlat° minlat' maxlat° maxlat' minlon° minlon' maxlon° maxlon']
+% [ minlat? minlat' maxlat? maxlat' minlon? minlon' maxlon? maxlon']
 % NOTE THAT YOU SHOULD CONSIDER A LARGER AREA THAN WHAT YOU INTEND TO MESH
 % l = [40 00 52 00   -5 00    8 00]; % France
 % l = [43 48 44 05    5 30    6 00]; % Cadarache, France
 % l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
 % l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+
+% l = [38 00 38 30   20 10   20 50]; % Kefalonia, Greece Svay Paper
+
 % l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
+l = [37 10 38 00  138 15  139 00]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 % l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
-l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
+% l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
@@ -19,10 +23,16 @@ outdir = '.';
 % characteristic length over which details of the coastline are removed
 % put H<=0 if you want no smoothing (this is very expensive because many
 % small elements will be created)
-H = .1; % in units of lon/lat
+H = .01; % in units of lon/lat
 
 % minimum water depth
 minwater = -10;
+
+warning('Please verify that you have wget installed!')
+% using macports
+% sudo port install wget
+% if you are using linux, maybe you need to change the path to wget
+% matlab/read_swbd.m, matlab/readhgt.m and matlab/topographySRTM.m
 
 % after the STL files are generated, you should run in Terminal
 % >> dos2unix bathy.stl
@@ -35,8 +45,8 @@ minwater = -10;
 % DO NOT MODIFY BELOW THIS LINE
 %--------------------------------------------------------------------------
 % todo
-% 1) vérifier que les interpolations des NaN sont bien faites
-% 2) changer la lecture des données pour que le rétrécissement soit bien
+% 1) v?rifier que les interpolations des NaN sont bien faites
+% 2) changer la lecture des donn?es pour que le r?tr?cissement soit bien
 %    pris en compte dans HexMesh
 
 % transform coordinates
@@ -47,9 +57,10 @@ loncrop = [l(5)+l(6)/60 l(7)+l(8)/60];
 
 % get topography and plot
 topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
-                     'crop', [latcrop loncrop]);
+                    'crop', [latcrop loncrop]);
 topo = topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
+                 
 nmax = 1e4;
 if length(topo.lon)>nmax || length(topo.lat)>nmax
     error('the STL file will be too large')
@@ -57,7 +68,7 @@ end
 
 % get bathymetry and plot
 bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
-                     'crop', [latcrop loncrop]);
+                      'crop', [latcrop loncrop]);
 bathy = bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
                      'crop', [latcrop loncrop]);
 

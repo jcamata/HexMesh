@@ -1,12 +1,16 @@
 function varargout = readhgt(varargin)
 %READHGT Import/download NASA SRTM data files (.HGT).
+%	READHGT(AREA) where AREA is a 4-element vector [LAT1,LAT2,LON1,LON2]
+%	downloads the SRTM data and plots a map corresponding to the geographic
+%	area defined by latitude and longitude limits (in decimal degrees). If 
+%	the needed SRTM .hgt files are not found in the current directory (or 
+%	in the path), they are downloaded from the USGS data server (needs an 
+%	Internet connection and a companion file "readhgt_srtm_index.txt"). For
+%	better plot results, it is recommended to install DEM personal function
+%	available at author's Matlab page. 
 %
-%	READHGT(LAT,LON) downloads the tiles and plots SRTM data corresponding 
-%	to LAT and LON (in decimal degrees) coordinates (lower-left corner) 
-%	from the USGS data server (needs an Internet connection and a companion  
-%	file "readhgt_srtm_index.txt"). For better plot results, it is 
-%	recommended to install DEM personal function available at author's 
-%	Matlab page. 
+%	READHGT(LAT,LON) reads or downloads the SRTM tiles corresponding to LAT
+%	and LON (in decimal degrees) coordinates (lower-left corner).
 %
 %	LAT and/or LON can be vectors: in that case, tiles corresponding to all
 %	possible combinations of LAT and LON values will be downloaded, and
@@ -23,69 +27,117 @@ function varargout = readhgt(varargin)
 %
 %	X=READHGT(...,'plot') also plots the tile(s).
 %
-%	Additionnal options are available:
 %
-%	READHGT(LAT,LON,'merge'), in case of adjoining values of LAT and LON, 
-%	will concatenate tiles to produce a single one.
+%	--- Additionnal options ---
 %
-%	READHGT(LAT,LON,'interp') linearly interpolates missing data.
+%	'tiles'
+%	   Imports and plots individual tiles instead of merging them (default 
+%	   behavior if adjoining values of LAT and LON).
 %
-%	READHGT(LAT,LON,...,'crop',[LAT1,lAT2,LON1,LON2]) crops the map using
-%	latitude/longitude limits. READHGT(LAT,LON,...,'crop'), without limits
-%	argument vector, crops the resulting map around existing land (reduces 
-%	any sea or novalue areas at the borders).
+%	'interp'
+%	   Linearly interpolates missing data.
 %
-%	READHGT(LAT,LON,...,'srtm3') forces SRTM3 download (by default, SRTM1
-%	tile is downloaded if exists). Usefull for USA neighborhood.
+%	'decim',N
+%	   Decimates the tiles at 1/N times of the original sampling.
 %
-%	READHGT(LAT,LON,OUTDIR) specifies output directory OUTDIR to write
-%	downloaded files.
+%	'crop'
+%	   crops the resulting map around existing land (reduces any sea or 
+%	   novalue areas at the borders).
 %
-%	READHGT(LAT,LON,OUTDIR,URL) specifies the URL address to find HGT 
-%	files (default is USGS).
+%	'crop',[LAT1,lAT2,LON1,LON2]
+%	   Former syntax that crops the map using latitude/longitude limits. 
+%	   Prefer the new syntax READHGT(AREA).
 %
-%	Examples:
+%	'srtm1'
+%	   Downloads SRTM1 tiles which are 9 times bigger than default SRTM3 
+%	   ! EXPERIMENTAL ! since the used URL seems unofficial.
+%	   ! Beware with large zones may lead to computer memory issues.
+%	   ! SRTM1 and SRTM3 tiles hold the same filename, while they have 
+%	   different size. Do not store them in the same directory to avoid
+%	   errors when merging tiles.
+%
+%	'srtm3'
+%	   Forces SRTM3 download for all areas (by default, SRTM1 tiles are 
+%	   downloaded only for USA territory, if exists).
+%
+%	'outdir',OUTDIR
+%	   Specifies output directory OUTDIR to write downloaded files and/or 
+%	   to search existing files. Former syntax READHGT(LAT,LON,OUTDIR) also
+%	   accepted.
+%
+%	'url',URL
+%	   Specifies the URL address to find HGT files (default is USGS). 
+%	   Former syntax READHGT(LAT,LON,OUTDIR,URL) still accepted.
+%
+%	'wget'
+%	   Will use external command wget to download the files (for Linux and
+%	   MacOSX systems). For MacOSX, wget must be installed using homebrew,
+%	   macports, fink or compiling from sources.
+%	   ! NOTICE ! since 2016, USGS has moved SRTM files to a secured 
+%	   https:// URL. This causes Matlab versions older than 2014b failing
+%	   dowload the tiles automatically, because of unzip function and 
+%	   certificate problems. This issue can be surrounded using this 'wget'
+%	   option.
+%
+%
+%	--- Examples ---
+%
 %	- to plot a map of the Paris region, France (single tile):
 %		readhgt(48,2)
 %
 %	- to plot a map of Flores volcanic island, Indonesia (5 tiles):
-%		readhgt(-9,119:123,'merge')
+%		readhgt(-9,119:123)
+%
+%	- to plot a map of the Misti volcano, Peru (SRTM1 cropped tile):
+%	   readhgt([-16.4,-16.2,-71.5,-71.3],'srtm1','interp')
 %
 %	- to download SRTM1 data of Cascade Range (27 individual tiles):
-%		X=readhgt(40:48,-123:-121);
+%		X=readhgt(40:48,-123:-121,'tiles');
 %
-%	Informations:
+%
+%	--- Information ---
+%
 %	- each file corresponds to a tile of 1x1 degree of a square grid
 %	  1201x1201 of elevation values (SRTM3 = 3 arc-seconds), and for USA  
-%	  territory at higher resolution 3601x3601 grid (SRTM1 = 1 arc-second).
+%	  territory or when using the 'srtm1' option, at higher resolution 
+%	  3601x3601 grid (SRTM1 = 1 arc-second). Note that SRTM1 and SRTM3 
+%	  files have the same syntax names; only the size differs.
+%
 %	- elevations are of class INT16: sea level values are 0, unknown values
 %	  equal -32768 (there is no NaN for INT class), use 'interp' option to
 %	  fill the gaps.
+%
 %	- note that borders are included in each tile, so to concatenate tiles
 %	  you must remove one row/column in the corresponding direction (this
-%	  is made automatically with the 'merge' option).
+%	  is made automatically by READHGT when merging tiles).
+%
 %	- downloaded file is written in the current directory or optional  
-%	  OUTDIR directory, and it remains there.
+%	  OUTDIR directory, and it remains there. Take care that mixed SRTM1
+%	  and SRTM3 files may lead to fail to merge. It is better to use
+%	  different directories for SRTM1 and SRTM3 (see 'outdir' option).
+%
 %	- NASA Shuttle Radar Topography Mission [February 11 to 22, 2000] 
 %	  produced a near-global covering on Earth land, but still limited to 
 %	  latitudes from 60S to 60N. Offshore tiles will be output as flat 0
 %	  value grid.
+%
 %	- if you look for other global topographic data, take a look to ASTER
 %	  GDEM, worldwide 1 arc-second resolution (from 83S to 83N): 
 %	  http://gdex.cr.usgs.gov/gdex/ (free registration required)
 %
-%	Author: François Beauducel <beauducel@ipgp.fr>
+%
+%	Author: Fran?ois Beauducel <beauducel@ipgp.fr>
 %		Institut de Physique du Globe de Paris
 %
 %	References:
-%		http://dds.cr.usgs.gov/srtm/version2_1
+%		https://dds.cr.usgs.gov/srtm/version2_1
 %
 %	Acknowledgments: Yves Gaudemer, Jinkui Zhu, Greg
 %
-%	Created: 2012-04-22
-%	Updated: 2014-05-17
+%	Created: 2012-04-22 in Paris, France
+%	Updated: 2016-12-27
 
-%	Copyright (c) 2014, François Beauducel, covered by BSD License.
+%	Copyright (c) 2016, Fran?ois Beauducel, covered by BSD License.
 %	All rights reserved.
 %
 %	Redistribution and use in source and binary forms, with or without 
@@ -111,56 +163,101 @@ function varargout = readhgt(varargin)
 %	POSSIBILITY OF SUCH DAMAGE.
 
 fidx = 'readhgt_srtm_index.txt';
-% ATTENTION: this file must exist in the Matlab path
+% ATTENTION: this file must exist in the Matlab path to use default SRTM3 tiles
 % since USGS delivers data continent-by-continent with nominative directories,
 % this index file is needed to know the full path name of each tile.
-url = 'http://dds.cr.usgs.gov/srtm/version2_1';
-sz1 = [3601,3601]; % SRTM1 tile size (USA only)
+sz1 = [3601,3601]; % SRTM1 tile size
 sz3 = [1201,1201]; % SRTM3 tile size
 novalue = intmin('int16'); % -32768
 n = 1;
 
-makeplot = 0;
-merge = 0;
-srtm3 = 0;
-decimflag = 0;
-decim = 0;
-inter = 0;
-cropflag = 0;
-crop = [];
+srtm1 = any(strcmpi(varargin,'srtm1'));
+if srtm1
+	% EXPERIMENTAL: SRTM1 full resolution tiles available here (2016):
+	%url = 'http://e4ftl01.cr.usgs.gov/SRTM/SRTMGL1.003/2000.02.11';
+	url = 'http://rmd.neoknet.com/srtm1';
+else
+	% official USGS SRTM3 tiles (and SRTM1 for USA):
+	url = 'https://dds.cr.usgs.gov/srtm/version2_1';
+end
 
-if nargin > 0 
-	makeplot = any(strcmp(varargin,'plot'));
-	merge = any(strcmp(varargin,'merge'));
-	kcrop = find(strcmp(varargin,'crop'));
-	if ~isempty(kcrop)
-		cropflag = 1;
-		if (kcrop + 1) <= nargin && isnumeric(varargin{kcrop+1})
-			crop = varargin{kcrop+1};
-			if any(size(crop) ~= [1,4])
-				error('CROP option arguments must be a 1x4 vector.')
-			end
-			cropflag = 2;
-			crop = [minmax(crop(1:2)),minmax(crop(3:4))];
+fidx = 'readhgt_srtm30_index.txt';
+% ATTENTION: this file must exist in the Matlab path
+% since USGS delivers data continent-by-continent with nominative directories,
+% this index file is needed to know the full path name of each tile.
+urlftp = 'topex.ucsd.edu';
+
+srtm3 = any(strcmpi(varargin,'srtm3'));
+makeplot = any(strcmpi(varargin,'plot'));
+merge = any(strcmpi(varargin,'merge'));	% unused former option but needs to be considered as valid
+tiles = any(strcmpi(varargin,'tiles'));
+inter = any(strcmpi(varargin,'interp'));
+wget = any(strcmpi(varargin,'wget'));
+
+% --- option: 'crop' or 'crop',[LAT1,LAT2,LON1,LON2]
+crop = [];
+cropflag = 0;
+kcrop = find(strcmpi(varargin,'crop'));
+if ~isempty(kcrop)
+	cropflag = 1;
+	if (kcrop + 1) <= nargin && isnumeric(varargin{kcrop+1})
+		crop = varargin{kcrop+1};
+		if any(size(crop) ~= [1,4])
+			error('CROP option arguments must be a 1x4 vector.')
 		end
-	end
-	srtm3 = any(strcmp(varargin,'srtm3'));
-	inter = any(strcmp(varargin,'interp'));
-	kdecim = find(strcmp(varargin,'decim'));
-	if ~isempty(kdecim)
-		decimflag = 1;
-		if (kdecim + 1) <= nargin && isnumeric(varargin{kdecim+1})
-			decim = round(varargin{kdecim+1});
-			if ~isscalar(decim) || decim < 1
-				error('DECIM option argument must be a positive integer.')
-			end
-			decimflag = 2;
-		end
+		cropflag = 2;
 	end
 end
-nargs = makeplot + merge + cropflag + srtm3 + inter + decimflag;
 
-if nargin == 0
+% --- option: 'decim',N
+decim = 0;
+decimflag = 0;
+kdecim = find(strcmpi(varargin,'decim'));
+if ~isempty(kdecim)
+	decimflag = 1;
+	if (kdecim + 1) <= nargin && isnumeric(varargin{kdecim+1})
+		decim = round(varargin{kdecim+1});
+		if ~isscalar(decim) || decim < 1
+			error('DECIM option argument must be a positive integer.')
+		end
+		decimflag = 2;
+	end
+end
+
+% --- option: 'outdir',OUTDIR
+out = '.';
+outflag = 0;
+koutdir = find(strcmpi(varargin,'outdir'));
+if ~isempty(koutdir)
+	if (koutdir + 1) <= nargin && ischar(varargin{koutdir+1})
+		outflag = 2;
+		out = varargin{koutdir+1};
+		if ~exist(out,'dir')
+			error('OUTDIR is not a valid directory.')
+		end
+	else
+		error('''outdir'' option must be followed by OUTDIR string.')
+	end
+end
+
+% --- option: 'url',URL
+urlflag = 0;
+kurl = find(strcmpi(varargin,'url'));
+if ~isempty(kurl)
+	if (kurl + 1) <= nargin && ischar(varargin{kurl+1})
+		urlflag = 2;
+		url = varargin{kurl+1};
+	else
+		error('''url'' option must be followed by URL string.')
+	end
+end
+
+% needs to count the arguments to allow former syntaxes...
+nargs = makeplot + merge + tiles + cropflag + srtm1 + srtm3 + inter ...
+	+ decimflag + outflag + urlflag + wget;
+
+% syntax READHGT without argument: opens the GUI to select a file
+if nargin == nargs
 	[filename,pathname] = uigetfile('*.hgt;*.hgt.zip','Select a HGT file');
 	f = {[pathname,filename]};
 	if filename == 0
@@ -168,16 +265,17 @@ if nargin == 0
 	end
 end
 
-if nargin == (1 + nargs)
+% syntax READHGT(FILENAME, ...)
+if nargin == (1 + nargs) && ischar(varargin{1})
 	f = varargin{1};
-	if ~ischar(f) || ~exist(f,'file')
+	if ~exist(f,'file')
 		error('FILENAME must be a valid file name')
 	end
-	[pathname,filename,fileext] = fileparts(f);
+	[pathname,filename] = fileparts(f);
 	f = {f};
 end
 
-if nargin < (2 + nargs)
+if nargin < (2 + nargs) && exist('filename','var')
 	lat = str2double(filename(2:3));
 	if filename(1) == 'S'
 		lat = -lat;
@@ -187,22 +285,34 @@ if nargin < (2 + nargs)
 		lon = -lon;
 	end
 else
-	lat = floor(varargin{1}(:));
-	lon = floor(varargin{2}(:));
-	if ~isnumeric(lon) || ~isnumeric(lat) || any(abs(lat) > 60) || any(lon < -180) || any(lat > 179) || isempty(lat) || isempty(lon)
+	if nargin < (2 + nargs)
+		crop = varargin{1};
+		if ~isnumeric(crop) || any(size(crop) ~= [1,4])
+			error('Area must be a 4-element vector [LAT1,LAT2,LON1,LON2].')
+		end
+		lat = floor(min(crop(1:2))):floor(max(crop(1:2)));
+		lon = floor(min(normlon(crop(3:4)))):floor(max(normlon(crop(3:4))));
+		cropflag = 2;
+	else
+		lat = floor(varargin{1}(:));
+		lon = normlon(floor(varargin{2}(:)));	% longitudes are normilized to -180/+179 interval
+	end
+	if ~isnumeric(lon) || ~isnumeric(lat) || any(abs(lat) > 60) || any(lon < -180) || any(lon > 179) || isempty(lat) || isempty(lon)
 		error('LAT and LON must be numeric and in valid SRTM interval (abs(LAT)<60).');
 	end
-	if merge && (any(diff(lat) ~= 1) || any(diff(lon) ~= 1))
-		error('With MERGE option, LAT and LON must be adjoining tiles.');
+	if ~tiles && (any(diff(lat) ~= 1) || any(diff(lon) ~= 1))
+		fprintf('READHGT: Warning! LAT and LON vectors do not define adjoining tiles. Cannot merge and force TILES option.');
+		tiles = 1;
 	end
 
+	% former syntax: readhgt(LAT,LON,OUTDIR)
 	if nargin > (2 + nargs)
-		out = varargin{3};
-		if ~exist(out,'dir')
-			error('OUTDIR must be a valid directory.')
+	if ~isempty(varargin{3})
+			out = varargin{3};
+			if ~exist(varargin{3},'dir')
+				error('OUTDIR is not a valid directory.')
+			end
 		end
-	else
-		out = '.';
 	end
 	
 	% if LAT/LON are vectors, NDGRID makes a grid of corresponding tiles
@@ -220,41 +330,65 @@ else
 			slon = sprintf('E%03d',lon(n));
 		end
 		f{n} = sprintf('%s/%s%s.hgt',out,slat,slon);
-
+		
 		if ~exist(f{n},'file')
+			ff = '';
+			% former syntax: readght(LAT,LON,OUTDIR,URL)
 			if nargin > (3 + nargs)
 				url = varargin{4};
 				if ~ischar(url)
 					error('URL must be a string.');
 				end
 			else
-				%fsrtm = sprintf('%s/%s',fileparts(mfilename('fullpath')),fidx);
-				fsrtm = fidx;
-				if exist(fsrtm,'file')
-					fid = fopen(fsrtm,'rt');
-					idx = textscan(fid,'%s');
-					fclose(fid);
-					k = find(~cellfun('isempty',strfind(idx{1},sprintf('%s%s',slat,slon))));
-					if isempty(k)
-						%fprintf('READHGT: Warning! Cannot find %s tile in SRTM database. Consider it offshore...\n',ff);
-						ff = '';
-					else
-						% forces SRTM3 option: takes the first match in the list
-						if srtm3
-							ff = idx{1}{k(1)};
-						else
-							ff = idx{1}{k(end)};
-						end
-					end
+				if srtm1
+					%ff = sprintf('/%s%s.SRTMGL1.hgt.zip',slat,slon);
+					ff = sprintf('/%s%s.hgt.zip',slat,slon);
 				else
-					error('Cannot find "%s" index file to parse SRTM database. Please download HGT file manually.',fsrtm);
+					%fsrtm = sprintf('%s/%s',fileparts(mfilename('fullpath')),fidx);
+					fsrtm = fidx;
+					if exist(fsrtm,'file')
+						fid = fopen(fsrtm,'rt');
+						idx = textscan(fid,'%s');
+						fclose(fid);
+						k = find(~cellfun('isempty',strfind(idx{1},sprintf('%s%s',slat,slon))));
+						if isempty(k)
+							%fprintf('READHGT: Warning! Cannot find %s tile in SRTM database. Consider it offshore...\n',ff);
+						else
+							% forcing SRTM3 option: takes the first match in the list
+							if srtm3
+								ff = idx{1}{k(1)};
+							else
+								ff = idx{1}{k(end)};
+							end
+						end
+					else
+						error('Cannot find "%s" index file to parse SRTM database. Please download HGT file manually.',fsrtm);
+					end
 				end
 			end
 			if isempty(ff)
 				f{n} = '';
 			else
-				f(n) = unzip([url,ff],out);
-				fprintf('File "%s" downloaded from %s%s\n',f{n},url,ff)
+				fprintf('Download %s%s ... ',url,ff);
+				try
+					if wget
+						tmp = tempname;
+						mkdir(tmp)
+						ftmp = sprintf('%s/%s%s.hgt.zip',tmp,slat,slon);
+						[s,w] = system(sprintf('wget -O %s %s%s',ftmp,url,ff));
+						if s
+							disp(w)
+						end
+						f(n) = unzip(ftmp,out);
+						delete(ftmp)
+					else
+						f(n) = unzip([url,ff],out);
+					end
+					fprintf('done.\n');
+				catch
+					fprintf(' ** tile not found. Considering offshore.\n');
+					f{n} = '';
+				end
 			end
 		end
 	end
@@ -264,7 +398,7 @@ end
 X = repmat(struct('hgt',[],'lat',[],'lon',[]),[n,1]);
 
 if n == 1
-	merge = 1;
+	tiles = 0;
 end
 
 for n = 1:numel(f)
@@ -277,7 +411,11 @@ for n = 1:numel(f)
 		funzip = 0;
 	end
 
-	sz = sz3;
+	if srtm1
+		sz = sz1;
+	else
+		sz = sz3;
+	end
 	if isempty(f{n})
 		% offshore: empty tile...
 		X(n).z = [];
@@ -314,12 +452,12 @@ for n = 1:numel(f)
 	X(n).lat = linspace(lat(n),lat(n)+1,sz(1))';
 	
 	% interpolates NaN (if not merged)
-	if inter && ~merge
+	if inter && tiles
 		X(n).z = fillgap(X(n).lon,X(n).lat,X(n).z,novalue);
 	end
 end
 
-if merge
+if ~tiles
 	% NOTE: cannot merge mixted SRTM1 / SRTM3 or discontiguous tiles
 	Y.lat = linspace(min(lat(:)),max(lat(:))+1,size(lat,1)*(sz(1)-1)+1)';
 	Y.lon = linspace(min(lon(:)),max(lon(:))+1,size(lon,2)*(sz(2)-1)+1);
@@ -335,6 +473,7 @@ if merge
 			klat = firstlast(any(Y.z ~= 0 & Y.z ~= novalue,2));
 			klon = firstlast(any(Y.z ~= 0 & Y.z ~= novalue,1));
 		else
+			crop = [minmax(crop(1:2)),normlon(minmax(crop(3:4)))];
 			klat = find(Y.lat >= crop(1) & Y.lat <= crop(2));
 			klon = find(Y.lon >= crop(3) & Y.lon <= crop(4));
 		end			
@@ -349,7 +488,7 @@ if merge
 end
 
 if nargout == 0 || makeplot
-	if merge
+	if ~tiles
 		fplot(Y.lon,Y.lat,Y.z,decim,url,novalue)
 	else
 		for n = 1:numel(X)
@@ -363,10 +502,10 @@ if nargout == 3 % for backward compatibility...
 	varargout{2} = X(1).lat;
 	varargout{3} = X(1).z;
 elseif nargout > 0
-	if merge
-		varargout{1} = Y;
-	else
+	if tiles
 		varargout{1} = X;
+	else
+		varargout{1} = Y;
 	end
 	if nargout == 2
 		varargout{2} = f{1}; % for backward compatibility...
@@ -413,7 +552,7 @@ else
 	axis xy, axis tight
 end
 
-title(sprintf('Data SRTM/NASA from %s',url),'FontSize',12,'Interpreter','none')
+title(sprintf('Data SRTM/NASA from %s',url),'FontSize',10,'Interpreter','none')
 
 
 
@@ -458,3 +597,8 @@ function k2 = ind90(sz,k)
 
 [i,j] = ind2sub(sz,k);
 k2 = sub2ind(fliplr(sz),j,i); % switched i and j: k2 is linear index in row order
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function y = normlon(x)
+% normalize longitude between -180 and 180
+y = mod(x+180,360) - 180;

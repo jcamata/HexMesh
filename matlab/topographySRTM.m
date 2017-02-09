@@ -74,7 +74,7 @@ function varargout = topographySRTM(varargin)
 %	  GDEM, worldwide 1 arc-second resolution (from 83S to 83N): 
 %	  http://gdex.cr.usgs.gov/gdex/ (free registration required)
 %
-%	Author: François Beauducel <beauducel@ipgp.fr>
+%	Author: Fran?ois Beauducel <beauducel@ipgp.fr>
 %		Institut de Physique du Globe de Paris
 %
 %	References:
@@ -85,7 +85,7 @@ function varargout = topographySRTM(varargin)
 %	Created: 2012-04-22
 %	Updated: 2014-05-17
 
-%	Copyright (c) 2014, François Beauducel, covered by BSD License.
+%	Copyright (c) 2014, Fran?ois Beauducel, covered by BSD License.
 %	All rights reserved.
 %
 %	Redistribution and use in source and binary forms, with or without 
@@ -133,6 +133,7 @@ if nargin > 0
 	makeplot = any(strcmp(varargin,'plot'));
 	merge = any(strcmp(varargin,'merge'));
 	kcrop = find(strcmp(varargin,'crop'));
+    wget = any(strcmpi(varargin,'wget'));
 	if ~isempty(kcrop)
 		cropflag = 1;
 		if (kcrop + 1) <= nargin && isnumeric(varargin{kcrop+1})
@@ -254,8 +255,28 @@ else
 			if isempty(ff)
 				f{n} = '';
 			else
-				f(n) = unzip([url,ff],out);
-				fprintf('File "%s" downloaded from %s%s\n',name,url,ff)
+% 				f(n) = unzip([url,ff],out);
+% 				fprintf('File "%s" downloaded from %s%s\n',name,url,ff)
+                fprintf('Download %s%s ... ',url,ff);
+				try
+					if 1
+						tmp = tempname;
+						mkdir(tmp)
+						ftmp = sprintf('%s/%s%s.hgt.zip',tmp,slat,slon);
+						[s,w] = system(sprintf('/opt/local/bin/wget -O %s %s%s',ftmp,url,ff));
+						if s
+							disp(w)
+						end
+						f(n) = unzip(ftmp,out);
+						delete(ftmp)
+					else
+						f(n) = unzip([url,ff],out);
+					end
+					fprintf('done.\n');
+				catch
+					fprintf(' ** tile not found. Considering offshore.\n');
+					f{n} = '';
+				end
             end
         else
             disp(['found file SRTM3:' name ' on local disk'])

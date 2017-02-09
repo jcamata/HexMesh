@@ -85,7 +85,19 @@ end
 
 if ~ok
     try
-        ff = unzip([url,file],'./');
+        
+%         ff = unzip([url,file],'./');
+
+        tmp = tempname;
+        mkdir(tmp)
+        warning('no correct!!!')
+        ftmp = sprintf('%s/%s%3.3d%s%2.2d.zip',tmp,ew,abs(x),ns,abs(y));
+        [s,w] = system(sprintf('/opt/local/bin/wget -O %s %s%s',ftmp,url,file));
+           if s
+              disp(w)
+           end
+        ff = unzip(ftmp,'./');
+        delete(ftmp)                
         if ~isempty(ff)
             fprintf('File "%s" downloaded from %s\n',file,url);
         end
