@@ -202,7 +202,7 @@ void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, vector<doub
 		printf(" z ranges from %f to %f\n", tree->gdata.bbox->z1, tree->gdata.bbox->z2);
 	}
 
-	double factor = 0.02;
+	double factor = 0.05;
 	double x_factor = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1)*factor;
 	double y_factor = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1)*factor;
 
@@ -257,6 +257,13 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 	for (int iel = 0; iel < elements->elem_count; ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		for (int edge = 0; edge < 12; ++edge) {
+			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+			elem->edge_id[edge] = edge_hash_function(node1, node2);
+			elem->edge_ref[edge] = false;
+		}
 
 		elem->pad = 0;
 		elem->tem = 0;
@@ -374,7 +381,6 @@ bool Point_is_under_surface (GtsPoint * p, GNode    * tree)  {
 	GtsBBox   * bb;
 	GtsSegment *s;
 
-
 	//g_return_val_if_fail ((p != NULL), false);
 	if(p==NULL) exit(1);
 	//g_return_val_if_fail ((tree != NULL), false);
@@ -423,12 +429,10 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 	int el_10 = 0;
 	int el_11 = 0;
 
-	int ed_cont;
-
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-		ed_cont = 0;
+		int ed_cont = 0;
 
 		for (int edge = 0; edge < 12; ++edge) {
 			if(elem->edge_ref[edge]){
@@ -1516,23 +1520,18 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 			}
 		}
-
-
-		//elem->pad=-1;
-		if(elem->pad>=10 & elem->pad<=21){el_1++;}
-		if(elem->pad>=22 & elem->pad<=24){el_2++;}
-		if(elem->pad>=25 & elem->pad<=36){el_3++;}
-		if(elem->pad>=37 & elem->pad<=48){el_4++;}
-		if(elem->pad>=49 & elem->pad<=98){el_5++;}
-		if(elem->pad>=99 & elem->pad<=110){el_6++;}
-		if(elem->pad>=111 & elem->pad<=118){el_7++;}
-		if(elem->pad>=119 & elem->pad<=121){el_8++;}
-		if(elem->pad>=122 & elem->pad<=127){el_9++;}
-		if(elem->pad>=128 & elem->pad<=139){el_10++;}
-		if(elem->pad==140 ){el_11++;}
+		if(elem->tem== 1){el_1++;}
+		if(elem->tem== 2){el_2++;}
+		if(elem->tem== 3){el_3++;}
+		if(elem->tem== 4){el_4++;}
+		if(elem->tem== 5){el_5++;}
+		if(elem->tem== 6){el_6++;}
+		if(elem->tem== 7){el_7++;}
+		if(elem->tem== 8){el_8++;}
+		if(elem->tem== 9){el_9++;}
+		if(elem->tem==10){el_10++;}
+		if(elem->tem==11){el_11++;}
 	}
-
-
 
 	int su = 0;
 	su = el_1+el_2+el_3+el_4+el_5+el_6+el_7+el_8+el_9+el_10+el_11;
@@ -1552,9 +1551,25 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		printf("sum: %d\n",su);
 		printf("case_0: %d\n",el_0);
 	}
+
+	FILE * fdbg;
+	fdbg = fopen("Coisa.txt", "w");
+
+	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		fprintf(fdbg,"El: %d\n",iel);
+		for (int edge = 0; edge < 12; ++edge) {
+			fprintf(fdbg,"%d ",elem->edge_id[edge]);
+		}
+		fprintf(fdbg,"\n");
+		for (int edge = 0; edge < 12; ++edge) {
+			fprintf(fdbg,"%d ",elem->edge_ref[edge]);
+		}
+		fprintf(fdbg,"\n");
+	}
+	fclose(fdbg);
+
 }
-
-
 
 int AddPointOnEdge(int* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords) {
 	size_t position;
@@ -2222,81 +2237,19 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 
 void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<int>& edges_ids) {
 
+
+
 	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
 		for (int edge = 0; edge < 12; ++edge) {
-			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
-			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-			elem->edge_id[edge] = edge_hash_function(node1, node2);
-			//elem->edge_ref[edge]=false;
-			//printf("edge numero: %d, elemento numero: %d id da edge: %d\n",edge, iel,elem->edge_id[edge]);
-
-
 			if(binary_search(edges_ids.begin(), edges_ids.end(), elem->edge_id[edge])){
-				//printf("porra\n");
-				//if(binary_search(elements_ids.begin(), elements_ids.end(), iel)){
-
-				//}else{
-					//printf("edge numero: %d, elemento numero: %d id da edge: %d\n",edge, iel,elem->edge_id[edge]);
-					elem->edge_ref[edge]=true;
-					elem->pad = -1;
-					elements_ids.push_back(iel);
-				//}
-			}
-
-			//for(int i1 = 0; i1 < edges_ids.size(); i1++){
-				//for(int i2 = 0; i2 < elements_ids.size(); i2++){
-					//if(iel==elements_ids[i2]){
-						//break;
-				//	}else{
-					//	if(elem->edge_id[edge]==edges_ids[i1]){
-							//printf("\n");
-						//	printf("edge numero: %d, elemento numero: %d id da edge: %d\n",edge, iel,elem->edge_id[edge]);
-							//printf("\n");
-							//elements_ids.push_back(iel);
-							//elem->edge_ref[edge]=true;
-							//elem->pad = -1;
-						//}
-					//}
-				//}
-			//}
-
-			// if(binary_search(vector.begin(), vector.end(), item)){
-			// Found the item
-		}
-
-		/*
-		if(std::find(edges_ids.begin(), edges_ids.end(), elem->edge_id[edge])!=edges_ids.end()){
-			if(std::find(elements_ids.begin(), elements_ids.end(), iel)!=elements_ids.end()){
-
-			}else{
-				printf("\n");
-				printf("edge numero: %d, elemento numero: %d id da edge: %d\n",edge, iel,elem->edge_id[edge]);
-				printf("\n");
-
-				elements_ids.push_back(iel);
 				elem->edge_ref[edge]=true;
 				elem->pad = -1;
+				elements_ids.push_back(iel);
 			}
 		}
-
 	}
-		 */
-	}
-
-
-	//for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
-	//	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-
-		//for (int edge = 0; edge < 12; ++edge) {
-
-			//if (elem->edge_ref[edge] ){
-				//elements_ids.push_back(iel);
-			//}
-		//}
-	//}
-
 	//cleaning the element vector
 	std::sort( elements_ids.begin(), elements_ids.end() );
 	elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
@@ -2319,7 +2272,7 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 
 		for (int edge = 0; edge < 12; ++edge) {
 			point[edge] = NULL;
-			elem->edge_ref[edge] = false;
+			//elem->edge_ref[edge] = false;
 			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
 			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
 
@@ -2348,7 +2301,10 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 		//Bounding box intercepted
 		if(elem->pad == -1 && ed_cont == 0){
 			elements_ids.erase(elements_ids.begin() + iel);
-			elem->pad = -2;
+			elem->pad = 0;
+			for (int edge = 0; edge < 12; ++edge) {
+				elem->edge_ref[edge] = false;
+			}
 		}
 
 		//clean points
@@ -2358,7 +2314,7 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 		}
 	}
 
-	for (int i = 0; i < 2; i++){
+	for (int i = 0; i < 1; i++){
 		printf("numero %d\n",i);
 		printf(" Elements ref: %d\n", elements_ids.size());
 		IdentifyTemplate(mesh, coords, elements_ids);
@@ -2373,6 +2329,77 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 void Material_apply(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& element_ids, const char* surface_bathy){
 
 	sc_array_t *elements = &mesh->elements;
+
+	/*
+	bool under;
+	GtsPoint * p;
+
+
+
+	// Build the bounding box tree
+	mesh->gdata.s = SurfaceRead(surface_bathy);
+	mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
+	mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+
+	//GNode*      gts_bb_tree_surface(mesh->gdata.s)
+
+	for(int iel = 0; iel < elements->elem_count; ++iel) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		int n_id = elem->nodes[4].id;
+		p = gts_point_set(p, coords[n_id], coords[n_id + 1],coords[n_id + 2]);
+		under = Point_is_under_surface( p, gts_bb_tree_surface(mesh->gdata.s));
+
+		if(under){
+			elem->n_mat = 0;
+		}else{
+			elem->n_mat = 100;
+		}
+	}
+	 */
+
+	/*
+	 bool Point_is_under_surface (GtsPoint * p, GNode    * tree)  {
+
+	bool is_under_surface = true;
+	GtsBBox   * bb;
+	GtsSegment *s;
+
+	//g_return_val_if_fail ((p != NULL), false);
+	if(p==NULL) exit(1);
+	//g_return_val_if_fail ((tree != NULL), false);
+	if(tree==NULL) exit(2);
+
+	bb = (GtsBBox*) tree->data;
+	double d;
+	double dx = (bb->x2 - bb->x1);
+	d = dx;
+	double dy = (bb->y2 - bb->y1);
+	d = (dy > d)? dy: d;
+	double dz = (bb->z2 - bb->z1);
+	d = (dz > d)? dz: d;
+
+	GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), p->x, p->y, p->z);
+	GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), p->x, p->y, bb->z1 - 1.1*d);
+
+	s = gts_segment_new(gts_segment_class(), v1, v2);
+	GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), s);
+	GSList* list = gts_bb_tree_overlap(tree, sb);
+	while (list) {
+		GtsTriangle * t = (GtsTriangle*)(((GtsBBox*)(list->data))->bounded);
+		if(SegmentTriangleIntersection(s,t) != NULL) {
+			is_under_surface = false;
+			break;
+		}
+		list = list->next;
+	}
+	//g_slist_free (list);
+
+	return is_under_surface;
+
+	 */
+
+
 
 	for (int iel = 0; iel < element_ids.size(); ++iel) {
 		octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids[iel]);
@@ -2514,8 +2541,6 @@ void Material_apply(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
-
-
 
 
 

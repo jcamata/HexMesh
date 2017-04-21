@@ -46,21 +46,23 @@ int main(int argc, char** argv) {
 	hexa_tree_cube(&mesh);
 
 	//hexa_debug_face_hanging(&mesh);
-	AddPMLElements(&mesh);
+	//AddPMLElements(&mesh);
 
 	hexa_mesh(&mesh);
-	GetMeshFromSurface(&mesh, "./input/topo_Arg_ref.gts", coords);
-	GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_ref.gts");
 	//GetMeshFromSurface(&mesh, "./input/topo_Arg_small.gts", coords);
 	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+	//GetMeshFromSurface(&mesh, "./input/topo_Arg_ref.gts", coords);
+	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_ref.gts");
 	//GetMeshFromSurface(&mesh, "./input/topo_Pipo_ref.gts", coords);
 	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_ref.gts");
+	GetMeshFromSurface(&mesh, "./input/topo_Pipo_small.gts", coords);
+	GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 	printf(" Elements intercepted: %d\n", element_ids.size());
 
-	Material_apply(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
-//	printf("Check Template \n");
-	//CheckTemplate(&mesh, coords, element_ids, true);
-//	printf(" Elements ref: %d\n", element_ids.size());
+	//Material_apply(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+	//printf("Check Template \n");
+	CheckTemplate(&mesh, coords, element_ids, true);
+	//printf(" Elements ref: %d\n", element_ids.size());
 
 	//ApplyTemplate(&mesh, coords, element_ids);
 
@@ -71,7 +73,6 @@ int main(int argc, char** argv) {
 
 	//hexa_mesh_write_vtk(&mesh,"template", NULL);
 	//hexa_mesh_write_msh(&mesh,"teste", NULL);
-
 
 	//hexa_mesh_write_unv(&mesh, "mesh", &coords);
 	//hexa_mesh_write_unv(&mesh,"teste", NULL);
