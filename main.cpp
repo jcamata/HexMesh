@@ -21,7 +21,7 @@ void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::ve
 //void ChangeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 //void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 
-void Material_apply(hexa_tree_t *mesh, std::vector<double>& coords,std::vector<int>& element_ids, const char* surface_bathy);
+void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords,std::vector<int>& element_ids, const char* surface_bathy);
 
 
 void AddPMLElements(hexa_tree_t* mesh);
@@ -49,19 +49,21 @@ int main(int argc, char** argv) {
 	//AddPMLElements(&mesh);
 
 	hexa_mesh(&mesh);
-	//GetMeshFromSurface(&mesh, "./input/topo_Arg_small.gts", coords);
-	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
-	//GetMeshFromSurface(&mesh, "./input/topo_Arg_ref.gts", coords);
-	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_ref.gts");
-	//GetMeshFromSurface(&mesh, "./input/topo_Pipo_ref.gts", coords);
-	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_ref.gts");
+
+	// Note that here we use a gts file.
+	// There is a tool called stl2gts that convert STL files to GTS.
+	// It is installed together with the gts library.
 	GetMeshFromSurface(&mesh, "./input/topo_Pipo_small.gts", coords);
 	GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
-	printf(" Elements intercepted: %d\n", element_ids.size());
 
-	//Material_apply(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+	//MPI_Allreduce(element_ids, element_ids, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+	//if (mesh->mpi_rank == 0) {
+		printf(" Elements intercepted: %d\n\n", element_ids.size());
+	//}
+
+	//Apply_material(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
 	//printf("Check Template \n");
-	CheckTemplate(&mesh, coords, element_ids, true);
+	//CheckTemplate(&mesh, coords, element_ids, true);
 	//printf(" Elements ref: %d\n", element_ids.size());
 
 	//ApplyTemplate(&mesh, coords, element_ids);
