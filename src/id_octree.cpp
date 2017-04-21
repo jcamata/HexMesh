@@ -34,24 +34,6 @@ int edge_hash_function(int c, int d){
 	}
 }
 
-void Edge_initalization(hexa_tree_t* mesh){
-
-	sc_array_t *elements = &mesh->elements;
-	GtsBBox *box;
-
-	for (int iel = 0; iel < elements->elem_count; ++iel) {
-
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-
-		for (int edge = 0; edge < 12; ++edge) {
-			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
-			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-			elem->edge_id[edge] = edge_hash_function(node1, node2);
-			elem->edge_ref[edge] = false;
-		}
-	}
-}
-
 void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids){
 
 	int el_0 = 0;
@@ -1190,8 +1172,12 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		printf("case_0: %d\n",el_0);
 	}
 
+	//for debug, work just in serial!!!
+#if 1
 	FILE * fdbg;
-	fdbg = fopen("Coisa.txt", "w");
+	char filename[80];
+	sprintf(filename, "Edge_id_%04d.txt", mesh->mpi_rank);
+	fdbg = fopen(filename, "w");
 
 	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
@@ -1206,6 +1192,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		fprintf(fdbg,"\n");
 	}
 	fclose(fdbg);
+#endif
 
 }
 
@@ -1867,11 +1854,23 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::ve
 	elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
 }
 
-void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
+void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
 
 	std::vector<int> edges_ids;
 
-	void Edge_initialization(hexa_tree_t* mesh);
+	sc_array_t *elements = &mesh->elements;
+
+	for (int iel = 0; iel < elements->elem_count; ++iel) {
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		for (int edge = 0; edge < 12; ++edge) {
+			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+			elem->edge_id[edge] = edge_hash_function(node1, node2);
+			elem->edge_ref[edge] = false;
+		}
+	}
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
