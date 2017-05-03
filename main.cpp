@@ -13,19 +13,24 @@
 #include <sc_containers.h>
 #include "hexa.h"
 #include "hilbert.h"
+#include "refinement.h"
 
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, std::vector<double>& coords);
 void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, const char* surface_bathy);
-void CheckTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag);
+void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag);
+void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 
 //void ChangeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 //void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 
-void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords,std::vector<int>& element_ids, const char* surface_bathy);
+void Apply_material(hexa_tree_t* mesh, std::vector<double>& coords,std::vector<int>& element_ids, const char* surface_bathy);
 
 
 void AddPMLElements(hexa_tree_t* mesh);
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
+
+
+void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids);
 
 /*
  * 
@@ -58,12 +63,14 @@ int main(int argc, char** argv) {
 
 	//MPI_Allreduce(element_ids, element_ids, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	//if (mesh->mpi_rank == 0) {
-		printf(" Elements intercepted: %d\n\n", element_ids.size());
+	printf(" Elements intercepted: %d\n\n", element_ids.size());
 	//}
+
+	CheckOctreeTemplate(&mesh, coords, element_ids, true);
+	ApplyOctreeTemplate(&mesh, coords, element_ids);
 
 	//Apply_material(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
 	//printf("Check Template \n");
-	//CheckTemplate(&mesh, coords, element_ids, true);
 	//printf(" Elements ref: %d\n", element_ids.size());
 
 	//ApplyTemplate(&mesh, coords, element_ids);

@@ -9,12 +9,16 @@ using namespace std;
 #include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
+#include <mpi.h>
 
 #include "hexa.h"
 #include "hilbert.h"
 #include "refinement.h"
 
 
+
+
+/*
 typedef struct {
 	bitmask_t coord[2];
 	int node_id;
@@ -61,9 +65,649 @@ int AddPointOnEdge(int* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p,
 		r = (node_in_edge_t*) sc_array_index(&hash->a, position);
 		return r->node_id;
 	}
+}
+
+int EdgeCreateSurfMap[24][2] = {
+		{0, 1}, // Edge 0
+		{1, 2}, // Edge 1
+		{2, 3}, //      2
+		{3, 0},
+		{0, 4},
+		{1, 5},
+		{2, 6},
+		{3, 7},
+		{4, 5},
+		{5, 6},
+		{6, 7},
+		{7, 4}
+};
+ */
+
+typedef struct {
+	bitmask_t coord[3];
+	int node_id;
+} node_t;
+
+unsigned edge_hash_fn(const void *v, const void *u) {
+	const node_t *q = (const node_t*) v;
+	uint32_t a, b, c;
+
+	a = (uint32_t) q->coord[0];
+	b = (uint32_t) q->coord[1];
+	c = (uint32_t) 0;
+	sc_hash_mix(a, b, c);
+	a += (uint32_t) q->coord[3];
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+/*
+ * static unsigned p8est_mesh_indep_hash_fn (const void *v, const void *u)
+{
+  const p4est_locidx_t *indep = (p4est_locidx_t *) v;
+  uint32_t            a, b, c;
+
+  a = (uint32_t) indep[0];
+  b = (uint32_t) indep[1];
+  c = (uint32_t) indep[2];
+  sc_hash_mix (a, b, c);
+  a += (uint32_t) indep[3];
+  sc_hash_final (a, b, c);
+
+  return (unsigned) c;
+}*/
+
+int edge_equal_fn(const void *v, const void *u, const void *w) {
+	const node_t *e1 = (const node_t*) v;
+	const node_t *e2 = (const node_t*) u;
+
+	return (unsigned) ((e1->coord[0] == e2->coord[0]) &&
+			(e1->coord[1] == e2->coord[1]) &&
+			(e1->coord[2] == e2->coord[2]));
 
 }
 
+int AddPoint(double* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords) {
+	size_t position;
+	node_t *r;
+	node_t key;
+	key.coord[0] = nodes[0];
+	key.coord[1] = nodes[1];
+	key.coord[2] = nodes[2];
+
+	r = (node_t*) sc_hash_array_insert_unique(hash, &key, &position);
+	if (r != NULL) {
+		r->coord[0] = key.coord[0];
+		r->coord[1] = key.coord[1];
+		r->coord[2] = key.coord[2];
+		r->node_id = npoints;
+		npoints++;
+		coords.push_back(p->x);
+		coords.push_back(p->y);
+		coords.push_back(p->z);
+		return r->node_id;
+	} else {
+		r = (node_t*) sc_array_index(&hash->a, position);
+		return r->node_id;
+	}
+}
+
+GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z){
+
+	double N[8];
+	GtsPoint* point;
+	double out[3];
+
+
+	N[0] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[1] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[2] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[3] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+
+	N[4] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[5] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[6] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[7] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+
+	out[0] = 0;
+	out[1] = 0;
+	out[2] = 0;
+
+	for(int i=0;i<8;i++){
+		out[0] = N[i]*cord_in_x[i] + out[0] ;
+		out[1] = N[i]*cord_in_y[i] + out[1];
+		out[2] = N[i]*cord_in_z[i] + out[2];
+	}
+
+	point = gts_point_new(gts_point_class(),out[0],out[1],out[2]);
+
+	return point;
+}
+
+void RotateTemplate(double* local_ref, int* rot, int* sym){
+
+	double aux_local[8][3];
+/*
+	for(int i=0;i<8;i++){
+		for(int ii=0;ii<3;ii++){
+			aux_local[i][ii] = local_ref[i][ii];
+		}
+	}
+
+	if(rot[0]==1){
+
+	}
+
+	if(rot[1]==1){
+
+	}
+
+	if(rot[2]==1){
+
+	}
+
+	if(sym[0]==1){
+
+	}
+
+	if(sym[1]==1){
+
+	}
+
+	if(sym[2]==1){
+
+	}
+
+	for(int i=0;i<8;i++){
+		for(int ii=0;ii<3;ii++){
+			local_ref[i][ii] = aux_local[i][ii];
+		}
+	}
+*/
+}
+
+void CopyPropEl(octant_t *elem, octant_t *elem1){
+	elem1->level = elem->level;
+	elem1->ref = elem->ref+1;
+	elem1->tem = elem->tem;
+	elem1->pad = elem->pad;
+	elem1->n_mat = elem->n_mat;
+	elem1->pml_id = elem->pml_id;
+
+
+	//elem1->x=elem->x;
+	//elem1->y=elem->y;
+	//elem1->z=elem->z;
+}
+
+void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
+
+	bool clamped = true;
+	//FILE * fdbg;
+	//char filename[80];
+	//sprintf(filename, "Nodeid_deb_%04d.txt", mesh->mpi_rank);
+	//fdbg = fopen(filename, "w");
+
+	for (int iel = 0; iel < elements_ids.size(); ++iel) {
+
+		double step = double(2)/double(3);
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+		sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+
+		//fprintf(fdbg,"Element: %d\n", elements_ids[iel]);
+/*
+		if(elem->tem==1){
+
+			double cord_in_x[8],cord_in_y[8],cord_in_z[8];
+			double cord_in_ref[3];
+			cord_in_ref[0] = 0;
+			cord_in_ref[1] = 0;
+			cord_in_ref[2] = 0;
+
+			//reference element edge 0
+			double local_ref[5][8][3];
+			//element 0
+			local_ref[0][0][0] = -1;
+			local_ref[0][0][1] = -1;
+			local_ref[0][0][2] = -1;
+
+			local_ref[0][1][0] = -1+step;
+			local_ref[0][1][1] = -1;
+			local_ref[0][1][2] = -1;
+
+			local_ref[0][2][0] = -1+step;
+			local_ref[0][2][1] = -1+2*step;
+			local_ref[0][2][2] = -1;
+
+			local_ref[0][3][0] = -1;
+			local_ref[0][3][1] = 1;
+			local_ref[0][3][2] = -1;
+
+			local_ref[0][4][0] = -1;
+			local_ref[0][4][1] = -1;
+			local_ref[0][4][2] = 1;
+
+			local_ref[0][5][0] = -1+step;
+			local_ref[0][5][1] = -1;
+			local_ref[0][5][2] = -1+2*step;
+
+			local_ref[0][6][0] = -1+step;
+			local_ref[0][6][1] = -1+2*step;
+			local_ref[0][6][2] = -1+2*step;
+
+			local_ref[0][7][0] = -1;
+			local_ref[0][7][1] = 1;
+			local_ref[0][7][2] = 1;
+
+			//element 1
+			local_ref[1][0][0] = -1+step;
+			local_ref[1][0][1] = -1;
+			local_ref[1][0][2] = -1;
+
+			local_ref[1][1][0] = -1+2*step;
+			local_ref[1][1][1] = -1;
+			local_ref[1][1][2] = -1;
+
+			local_ref[1][2][0] = -1+2*step;
+			local_ref[1][2][1] = -1+2*step;
+			local_ref[1][2][2] = -1;
+
+			local_ref[1][3][0] = -1+step;
+			local_ref[1][3][1] = -1+2*step;
+			local_ref[1][3][2] = -1;
+
+			local_ref[1][4][0] = -1+step;
+			local_ref[1][4][1] = -1;
+			local_ref[1][4][2] = -1+2*step;
+
+			local_ref[1][5][0] = -1+2*step;
+			local_ref[1][5][1] = -1;
+			local_ref[1][5][2] = -1+2*step;
+
+			local_ref[1][6][0] = -1+2*step;
+			local_ref[1][6][1] = -1+2*step;
+			local_ref[1][6][2] = -1+2*step;
+
+			local_ref[1][7][0] = -1+step;
+			local_ref[1][7][1] = -1+2*step;
+			local_ref[1][7][2] = -1+2*step;
+
+
+			//element 2
+			local_ref[2][0][0] = -1+2*step;
+			local_ref[2][0][1] = -1;
+			local_ref[2][0][2] = -1;
+
+			local_ref[2][1][0] =  1;
+			local_ref[2][1][1] = -1;
+			local_ref[2][1][2] = -1;
+
+			local_ref[2][2][0] =  1;
+			local_ref[2][2][1] =  1;
+			local_ref[2][2][2] = -1;
+
+			local_ref[2][3][0] = -1+2*step;
+			local_ref[2][3][1] = -1+2*step;
+			local_ref[2][3][2] = -1;
+
+			local_ref[2][4][0] = -1+2*step;
+			local_ref[2][4][1] = -1;
+			local_ref[2][4][2] = -1+2*step;
+
+			local_ref[2][5][0] =  1;
+			local_ref[2][5][1] = -1;
+			local_ref[2][5][2] =  1;
+
+			local_ref[2][6][0] = 1;
+			local_ref[2][6][1] = 1;
+			local_ref[2][6][2] = 1;
+
+			local_ref[2][7][0] = -1+2*step;
+			local_ref[2][7][1] = -1+2*step;
+			local_ref[2][7][2] = -1+2*step;
+
+
+			//element 3
+			local_ref[3][0][0] = -1+1*step;
+			local_ref[3][0][1] = -1+2*step;
+			local_ref[3][0][2] = -1;
+
+			local_ref[3][1][0] = -1+2*step;
+			local_ref[3][1][1] = -1+2*step;
+			local_ref[3][1][2] = -1;
+
+			local_ref[3][2][0] =  1;
+			local_ref[3][2][1] =  1;
+			local_ref[3][2][2] = -1;
+
+			local_ref[3][3][0] = -1;
+			local_ref[3][3][1] = 1;
+			local_ref[3][3][2] = -1;
+
+			local_ref[3][4][0] = -1+1*step;
+			local_ref[3][4][1] = -1+2*step;
+			local_ref[3][4][2] = -1+2*step;
+
+			local_ref[3][5][0] = -1+2*step;
+			local_ref[3][5][1] = -1+2*step;
+			local_ref[3][5][2] = -1+2*step;
+
+			local_ref[3][6][0] = 1;
+			local_ref[3][6][1] = 1;
+			local_ref[3][6][2] = 1;
+
+			local_ref[3][7][0] = -1;
+			local_ref[3][7][1] = 1;
+			local_ref[3][7][2] = 1;
+
+			//element 4
+			local_ref[4][0][0] = -1+step;
+			local_ref[4][0][1] = -1;
+			local_ref[4][0][2] = -1+2*step;
+
+			local_ref[4][1][0] = -1+2*step;
+			local_ref[4][1][1] = -1;
+			local_ref[4][1][2] = -1+2*step;
+
+			local_ref[4][2][0] = -1+2*step;
+			local_ref[4][2][1] = -1+2*step;
+			local_ref[4][2][2] = -1+2*step;
+
+			local_ref[4][3][0] = -1+step;
+			local_ref[4][3][1] = -1+2*step;
+			local_ref[4][3][2] = -1+2*step;
+
+			local_ref[4][4][0] = -1;
+			local_ref[4][4][1] = -1;
+			local_ref[4][4][2] = 1;
+
+			local_ref[4][5][0] = 1;
+			local_ref[4][5][1] = -1;
+			local_ref[4][5][2] = 1;
+
+			local_ref[4][6][0] = 1;
+			local_ref[4][6][1] = 1;
+			local_ref[4][6][2] = 1;
+
+			local_ref[4][7][0] = -1;
+			local_ref[4][7][1] = 1;
+			local_ref[4][7][2] = 1;
+
+			//add the nodes in the coord vector
+			for (int i = 0; i < 8; i++){
+				cord_in_x[i]=coords[3*elem->nodes[i].id] ;
+				cord_in_y[i]=coords[3*elem->nodes[i].id+1] ;
+				cord_in_z[i]=coords[3*elem->nodes[i].id+2] ;
+				fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],elem->nodes[i].id);
+			}
+
+			for(int i=0;i<5;i++){
+				int conn_p[8];
+				GtsPoint* point[8]={NULL};
+
+				for(int ii=0;ii<8;ii++){
+					conn_p[ii] = 0;
+
+					if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
+							(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
+							(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
+
+						if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = elem->nodes[0].id;
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = elem->nodes[1].id;
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = elem->nodes[2].id;
+						}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = elem->nodes[3].id;
+						}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = elem->nodes[4].id;
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = elem->nodes[5].id;
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = elem->nodes[6].id;
+						}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = elem->nodes[7].id;
+						}
+						fprintf(fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+					}else{
+						cord_in_ref[0] = local_ref[i][ii][0];
+						cord_in_ref[1] = local_ref[i][ii][1];
+						cord_in_ref[2] = local_ref[i][ii][2];
+
+						point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
+						double var[3];
+						var[0] = point[ii]->x;
+						var[1] = point[ii]->y;
+						var[2] = point[ii]->z;
+						conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+						fprintf(fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+
+					}
+				}
+
+
+				if(i==0){
+					octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					elem1->nodes[0].id = conn_p[0];
+					elem1->nodes[1].id = conn_p[1];
+					elem1->nodes[2].id = conn_p[2];
+					elem1->nodes[3].id = conn_p[3];
+
+					elem1->nodes[4].id = conn_p[4];
+					elem1->nodes[5].id = conn_p[5];
+					elem1->nodes[6].id = conn_p[6];
+					elem1->nodes[7].id = conn_p[7];
+
+					CopyPropEl(elem,elem1);
+
+				}else{
+					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+
+					elem2->nodes[0].id = conn_p[0];
+					elem2->nodes[1].id = conn_p[1];
+					elem2->nodes[2].id = conn_p[2];
+					elem2->nodes[3].id = conn_p[3];
+
+					elem2->nodes[4].id = conn_p[4];
+					elem2->nodes[5].id = conn_p[5];
+					elem2->nodes[6].id = conn_p[6];
+					elem2->nodes[7].id = conn_p[7];
+
+					CopyPropEl(elem,elem2);
+
+				}
+
+			}
+
+
+		}
+
+*/
+
+
+		/*
+		if(elem->tem==5){
+
+			//int conn_p[64];
+			//GtsPoint* point[64]={NULL};
+
+			double cord_in_x[8],cord_in_y[8],cord_in_z[8];
+			double cord_in_ref[3];
+			cord_in_ref[0] = 0;
+			cord_in_ref[1] = 0;
+			cord_in_ref[2] = 0;
+
+			//select the rotation
+
+
+			//add the nodes in the coord vector
+			for (int i = 0; i < 8; i++){
+				cord_in_x[i]=coords[3*elem->nodes[i].id] ;
+				cord_in_y[i]=coords[3*elem->nodes[i].id+1] ;
+				cord_in_z[i]=coords[3*elem->nodes[i].id+2] ;
+				fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],i);
+			}
+
+			//center
+			GtsPoint* barycenter = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
+			fprintf(fdbg,"barycenter coord in: %f, %f, %f\n",barycenter->x,barycenter->y,barycenter->z);
+
+
+
+			//add the elements in the octants
+
+
+		}
+		 */
+
+
+		//template 11
+		if(elem->tem==11){
+
+			int conn_p[64];
+			GtsPoint* point[64]={NULL};
+
+			double cord_in_x[8],cord_in_y[8],cord_in_z[8];
+			double cord_in_ref[3];
+			cord_in_ref[0] = -1;
+			cord_in_ref[1] = -1;
+			cord_in_ref[2] = -1;
+
+			//add the nodes in the coord vector
+			for (int i = 0; i < 8; i++){
+				cord_in_x[i]=coords[3*elem->nodes[i].id] ;
+				cord_in_y[i]=coords[3*elem->nodes[i].id+1] ;
+				cord_in_z[i]=coords[3*elem->nodes[i].id+2] ;
+				//fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],i);
+			}
+
+			for (int i = 0; i < 4; ++i) {
+				cord_in_ref[1] = -1;
+				for (int ii = 0; ii < 4; ++ii) {
+					cord_in_ref[2] = -1;
+					for (int iii = 0; iii < 4; ++iii) {
+
+						//fprintf(fdbg,"coord ref: %f, %f, %f\n",cord_in_ref[0],cord_in_ref[1],cord_in_ref[2]);
+
+						if((i==0 || i==3) && (ii==0 || ii==3) && (iii==0 || iii==3) ){
+							if(i==0 && ii==0 && iii==0){
+								conn_p[i*16+ii*4+iii] = elem->nodes[0].id;
+							}else if(i==3 && ii==0 && iii==0){
+								conn_p[i*16+ii*4+iii] = elem->nodes[1].id;
+							}else if(i==0 && ii==3 && iii==0){
+								conn_p[i*16+ii*4+iii] = elem->nodes[3].id;
+							}else if(i==3 && ii==3 && iii==0){
+								conn_p[i*16+ii*4+iii] = elem->nodes[2].id;
+							}else if(i==0 && ii==0 && iii==3){
+								conn_p[i*16+ii*4+iii] = elem->nodes[4].id;
+							}else if(i==3 && ii==0 && iii==3){
+								conn_p[i*16+ii*4+iii] = elem->nodes[5].id;
+							}else if(i==0 && ii==3 && iii==3){
+								conn_p[i*16+ii*4+iii] = elem->nodes[7].id;
+							}else if(i==3 && ii==3 && iii==3){
+								conn_p[i*16+ii*4+iii] = elem->nodes[6].id;
+							}
+						}else{
+							point[i*16+ii*4+iii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
+							double var[3];
+							var[0] = point[i*16+ii*4+iii]->x;
+							var[1] = point[i*16+ii*4+iii]->y;
+							var[2] = point[i*16+ii*4+iii]->z;
+							conn_p[i*16+ii*4+iii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[i*16+ii*4+iii] , coords);
+						}
+
+						//fprintf(fdbg,"id do no: %d\n",conn_p[i*16+ii*4+iii]);
+						double xxx = coords[3*conn_p[i*16+ii*4+iii]];
+						double yyy = coords[3*conn_p[i*16+ii*4+iii]+1];
+						double zzz = coords[3*conn_p[i*16+ii*4+iii]+2];
+						//fprintf(fdbg,"no vetor Coords x: %f, y:%f, z:%f\n", xxx, yyy, zzz );
+						cord_in_ref[2] = cord_in_ref[2] + step;
+					}
+					cord_in_ref[1] = cord_in_ref[1] + step;
+				}
+				cord_in_ref[0] = cord_in_ref[0] + step;
+			}
+
+			//add the elements in the octants
+			for (int i = 0; i < 3; ++i) {
+				for (int ii = 0; ii < 3; ++ii) {
+					for (int iii = 0; iii < 3; ++iii) {
+
+						if(i==0 && ii==0 && iii==0 ){
+
+							octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+							elem1->nodes[0].id = conn_p[i*16+ii*4+iii];
+							elem1->nodes[1].id = conn_p[(i+1)*16+ii*4+iii];
+							elem1->nodes[2].id = conn_p[(i+1)*16+(ii+1)*4+iii];
+							elem1->nodes[3].id = conn_p[i*16+(ii+1)*4+iii];
+
+							elem1->nodes[4].id = conn_p[i*16+ii*4+iii+1];
+							elem1->nodes[5].id = conn_p[(i+1)*16+ii*4+iii+1];
+							elem1->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
+							elem1->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
+
+							//segfautl with the function
+							//CopyPropEl(elem,elem1);
+							//elem1->level = elem->level;
+							//elem1->ref = elem->ref+1;
+							//elem1->tem = elem->tem;
+							//elem1->pad = elem->pad;
+							//elem1->n_mat = elem->n_mat;
+							//elem1->pml_id = elem->pml_id;
+						} else{
+
+							octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+
+							elem2->nodes[0].id = conn_p[i*16+ii*4+iii];
+							elem2->nodes[1].id = conn_p[(i+1)*16+ii*4+iii];
+							elem2->nodes[2].id = conn_p[(i+1)*16+(ii+1)*4+iii];
+							elem2->nodes[3].id = conn_p[i*16+(ii+1)*4+iii];
+
+							elem2->nodes[4].id = conn_p[i*16+ii*4+iii+1];
+							elem2->nodes[5].id = conn_p[(i+1)*16+ii*4+iii+1];
+							elem2->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
+							elem2->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
+
+							//segfautl with the function
+							//CopyPropEl(elem,elem2);
+							//elem2->level = elem->level;
+							//elem2->ref = elem->ref+1;
+							//elem2->tem = elem->tem;
+							//elem2->pad = elem->pad;
+							//elem2->n_mat = elem->n_mat;
+							//elem2->pml_id = elem->pml_id;
+						}
+					}
+				}
+			}
+		}
+
+
+
+
+
+
+	}
+	//fclose(fdbg);
+
+
+	//update the vectors
+	mesh->local_n_elements = mesh->elements.elem_count;
+	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+	mesh->nodes.elem_count =  mesh->local_n_nodes;
+
+	if (mesh->mpi_rank == 0) {
+		printf("Total number of elements: %lld\n", mesh->local_n_elements);
+		printf("Total number of nodes: %lld\n", mesh->local_n_nodes);
+	}
+
+}
 
 
 // Old Code... will be removed...
@@ -4452,7 +5096,7 @@ void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
 	fdbg = fopen("intercepted_faces.dbg", "w");
 
-	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (node_in_edge_t), edge_hash_fn, edge_equal_fn, &clamped);
+	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (node_t), edge_hash_fn, edge_equal_fn, &clamped);
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -4613,7 +5257,7 @@ void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 			if(p5==NULL) exit(1);
 			if(p6==NULL) exit(1);
 			if(p7==NULL) exit(1);
-
+			/*
 			conn_p[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
 			conn_p[1] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p1, coords);
 			conn_p[2] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p2, coords);
@@ -4622,7 +5266,7 @@ void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 			conn_p[5] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p5, coords);
 			conn_p[6] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p6, coords);
 			conn_p[7] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p7, coords);
-
+			 */
 			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
 			elem1->nodes[0].id = original_conn[0];

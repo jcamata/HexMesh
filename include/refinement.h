@@ -9,6 +9,13 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t);
 
+void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
+
+//unsigned edge_hash_fn(const void *v, const void *u);
+
+//int edge_equal_fn(const void *v, const void *u, const void *w);
+
+void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids);
 
  int const EdgeVerticesMap[12][2] = {
 		{0, 1}, // Edge 0

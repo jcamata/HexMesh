@@ -30,7 +30,7 @@ typedef struct {
     int     tem;
     int8_t     pml_id;
     int        n_mat;
-    int edge_id[12];
+    unsigned int edge_id[12];
     bool edge_ref[12];
     octant_node_t nodes[8];
     int32_t    id;

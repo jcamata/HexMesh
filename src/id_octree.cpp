@@ -11,11 +11,38 @@ using namespace std;
 
 #include "hexa.h"
 #include "refinement.h"
+#include "hilbert.h"
+
+
+typedef struct {
+	bitmask_t coord[2];
+	int edge_id;
+} edge_id_t;
+
+unsigned edge_hash(const void *v, const void *u) {
+	const edge_id_t *q = (const edge_id_t*) v;
+	uint32_t a, b, c;
+
+	a = (uint32_t) q->coord[0];
+	b = (uint32_t) q->coord[1];
+	c = (uint32_t) 0;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int edge_equal(const void *v, const void *u, const void *w) {
+	const edge_id_t *e1 = (const edge_id_t*) v;
+	const edge_id_t *e2 = (const edge_id_t*) u;
+
+	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e1->coord[1] == e2->coord[1]));
+
+}
 
 //unsigned long int edge_hash_function(int a, int b){
-int edge_hash_function(int c, int d){
+unsigned int edge_hash_function(int c, int d){
 	//unsigned long int c;
-	int e;
+	unsigned int e;
 	int a;
 	int b;
 
@@ -1173,7 +1200,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 	}
 
 	//for debug, work just in serial!!!
-#if 1
+#if 0
 	FILE * fdbg;
 	char filename[80];
 	sprintf(filename, "Edge_id_%04d.txt", mesh->mpi_rank);
@@ -1196,7 +1223,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 }
 
-void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<int>& edges_ids) {
+void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<unsigned int>& edges_ids) {
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -1836,7 +1863,7 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 
 }
 
-void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<int>& edges_ids) {
+void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<unsigned int>& edges_ids) {
 
 	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
@@ -1856,21 +1883,76 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::ve
 
 void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
 
-	std::vector<int> edges_ids;
+	size_t position;
+	edge_id_t *r;
+	edge_id_t key;
+	bool clamped = true;
+
+	std::vector<unsigned int> edges_ids;
 
 	sc_array_t *elements = &mesh->elements;
+	int npoints = 0;
+
+	FILE * fdbg;
+	char filename[80];
+	sprintf(filename, "Edge_deb_%04d.txt", mesh->mpi_rank);
+	fdbg = fopen(filename, "w");
 
 	for (int iel = 0; iel < elements->elem_count; ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
+		sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (edge_id_t), edge_hash, edge_equal, &clamped);
+
+		int Edge2GNode[12][2];
+
+		fprintf(fdbg,"Element: %d\n",iel);
+
 		for (int edge = 0; edge < 12; ++edge) {
 			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
 			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-			elem->edge_id[edge] = edge_hash_function(node1, node2);
+
+			Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
+			Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+
+			fprintf(fdbg,"Edge: %d, global: %d %d\n",edge, Edge2GNode[edge][0],Edge2GNode[edge][1]);
+
+			key.coord[0] = Edge2GNode[edge][0];
+			key.coord[1] = Edge2GNode[edge][1];
+
+			/*
+			r = (edge_id_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+
+			if (r != NULL) {
+					r->edge_id = npoints;
+					elem->edge_id[edge] = r->edge_id;
+					fprintf(fdbg,"Edge: %d, id: %d\n",edge, elem->edge_id[edge]);
+					npoints++;
+				} else {
+					r = (edge_id_t*) sc_array_index(&hash_nodes->a, position);
+					elem->edge_id[edge] = r->edge_id;
+					fprintf(fdbg,"Edge: %d, id: %d\n",edge, elem->edge_id[edge]);
+				}
+*/
+			elem->edge_id[edge] = edge_hash_function(Edge2GNode[edge][0], Edge2GNode[edge][1]);
 			elem->edge_ref[edge] = false;
+			fprintf(fdbg,"Edge: %d, id: %d\n",edge, elem->edge_id[edge]);
 		}
+
 	}
+	fclose(fdbg);
+
+	/*
+		for(int iel= 0; iel < elements->elem_count; iel++ ){
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+			for (int edge = 0; edge < 12; ++edge) {
+				fprintf(fdbg,"%d \n",elem->edge_id[edge]);
+			}
+			fprintf(fdbg,"\n");
+		}
+		*/
+
+
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -1925,7 +2007,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 		}
 	}
 
-	for (int i = 0; i < 1; i++){
+	for (int i = 0; i < 10; i++){
 		printf("numero %d\n",i);
 		printf(" Elements ref: %d\n", elements_ids.size());
 		IdentifyTemplate(mesh, coords, elements_ids);
