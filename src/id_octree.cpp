@@ -2007,7 +2007,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 		}
 	}
 
-	for (int i = 0; i < 10; i++){
+	for (int i = 0; i < 40; i++){
 		printf("numero %d\n",i);
 		printf(" Elements ref: %d\n", elements_ids.size());
 		IdentifyTemplate(mesh, coords, elements_ids);

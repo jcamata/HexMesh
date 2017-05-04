@@ -571,7 +571,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				id_node[5] = elem->nodes[5].id;
 				id_node[6] = elem->nodes[6].id;
 				id_node[7] = elem->nodes[7].id;
-*/
+				 */
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -879,7 +879,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					cord_in_x[ii]=coords[3*id_node[ii]] ;
 					cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 					cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-					fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],elem->nodes[i].id);
+					fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 				}
 
 				//add the new nodes in the
@@ -959,40 +959,646 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			}
 		}
 
-		/*
+
 		if(elem->tem==5){
 
-			//int conn_p[64];
-			//GtsPoint* point[64]={NULL};
-
-			double cord_in_x[8],cord_in_y[8],cord_in_z[8];
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
 			cord_in_ref[1] = 0;
 			cord_in_ref[2] = 0;
 
-			//select the rotation
+			//reference element edge 0
+			double local_ref[13][8][3];
+			if(true){
+				//element 0
+				local_ref[0][0][0] = -1;
+				local_ref[0][0][1] = -1;
+				local_ref[0][0][2] = -1;
 
+				local_ref[0][1][0] = 1;
+				local_ref[0][1][1] = -1;
+				local_ref[0][1][2] = -1;
 
-			//add the nodes in the coord vector
-			for (int i = 0; i < 8; i++){
-				cord_in_x[i]=coords[3*elem->nodes[i].id] ;
-				cord_in_y[i]=coords[3*elem->nodes[i].id+1] ;
-				cord_in_z[i]=coords[3*elem->nodes[i].id+2] ;
-				fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],i);
+				local_ref[0][2][0] = 1;
+				local_ref[0][2][1] = 1;
+				local_ref[0][2][2] = -1;
+
+				local_ref[0][3][0] = -1;
+				local_ref[0][3][1] = 1;
+				local_ref[0][3][2] = -1;
+
+				local_ref[0][4][0] = -1;
+				local_ref[0][4][1] = -1+step;
+				local_ref[0][4][2] = -1+step;
+
+				local_ref[0][5][0] = 1;
+				local_ref[0][5][1] = -1+step;
+				local_ref[0][5][2] = -1+step;
+
+				local_ref[0][6][0] = 1;
+				local_ref[0][6][1] = -1+2*step;
+				local_ref[0][6][2] = -1+step;
+
+				local_ref[0][7][0] = -1;
+				local_ref[0][7][1] = -1+2*step;
+				local_ref[0][7][2] = -1+step;
+
+				//element 1
+				local_ref[1][0][0] = -1;
+				local_ref[1][0][1] = -1+step;
+				local_ref[1][0][2] = -1+step;
+
+				local_ref[1][1][0] = 1;
+				local_ref[1][1][1] = -1+step;
+				local_ref[1][1][2] = -1+step;
+
+				local_ref[1][2][0] = 1;
+				local_ref[1][2][1] = -1+2*step;
+				local_ref[1][2][2] = -1+step;
+
+				local_ref[1][3][0] = -1;
+				local_ref[1][3][1] = -1+2*step;
+				local_ref[1][3][2] = -1+step;
+
+				local_ref[1][4][0] = -1+step;
+				local_ref[1][4][1] = -1+step;
+				local_ref[1][4][2] = -1+2*step;
+
+				local_ref[1][5][0] = -1+2*step;
+				local_ref[1][5][1] = -1+step;
+				local_ref[1][5][2] = -1+2*step;
+
+				local_ref[1][6][0] = -1+2*step;
+				local_ref[1][6][1] = -1+2*step;
+				local_ref[1][6][2] = -1+2*step;
+
+				local_ref[1][7][0] = -1+step;
+				local_ref[1][7][1] = -1+2*step;
+				local_ref[1][7][2] = -1+2*step;
+
+				//element 2
+				local_ref[2][0][0] = -1+step;
+				local_ref[2][0][1] = -1+step;
+				local_ref[2][0][2] = -1+2*step;
+
+				local_ref[2][1][0] = -1+2*step;
+				local_ref[2][1][1] = -1+step;
+				local_ref[2][1][2] = -1+2*step;
+
+				local_ref[2][2][0] = -1+2*step;
+				local_ref[2][2][1] = -1+2*step;
+				local_ref[2][2][2] = -1+2*step;
+
+				local_ref[2][3][0] = -1+step;
+				local_ref[2][3][1] = -1+2*step;
+				local_ref[2][3][2] = -1+2*step;
+
+				local_ref[2][4][0] = -1+step;
+				local_ref[2][4][1] = -1+step;
+				local_ref[2][4][2] = 1;
+
+				local_ref[2][5][0] = -1+2*step;
+				local_ref[2][5][1] = -1+step;
+				local_ref[2][5][2] = 1;
+
+				local_ref[2][6][0] = -1+2*step;
+				local_ref[2][6][1] = -1+2*step;
+				local_ref[2][6][2] = 1;
+
+				local_ref[2][7][0] = -1+step;
+				local_ref[2][7][1] = -1+2*step;
+				local_ref[2][7][2] = 1;
+
+				//element 3
+				local_ref[3][0][0] = -1;
+				local_ref[3][0][1] = -1;
+				local_ref[3][0][2] = -1;
+
+				local_ref[3][1][0] =  1;
+				local_ref[3][1][1] = -1;
+				local_ref[3][1][2] = -1;
+
+				local_ref[3][2][0] =  1;
+				local_ref[3][2][1] = -1+step;
+				local_ref[3][2][2] = -1+step;
+
+				local_ref[3][3][0] = -1;
+				local_ref[3][3][1] = -1+step;
+				local_ref[3][3][2] = -1+step;
+
+				local_ref[3][4][0] = -1+step;
+				local_ref[3][4][1] = -1;
+				local_ref[3][4][2] = -1+step;
+
+				local_ref[3][5][0] = -1+2*step;
+				local_ref[3][5][1] = -1;
+				local_ref[3][5][2] = -1+step;
+
+				local_ref[3][6][0] = -1+2*step;
+				local_ref[3][6][1] = -1+1*step;
+				local_ref[3][6][2] = -1+2*step;
+
+				local_ref[3][7][0] = -1+step;
+				local_ref[3][7][1] = -1+1*step;
+				local_ref[3][7][2] = -1+2*step;
+
+				//element 4
+				local_ref[4][0][0] = -1;
+				local_ref[4][0][1] = -1+2*step;
+				local_ref[4][0][2] = -1+step;
+
+				local_ref[4][1][0] =  1;
+				local_ref[4][1][1] = -1+2*step;
+				local_ref[4][1][2] = -1+step;
+
+				local_ref[4][2][0] =  1;
+				local_ref[4][2][1] =  1;
+				local_ref[4][2][2] = -1;
+
+				local_ref[4][3][0] = -1;
+				local_ref[4][3][1] =  1;
+				local_ref[4][3][2] = -1;
+
+				local_ref[4][4][0] = -1+step;
+				local_ref[4][4][1] = -1+2*step;
+				local_ref[4][4][2] = -1+2*step;
+
+				local_ref[4][5][0] = -1+2*step;
+				local_ref[4][5][1] = -1+2*step;
+				local_ref[4][5][2] = -1+2*step;
+
+				local_ref[4][6][0] = -1+2*step;
+				local_ref[4][6][1] = 1;
+				local_ref[4][6][2] = -1+step;
+
+				local_ref[4][7][0] = -1+step;
+				local_ref[4][7][1] = 1;
+				local_ref[4][7][2] = -1+step;
+
+				//element 5
+				local_ref[5][0][0] = -1;
+				local_ref[5][0][1] = -1;
+				local_ref[5][0][2] = -1;
+
+				local_ref[5][1][0] = -1+step;
+				local_ref[5][1][1] = -1;
+				local_ref[5][1][2] = -1+step;
+
+				local_ref[5][2][0] = -1+step;
+				local_ref[5][2][1] = -1+step;
+				local_ref[5][2][2] = -1+2*step;
+
+				local_ref[5][3][0] = -1;
+				local_ref[5][3][1] = -1+step;
+				local_ref[5][3][2] = -1+step;
+
+				local_ref[5][4][0] = -1;
+				local_ref[5][4][1] = -1;
+				local_ref[5][4][2] = 1;
+
+				local_ref[5][5][0] = -1+step;
+				local_ref[5][5][1] = -1;
+				local_ref[5][5][2] = 1;
+
+				local_ref[5][6][0] = -1+step;
+				local_ref[5][6][1] = -1+step;
+				local_ref[5][6][2] = 1;
+
+				local_ref[5][7][0] = -1;
+				local_ref[5][7][1] = -1+step;
+				local_ref[5][7][2] = 1;
+
+				//element 6
+				local_ref[6][0][0] = -1+step;
+				local_ref[6][0][1] = -1;
+				local_ref[6][0][2] = -1+1*step;
+
+				local_ref[6][1][0] = -1+2*step;
+				local_ref[6][1][1] = -1;
+				local_ref[6][1][2] = -1+step;
+
+				local_ref[6][2][0] = -1+2*step;
+				local_ref[6][2][1] = -1+step;
+				local_ref[6][2][2] = -1+2*step;
+
+				local_ref[6][3][0] = -1+step;
+				local_ref[6][3][1] = -1+step;
+				local_ref[6][3][2] = -1+2*step;
+
+				local_ref[6][4][0] = -1+step;
+				local_ref[6][4][1] = -1;
+				local_ref[6][4][2] = 1;
+
+				local_ref[6][5][0] = -1+2*step;
+				local_ref[6][5][1] = -1;
+				local_ref[6][5][2] = 1;
+
+				local_ref[6][6][0] = -1+2*step;
+				local_ref[6][6][1] = -1+1*step;
+				local_ref[6][6][2] = 1;
+
+				local_ref[6][7][0] = -1+step;
+				local_ref[6][7][1] = -1+1*step;
+				local_ref[6][7][2] = 1;
+
+				//element 7
+				local_ref[7][0][0] = -1+2*step;
+				local_ref[7][0][1] = -1;
+				local_ref[7][0][2] = -1+step;
+
+				local_ref[7][1][0] = 1;
+				local_ref[7][1][1] = -1;
+				local_ref[7][1][2] = -1;
+
+				local_ref[7][2][0] =  1;
+				local_ref[7][2][1] = -1+step;
+				local_ref[7][2][2] = -1+1*step;
+
+				local_ref[7][3][0] = -1+2*step;
+				local_ref[7][3][1] = -1+1*step;
+				local_ref[7][3][2] = -1+2*step;
+
+				local_ref[7][4][0] = -1+2*step;
+				local_ref[7][4][1] = -1;
+				local_ref[7][4][2] = 1;
+
+				local_ref[7][5][0] = 1;
+				local_ref[7][5][1] = -1;
+				local_ref[7][5][2] = 1;
+
+				local_ref[7][6][0] = 1;
+				local_ref[7][6][1] = -1+1*step;
+				local_ref[7][6][2] = 1;
+
+				local_ref[7][7][0] = -1+2*step;
+				local_ref[7][7][1] = -1+1*step;
+				local_ref[7][7][2] = 1;
+
+				//element 8
+				local_ref[8][0][0] = -1+2*step;
+				local_ref[8][0][1] = -1+1*step;
+				local_ref[8][0][2] = -1+2*step;
+
+				local_ref[8][1][0] = 1;
+				local_ref[8][1][1] = -1+1*step;
+				local_ref[8][1][2] = -1+1*step;
+
+				local_ref[8][2][0] =  1;
+				local_ref[8][2][1] = -1+2*step;
+				local_ref[8][2][2] = -1+1*step;
+
+				local_ref[8][3][0] = -1+2*step;
+				local_ref[8][3][1] = -1+2*step;
+				local_ref[8][3][2] = -1+2*step;
+
+				local_ref[8][4][0] = -1+2*step;
+				local_ref[8][4][1] = -1+1*step;
+				local_ref[8][4][2] = 1;
+
+				local_ref[8][5][0] = 1;
+				local_ref[8][5][1] = -1+1*step;
+				local_ref[8][5][2] = 1;
+
+				local_ref[8][6][0] = 1;
+				local_ref[8][6][1] = -1+2*step;
+				local_ref[8][6][2] = 1;
+
+				local_ref[8][7][0] = -1+2*step;
+				local_ref[8][7][1] = -1+2*step;
+				local_ref[8][7][2] = 1;
+
+				//element 9
+				local_ref[9][0][0] = -1+2*step;
+				local_ref[9][0][1] = -1+2*step;
+				local_ref[9][0][2] = -1+2*step;
+
+				local_ref[9][1][0] = 1;
+				local_ref[9][1][1] = -1+2*step;
+				local_ref[9][1][2] = -1+1*step;
+
+				local_ref[9][2][0] =  1;
+				local_ref[9][2][1] =  1;
+				local_ref[9][2][2] = -1;
+
+				local_ref[9][3][0] = -1+2*step;
+				local_ref[9][3][1] =  1;
+				local_ref[9][3][2] = -1+1*step;
+
+				local_ref[9][4][0] = -1+2*step;
+				local_ref[9][4][1] = -1+2*step;
+				local_ref[9][4][2] = 1;
+
+				local_ref[9][5][0] = 1;
+				local_ref[9][5][1] = -1+2*step;
+				local_ref[9][5][2] = 1;
+
+				local_ref[9][6][0] = 1;
+				local_ref[9][6][1] = 1;
+				local_ref[9][6][2] = 1;
+
+				local_ref[9][7][0] = -1+2*step;
+				local_ref[9][7][1] = 1;
+				local_ref[9][7][2] = 1;
+
+				//element 10
+				local_ref[10][0][0] = -1+1*step;
+				local_ref[10][0][1] = -1+2*step;
+				local_ref[10][0][2] = -1+2*step;
+
+				local_ref[10][1][0] = -1+2*step;
+				local_ref[10][1][1] = -1+2*step;
+				local_ref[10][1][2] = -1+2*step;
+
+				local_ref[10][2][0] =  -1+2*step;
+				local_ref[10][2][1] =  1;
+				local_ref[10][2][2] = -1+step;
+
+				local_ref[10][3][0] = -1+1*step;
+				local_ref[10][3][1] =  1;
+				local_ref[10][3][2] = -1+1*step;
+
+				local_ref[10][4][0] = -1+1*step;
+				local_ref[10][4][1] = -1+2*step;
+				local_ref[10][4][2] = 1;
+
+				local_ref[10][5][0] = -1+2*step;
+				local_ref[10][5][1] = -1+2*step;
+				local_ref[10][5][2] = 1;
+
+				local_ref[10][6][0] = -1+2*step;
+				local_ref[10][6][1] = 1;
+				local_ref[10][6][2] = 1;
+
+				local_ref[10][7][0] = -1+1*step;
+				local_ref[10][7][1] = 1;
+				local_ref[10][7][2] = 1;
+
+				//element 11
+				local_ref[11][0][0] = -1;
+				local_ref[11][0][1] = -1+2*step;
+				local_ref[11][0][2] = -1+1*step;
+
+				local_ref[11][1][0] = -1+1*step;
+				local_ref[11][1][1] = -1+2*step;
+				local_ref[11][1][2] = -1+2*step;
+
+				local_ref[11][2][0] =  -1+1*step;
+				local_ref[11][2][1] =  1;
+				local_ref[11][2][2] = -1+step;
+
+				local_ref[11][3][0] = -1;
+				local_ref[11][3][1] =  1;
+				local_ref[11][3][2] = -1;
+
+				local_ref[11][4][0] = -1;
+				local_ref[11][4][1] = -1+2*step;
+				local_ref[11][4][2] = 1;
+
+				local_ref[11][5][0] = -1+1*step;
+				local_ref[11][5][1] = -1+2*step;
+				local_ref[11][5][2] = 1;
+
+				local_ref[11][6][0] = -1+1*step;
+				local_ref[11][6][1] = 1;
+				local_ref[11][6][2] = 1;
+
+				local_ref[11][7][0] = -1;
+				local_ref[11][7][1] = 1;
+				local_ref[11][7][2] = 1;
+
+				//element 12
+				local_ref[12][0][0] = -1;
+				local_ref[12][0][1] = -1+1*step;
+				local_ref[12][0][2] = -1+1*step;
+
+				local_ref[12][1][0] = -1+1*step;
+				local_ref[12][1][1] = -1+1*step;
+				local_ref[12][1][2] = -1+2*step;
+
+				local_ref[12][2][0] =  -1+1*step;
+				local_ref[12][2][1] =  -1+2*step;
+				local_ref[12][2][2] = -1+2*step;
+
+				local_ref[12][3][0] = -1;
+				local_ref[12][3][1] =  -1+2*step;
+				local_ref[12][3][2] = -1+step;
+
+				local_ref[12][4][0] = -1;
+				local_ref[12][4][1] = -1+1*step;
+				local_ref[12][4][2] = 1;
+
+				local_ref[12][5][0] = -1+1*step;
+				local_ref[12][5][1] = -1+1*step;
+				local_ref[12][5][2] = 1;
+
+				local_ref[12][6][0] = -1+1*step;
+				local_ref[12][6][1] = -1+2*step;
+				local_ref[12][6][2] = 1;
+
+				local_ref[12][7][0] = -1;
+				local_ref[12][7][1] = -1+2*step;
+				local_ref[12][7][2] = 1;
+
 			}
 
-			//center
-			GtsPoint* barycenter = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-			fprintf(fdbg,"barycenter coord in: %f, %f, %f\n",barycenter->x,barycenter->y,barycenter->z);
+			//define the rotation of the reference element
+			int rot[3];
+			int sym[3];
+			int id_node[8];
+			vector<int> ord;
+
+			if(elem->pad==50 || elem->pad==59 || elem->pad==60 || elem->pad==61 || elem->pad==62
+					|| elem->pad==83 || elem->pad==84 || elem->pad==85 || elem->pad==86){
+				//edge 8 9 10 11
+				rot[0] = 0;
+				rot[1] = 0;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 0;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			}else if(elem->pad==49 || elem->pad==55 || elem->pad==56 || elem->pad==57 || elem->pad==58
+					|| elem->pad==79 || elem->pad==80 || elem->pad==81 || elem->pad==82){
+				//edge 0 1 2 3
+				rot[0] = 0;
+				rot[1] = 0;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 1;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			}else if(elem->pad==51 || elem->pad==63 || elem->pad==64 || elem->pad==65 || elem->pad==66){
+				//edge 0 4 5 8
+				//code with a bug here, and the identifcation process missed something
+				rot[0] = -1;
+				rot[1] = 0;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 0;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			}else if(elem->pad==52 || elem->pad==67 || elem->pad==68 || elem->pad==69 || elem->pad==70
+					|| elem->pad==87 || elem->pad==88 || elem->pad==89 || elem->pad==90){
+				//edge 1 5 6 9
+				rot[0] = 0;
+				rot[1] = -1;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 0;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			}else if(elem->pad==53 || elem->pad==71 || elem->pad==72 || elem->pad==73 || elem->pad==74
+					|| elem->pad==91 || elem->pad==92 || elem->pad==93 || elem->pad==94){
+				//edge 2 6 7 10
+				rot[0] = 1;
+				rot[1] = 0;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 0;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			}else if(elem->pad==54 || elem->pad==75 || elem->pad==76 || elem->pad==77 || elem->pad==78
+					|| elem->pad==95 || elem->pad==96 || elem->pad==97 || elem->pad==98){
+				//edge 3 4 7 11
+				rot[0] = 0;
+				rot[1] = 1;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 0;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			}
 
 
+			for(int i=0;i<13;i++){
+				int conn_p[8];
+				GtsPoint* point[8]={NULL};
 
-			//add the elements in the octants
+				double cord_in_x[8],cord_in_y[8],cord_in_z[8];
+				//add the nodes in the coord vector
+				for (int ii = 0; ii < 8; ii++){
+					cord_in_x[ii]=coords[3*id_node[ii]] ;
+					cord_in_y[ii]=coords[3*id_node[ii]+1] ;
+					cord_in_z[ii]=coords[3*id_node[ii]+2] ;
+					fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+				}
 
+				//add the new nodes in the
+				for(int ii=0;ii<8;ii++){
+					conn_p[ii] = 0;
+
+					if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
+							(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
+							(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
+
+						if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = id_node[0];
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = id_node[1];
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = id_node[2];
+						}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
+							conn_p[ii] = id_node[3];
+						}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = id_node[4];
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = id_node[5];
+						}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = id_node[6];
+						}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
+							conn_p[ii] = id_node[7];
+						}
+						fprintf(fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+					}else{
+						cord_in_ref[0] = local_ref[i][ii][0];
+						cord_in_ref[1] = local_ref[i][ii][1];
+						cord_in_ref[2] = local_ref[i][ii][2];
+
+						point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
+						double var[3];
+						var[0] = point[ii]->x;
+						var[1] = point[ii]->y;
+						var[2] = point[ii]->z;
+						conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+						fprintf(fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+
+					}
+				}
+
+
+				//add the new elements and make the connectivity
+				if(i==0){
+					octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+
+					elem1->nodes[0].id = conn_p[0];
+					elem1->nodes[1].id = conn_p[1];
+					elem1->nodes[2].id = conn_p[2];
+					elem1->nodes[3].id = conn_p[3];
+
+					elem1->nodes[4].id = conn_p[4];
+					elem1->nodes[5].id = conn_p[5];
+					elem1->nodes[6].id = conn_p[6];
+					elem1->nodes[7].id = conn_p[7];
+
+					CopyPropEl(elem,elem1);
+
+				}else{
+					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+
+					elem2->nodes[0].id = conn_p[0];
+					elem2->nodes[1].id = conn_p[1];
+					elem2->nodes[2].id = conn_p[2];
+					elem2->nodes[3].id = conn_p[3];
+
+					elem2->nodes[4].id = conn_p[4];
+					elem2->nodes[5].id = conn_p[5];
+					elem2->nodes[6].id = conn_p[6];
+					elem2->nodes[7].id = conn_p[7];
+
+					CopyPropEl(elem,elem2);
+
+				}
+
+			}
 
 		}
-		 */
+
 
 
 		//template 11
