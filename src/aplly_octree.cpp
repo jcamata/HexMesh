@@ -561,17 +561,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 0;
 				sym[2] = 0;
 
-				/*
-				id_node[0] = elem->nodes[0].id;
-				id_node[1] = elem->nodes[1].id;
-				id_node[2] = elem->nodes[2].id;
-				id_node[3] = elem->nodes[3].id;
-
-				id_node[4] = elem->nodes[4].id;
-				id_node[5] = elem->nodes[5].id;
-				id_node[6] = elem->nodes[6].id;
-				id_node[7] = elem->nodes[7].id;
-				 */
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -587,16 +576,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 0;
 				sym[2] = 0;
-
-				id_node[0] = elem->nodes[1].id;
-				id_node[1] = elem->nodes[2].id;
-				id_node[2] = elem->nodes[3].id;
-				id_node[3] = elem->nodes[0].id;
-
-				id_node[4] = elem->nodes[5].id;
-				id_node[5] = elem->nodes[6].id;
-				id_node[6] = elem->nodes[7].id;
-				id_node[7] = elem->nodes[4].id;
 
 				ord = RotateHex(rot,sym);
 
@@ -614,16 +593,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 1;
 				sym[2] = 0;
 
-				id_node[0] = elem->nodes[2].id;
-				id_node[1] = elem->nodes[3].id;
-				id_node[2] = elem->nodes[0].id;
-				id_node[3] = elem->nodes[1].id;
-
-				id_node[4] = elem->nodes[6].id;
-				id_node[5] = elem->nodes[7].id;
-				id_node[6] = elem->nodes[4].id;
-				id_node[7] = elem->nodes[5].id;
-
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -639,16 +608,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 0;
 				sym[2] = 0;
-
-				id_node[0] = elem->nodes[3].id;
-				id_node[1] = elem->nodes[0].id;
-				id_node[2] = elem->nodes[1].id;
-				id_node[3] = elem->nodes[2].id;
-
-				id_node[4] = elem->nodes[7].id;
-				id_node[5] = elem->nodes[4].id;
-				id_node[6] = elem->nodes[5].id;
-				id_node[7] = elem->nodes[6].id;
 
 				ord = RotateHex(rot,sym);
 
@@ -666,16 +625,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 0;
 				sym[2] = 0;
 
-				id_node[0] = elem->nodes[0].id;
-				id_node[1] = elem->nodes[4].id;
-				id_node[2] = elem->nodes[7].id;
-				id_node[3] = elem->nodes[3].id;
-
-				id_node[4] = elem->nodes[1].id;
-				id_node[5] = elem->nodes[2].id;
-				id_node[6] = elem->nodes[5].id;
-				id_node[7] = elem->nodes[6].id;
-
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -691,16 +640,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 0;
 				sym[2] = 0;
-
-				id_node[0] = elem->nodes[1].id;
-				id_node[1] = elem->nodes[5].id;
-				id_node[2] = elem->nodes[6].id;
-				id_node[3] = elem->nodes[2].id;
-
-				id_node[4] = elem->nodes[0].id;
-				id_node[5] = elem->nodes[4].id;
-				id_node[6] = elem->nodes[7].id;
-				id_node[7] = elem->nodes[3].id;
 
 				ord = RotateHex(rot,sym);
 
@@ -718,16 +657,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 1;
 				sym[2] = 0;
 
-				id_node[0] = elem->nodes[2].id;
-				id_node[1] = elem->nodes[6].id;
-				id_node[2] = elem->nodes[7].id;
-				id_node[3] = elem->nodes[3].id;
-
-				id_node[4] = elem->nodes[1].id;
-				id_node[5] = elem->nodes[5].id;
-				id_node[6] = elem->nodes[4].id;
-				id_node[7] = elem->nodes[0].id;
-
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -743,16 +672,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 1;
 				sym[2] = 0;
-
-				id_node[0] = elem->nodes[3].id;
-				id_node[1] = elem->nodes[7].id;
-				id_node[2] = elem->nodes[6].id;
-				id_node[3] = elem->nodes[2].id;
-
-				id_node[4] = elem->nodes[0].id;
-				id_node[5] = elem->nodes[4].id;
-				id_node[6] = elem->nodes[5].id;
-				id_node[7] = elem->nodes[1].id;
 
 				ord = RotateHex(rot,sym);
 
@@ -770,16 +689,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 0;
 				sym[2] = 1;
 
-				id_node[0] = elem->nodes[4].id;
-				id_node[1] = elem->nodes[5].id;
-				id_node[2] = elem->nodes[6].id;
-				id_node[3] = elem->nodes[7].id;
-
-				id_node[4] = elem->nodes[0].id;
-				id_node[5] = elem->nodes[1].id;
-				id_node[6] = elem->nodes[2].id;
-				id_node[7] = elem->nodes[3].id;
-
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -795,16 +704,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 0;
 				sym[2] = 1;
-
-				id_node[0] = elem->nodes[5].id;
-				id_node[1] = elem->nodes[6].id;
-				id_node[2] = elem->nodes[7].id;
-				id_node[3] = elem->nodes[4].id;
-
-				id_node[4] = elem->nodes[1].id;
-				id_node[5] = elem->nodes[2].id;
-				id_node[6] = elem->nodes[3].id;
-				id_node[7] = elem->nodes[0].id;
 
 				ord = RotateHex(rot,sym);
 
@@ -822,16 +721,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 1;
 				sym[2] = 0;
 
-				id_node[0] = elem->nodes[6].id;
-				id_node[1] = elem->nodes[7].id;
-				id_node[2] = elem->nodes[4].id;
-				id_node[3] = elem->nodes[5].id;
-
-				id_node[4] = elem->nodes[2].id;
-				id_node[5] = elem->nodes[3].id;
-				id_node[6] = elem->nodes[0].id;
-				id_node[7] = elem->nodes[1].id;
-
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -847,16 +736,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 0;
 				sym[2] = 1;
-
-				id_node[0] = elem->nodes[7].id;
-				id_node[1] = elem->nodes[4].id;
-				id_node[2] = elem->nodes[5].id;
-				id_node[3] = elem->nodes[6].id;
-
-				id_node[4] = elem->nodes[3].id;
-				id_node[5] = elem->nodes[0].id;
-				id_node[6] = elem->nodes[1].id;
-				id_node[7] = elem->nodes[2].id;
 
 				ord = RotateHex(rot,sym);
 
@@ -1102,16 +981,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[1] = 0;
 				sym[2] = 0;
 
-				id_node[0] = elem->nodes[1].id;
-				id_node[1] = elem->nodes[2].id;
-				id_node[2] = elem->nodes[3].id;
-				id_node[3] = elem->nodes[0].id;
-
-				id_node[4] = elem->nodes[5].id;
-				id_node[5] = elem->nodes[6].id;
-				id_node[6] = elem->nodes[7].id;
-				id_node[7] = elem->nodes[4].id;
-
 				ord = RotateHex(rot,sym);
 
 				for(int node_id=0;node_id<8;node_id++){
@@ -1127,16 +996,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				sym[0] = 0;
 				sym[1] = 0;
 				sym[2] = 0;
-
-				id_node[0] = elem->nodes[2].id;
-				id_node[1] = elem->nodes[3].id;
-				id_node[2] = elem->nodes[0].id;
-				id_node[3] = elem->nodes[1].id;
-
-				id_node[4] = elem->nodes[6].id;
-				id_node[5] = elem->nodes[7].id;
-				id_node[6] = elem->nodes[4].id;
-				id_node[7] = elem->nodes[5].id;
 
 				ord = RotateHex(rot,sym);
 
