@@ -17,6 +17,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 
 void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids);
 
+GtsSurface* SurfaceRead(const char* fname);
+
  int const EdgeVerticesMap[12][2] = {
 		{0, 1}, // Edge 0
 		{1, 2}, // Edge 1

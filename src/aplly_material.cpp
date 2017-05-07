@@ -13,255 +13,110 @@ using namespace std;
 #include "hexa.h"
 #include "refinement.h"
 
-//Raytrace to found one position point
-bool Point_is_under_surface (GtsPoint * p, GNode    * tree)  {
+/**
+ * bbox_is_stabbed:
+ * @bb: a #GtsBBox.
+ * @p: a #GtsPoint.
+ *
+ * Returns: %TRUE if the ray starting at @p and ending at (@p->x
+ * @p->y, +infty) intersects with @bb, %FALSE otherwise.
+ */
+int bbox_is_stabbed_zinfty (GtsBBox * bb, GtsPoint * p){
 
-	bool is_under_surface = true;
-	GtsBBox   * bb;
-	GtsSegment *s;
+	g_return_val_if_fail ((bb != NULL), 0);
+	g_return_val_if_fail ((p != NULL), 0);
 
-	//g_return_val_if_fail ((p != NULL), false);
-	if(p==NULL) exit(1);
-	//g_return_val_if_fail ((tree != NULL), false);
-	if(tree==NULL) exit(2);
-
-	bb = (GtsBBox*) tree->data;
-	double d;
-	double dx = (bb->x2 - bb->x1);
-	d = dx;
-	double dy = (bb->y2 - bb->y1);
-	d = (dy > d)? dy: d;
-	double dz = (bb->z2 - bb->z1);
-	d = (dz > d)? dz: d;
-
-	GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), p->x, p->y, p->z);
-	GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), p->x, p->y, bb->z1 - 1.1*d);
-
-	s = gts_segment_new(gts_segment_class(), v1, v2);
-	GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), s);
-	GSList* list = gts_bb_tree_overlap(tree, sb);
-	while (list) {
-		GtsTriangle * t = (GtsTriangle*)(((GtsBBox*)(list->data))->bounded);
-		if(SegmentTriangleIntersection(s,t) != NULL) {
-			is_under_surface = false;
-			break;
-		}
-		list = list->next;
-	}
-	//g_slist_free (list);
-
-	return is_under_surface;
+	if (p->x < bb->x1 || p->x > bb->x2 ||
+			p->y < bb->y1 || p->y > bb->y2 ||
+			p->z < bb->z1)
+		return 0;
+	return 1;
 }
 
+/**
+ * bb_tree_stabbed_zinfty:
+ * @tree: a bounding box tree.
+ * @p: a #GtsPoint.
+ *
+ * Returns: a list of bounding boxes, leaves of @tree which are
+ * stabbed by the ray defined by @p (see gts_bbox_is_stabbed()).
+ */
+GSList * bb_tree_stabbed_zinfty (GNode * tree, GtsPoint * p){
+	GSList  * list = NULL;
+	GtsBBox * bb;
+	GNode   * i;
+
+	g_return_val_if_fail (tree != NULL, NULL);
+	g_return_val_if_fail (p != NULL, NULL);
+
+	bb = (GtsBBox *) tree->data;
+	if (!bbox_is_stabbed_zinfty (bb, p))
+		return NULL;
+	if (tree->children == NULL) /* leaf node */
+		return g_slist_prepend (NULL, bb);
+	i = tree->children;
+	while (i) {
+		list = g_slist_concat (list, bb_tree_stabbed_zinfty (i, p));
+		i = i->next;
+	}
+	return list;
+}
+
+bool is_point_over_surface(GtsPoint * p, GNode    * tree){
+
+	g_return_val_if_fail ((p != NULL), false);
+	g_return_val_if_fail ((tree != NULL), false);
+
+	GSList* list = bb_tree_stabbed_zinfty(tree, p);
+	double * orientation;
+
+	while(list)
+	{
+		GtsBBox     * b = (GtsBBox*)(list->data);
+		GtsTriangle * t = (GtsTriangle*)(((GtsBBox*)(list->data))->bounded);
+		// return one of the vertices of t, one of the edges of t or t if any
+		// of these are stabbed by the ray starting at p (included) and
+		// ending at (p->x, p->y, +infty), NULL otherwise. If the ray is contained
+		// in the plane of the triangle NULL is also returned
+		if(gts_triangle_is_stabbed(t,p, orientation));
+		return 1;
+
+		list = list->next;
+
+	}
+
+	return 0;
+
+}
+
+
 //Aplly the material properties to the elements
-void Material_apply(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& element_ids, const char* surface_bathy){
+void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& element_ids, const char* surface_bathy){
 
 	sc_array_t *elements = &mesh->elements;
 
-	/*
-	bool under;
-	GtsPoint * p;
-
-
+	bool over;
 
 	// Build the bounding box tree
 	mesh->gdata.s = SurfaceRead(surface_bathy);
 	mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
 	mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
 
-	//GNode*      gts_bb_tree_surface(mesh->gdata.s)
+	//GtsPoint * p = gts_point_new(gts_point_class(),coords[n_id], coords[n_id + 1],coords[n_id + 2]);
+	GtsPoint * p = gts_point_new(gts_point_class(),0,0,0);
 
 	for(int iel = 0; iel < elements->elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		int n_id = 3*elem->nodes[0].id;
 
-		int n_id = elem->nodes[4].id;
-		p = gts_point_set(p, coords[n_id], coords[n_id + 1],coords[n_id + 2]);
-		under = Point_is_under_surface( p, gts_bb_tree_surface(mesh->gdata.s));
+		gts_point_set(p,coords[n_id], coords[n_id + 1],coords[n_id + 2]);
 
-		if(under){
+		over = is_point_over_surface( p, gts_bb_tree_surface(mesh->gdata.s));
+
+		if(over){
 			elem->n_mat = 0;
 		}else{
-			elem->n_mat = 100;
-		}
-	}
-	 */
-
-	/*
-	 bool Point_is_under_surface (GtsPoint * p, GNode    * tree)  {
-
-	bool is_under_surface = true;
-	GtsBBox   * bb;
-	GtsSegment *s;
-
-	//g_return_val_if_fail ((p != NULL), false);
-	if(p==NULL) exit(1);
-	//g_return_val_if_fail ((tree != NULL), false);
-	if(tree==NULL) exit(2);
-
-	bb = (GtsBBox*) tree->data;
-	double d;
-	double dx = (bb->x2 - bb->x1);
-	d = dx;
-	double dy = (bb->y2 - bb->y1);
-	d = (dy > d)? dy: d;
-	double dz = (bb->z2 - bb->z1);
-	d = (dz > d)? dz: d;
-
-	GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), p->x, p->y, p->z);
-	GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), p->x, p->y, bb->z1 - 1.1*d);
-
-	s = gts_segment_new(gts_segment_class(), v1, v2);
-	GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), s);
-	GSList* list = gts_bb_tree_overlap(tree, sb);
-	while (list) {
-		GtsTriangle * t = (GtsTriangle*)(((GtsBBox*)(list->data))->bounded);
-		if(SegmentTriangleIntersection(s,t) != NULL) {
-			is_under_surface = false;
-			break;
-		}
-		list = list->next;
-	}
-	//g_slist_free (list);
-
-	return is_under_surface;
-
-	 */
-
-
-	for (int iel = 0; iel < element_ids.size(); ++iel) {
-		octant_t *h = (octant_t*) sc_array_index(&mesh->elements, element_ids[iel]);
-
-		if(h->z==0){
-			h->pad = 3;
-
-			if(h->pml_id==1){
-				h->n_mat = 19;
-			}else if(h->pml_id==2){
-				h->n_mat = 20;
-			}else if(h->pml_id==3){
-				h->n_mat = 21;
-			}else if(h->pml_id==4){
-				h->n_mat = 22;
-			}else if(h->pml_id==5){
-				h->n_mat = 23;
-			}else if(h->pml_id==6){
-				h->n_mat = 24;
-			}else if(h->pml_id==7){
-				h->n_mat = 25;
-			}else if(h->pml_id==8){
-				h->n_mat = 26;
-			}else if(h->pml_id==9){
-				h->n_mat = 27;
-			}else if(h->pml_id==10){
-				h->n_mat = 28;
-			}else if(h->pml_id==11){
-				h->n_mat = 29;
-			}else if(h->pml_id==12){
-				h->n_mat = 30;
-			}else if(h->pml_id==13){
-				h->n_mat = 31;
-			}else if(h->pml_id==14){
-				h->n_mat = 32;
-			}else if(h->pml_id==15){
-				h->n_mat = 33;
-			}else if(h->pml_id==16){
-				h->n_mat = 34;
-			}else if(h->pml_id==17){
-				h->n_mat = 35;
-			}else if(h->pml_id==18){
-				h->n_mat = 36;
-			}else if(h->pml_id==19){
-				h->n_mat = 37;
-			}else if(h->pml_id==20){
-				h->n_mat = 38;
-			}else if(h->pml_id==21){
-				h->n_mat = 39;
-			}else if(h->pml_id==22){
-				h->n_mat = 40;
-			}else if(h->pml_id==23){
-				h->n_mat = 41;
-			}else if(h->pml_id==24){
-				h->n_mat = 42;
-			}else if(h->pml_id==25){
-				h->n_mat = 43;
-			}else if(h->pml_id==26){
-				h->n_mat = 44;
-			}else{
-				//with PML
-				h->n_mat = 19;
-				//without PML
-				//h->n_mat = 2;
-			}
-
-		}else{
-			h->pad=3;
-
-			for(int iiel = 0; iiel < elements->elem_count; ++iiel) {
-				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iiel);
-
-				if(h->nodes->z>=elem->nodes->z && elem->x==h->x && elem->y==h->y){
-					elem->pad = 3;
-
-					if(elem->pml_id==1){
-						elem->n_mat = 19;
-					}else if(elem->pml_id==2){
-						elem->n_mat = 20;
-					}else if(elem->pml_id==3){
-						elem->n_mat = 21;
-					}else if(elem->pml_id==4){
-						elem->n_mat = 22;
-					}else if(elem->pml_id==5){
-						elem->n_mat = 23;
-					}else if(elem->pml_id==6){
-						elem->n_mat = 24;
-					}else if(elem->pml_id==7){
-						elem->n_mat = 25;
-					}else if(elem->pml_id==8){
-						elem->n_mat = 26;
-					}else if(elem->pml_id==9){
-						elem->n_mat = 27;
-					}else if(elem->pml_id==10){
-						elem->n_mat = 28;
-					}else if(elem->pml_id==11){
-						elem->n_mat = 29;
-					}else if(elem->pml_id==12){
-						elem->n_mat = 30;
-					}else if(elem->pml_id==13){
-						elem->n_mat = 31;
-					}else if(elem->pml_id==14){
-						elem->n_mat = 32;
-					}else if(elem->pml_id==15){
-						elem->n_mat = 33;
-					}else if(elem->pml_id==16){
-						elem->n_mat = 34;
-					}else if(elem->pml_id==17){
-						elem->n_mat = 35;
-					}else if(elem->pml_id==18){
-						elem->n_mat = 36;
-					}else if(elem->pml_id==19){
-						elem->n_mat = 37;
-					}else if(elem->pml_id==20){
-						elem->n_mat = 38;
-					}else if(elem->pml_id==21){
-						elem->n_mat = 39;
-					}else if(elem->pml_id==22){
-						elem->n_mat = 40;
-					}else if(elem->pml_id==23){
-						elem->n_mat = 41;
-					}else if(elem->pml_id==24){
-						elem->n_mat = 42;
-					}else if(elem->pml_id==25){
-						elem->n_mat = 43;
-					}else if(elem->pml_id==26){
-						elem->n_mat = 44;
-					}else{
-						//with PML
-						elem->n_mat = 19;
-						//without PML
-						//elem->n_mat = 2;
-					}
-				}
-			}
+			elem->n_mat = 1;
 		}
 	}
 }

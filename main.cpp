@@ -29,7 +29,6 @@ void Apply_material(hexa_tree_t* mesh, std::vector<double>& coords,std::vector<i
 void AddPMLElements(hexa_tree_t* mesh);
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
 
-
 void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids);
 
 /*
@@ -61,6 +60,9 @@ int main(int argc, char** argv) {
 	GetMeshFromSurface(&mesh, "./input/topo_Pipo_small.gts", coords);
 	GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 
+	//GetMeshFromSurface(&mesh, "./input/topo_Arg_small.gts", coords);
+	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+
 	//MPI_Allreduce(element_ids, element_ids, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	//if (mesh->mpi_rank == 0) {
 	printf(" Elements intercepted: %d\n\n", element_ids.size());
@@ -69,7 +71,9 @@ int main(int argc, char** argv) {
 	CheckOctreeTemplate(&mesh, coords, element_ids, true);
 	ApplyOctreeTemplate(&mesh, coords, element_ids);
 
+	Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 	//Apply_material(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+
 	//printf("Check Template \n");
 	//printf(" Elements ref: %d\n", element_ids.size());
 
