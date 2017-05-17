@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
 	CheckOctreeTemplate(&mesh, coords, element_ids, true);
 	ApplyOctreeTemplate(&mesh, coords, element_ids);
 
+        printf(" Applying material \n\n");
 	Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 	//Apply_material(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
 

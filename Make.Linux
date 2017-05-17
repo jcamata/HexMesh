@@ -21,12 +21,12 @@ objects		:= $(patsubst %.cpp, %.o, $(srcfiles))
 #################################################################################
 
 GTS_DIR :=/usr
-SC_DIR := /home/lucioc/local/lib/libsc-master/local
+SC_DIR  := /usr/local/lib/sc
 GLIB_INCLUDE = -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include
 
 MPI_LP :=/usr
 
-CXX       = mpicxx -O2
+CXX       = mpicxx -O1 -g
 LDFLAGS   = -L$(GTS_DIR)/lib -lgts -L$(SC_DIR)/lib -lsc -lm -lglib-2.0
 CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -Iinclude
 
