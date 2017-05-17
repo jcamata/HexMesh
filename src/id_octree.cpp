@@ -16,7 +16,7 @@ using namespace std;
 
 typedef struct {
 	bitmask_t coord[2];
-	int edge_id;
+	unsigned int edge_id;
 } edge_id_t;
 
 unsigned edge_hash(const void *v, const void *u) {
@@ -39,9 +39,9 @@ int edge_equal(const void *v, const void *u, const void *w) {
 
 }
 
-//unsigned long int edge_hash_function(int a, int b){
+//unsigned long int edge_hash_function(int c, int d){
 unsigned int edge_hash_function(int c, int d){
-	//unsigned long int c;
+	//unsigned long int e;
 	unsigned int e;
 	int a;
 	int b;
@@ -58,6 +58,27 @@ unsigned int edge_hash_function(int c, int d){
 		return e = a*a+a+b;
 	}else{
 		return e = a+b*b;
+	}
+}
+
+unsigned int edge_id(int* nodes, sc_hash_array_t* hash, int &npoints) {
+	size_t position;
+	edge_id_t *r;
+	edge_id_t key;
+	key.coord[0] = nodes[0];
+	key.coord[1] = nodes[1];
+
+	r = (edge_id_t*) sc_hash_array_insert_unique(hash, &key, &position);
+	if (r != NULL) {
+		r->coord[0] = key.coord[0];
+		r->coord[1] = key.coord[1];
+		r->coord[2] = key.coord[2];
+		r->edge_id = npoints;
+		npoints++;
+		return r->edge_id;
+	} else {
+		r = (edge_id_t*) sc_array_index(&hash->a, position);
+		return r->edge_id;
 	}
 }
 
@@ -1883,9 +1904,6 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::ve
 
 void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
 
-	size_t position;
-	edge_id_t *r;
-	edge_id_t key;
 	bool clamped = true;
 
 	std::vector<unsigned int> edges_ids;
@@ -1898,79 +1916,47 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 	sprintf(filename, "Edge_deb_%04d.txt", mesh->mpi_rank);
 	fdbg = fopen(filename, "w");
 
+	sc_hash_array_t* hash_edge = sc_hash_array_new(sizeof (edge_id_t), edge_hash, edge_equal, &clamped);
+
 	for (int iel = 0; iel < elements->elem_count; ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-		sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (edge_id_t), edge_hash, edge_equal, &clamped);
-
-		int Edge2GNode[12][2];
-
 		fprintf(fdbg,"Element: %d\n",iel);
 
 		for (int edge = 0; edge < 12; ++edge) {
+			int Edge2GNode[2];
+
 			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
 			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
 
-			Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
-			Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
+			Edge2GNode[0] = node1 <= node2 ? node1 : node2;
+			Edge2GNode[1] = node1 >= node2 ? node1 : node2;
 
-			fprintf(fdbg,"Edge: %d, global: %d %d\n",edge, Edge2GNode[edge][0],Edge2GNode[edge][1]);
-
-			key.coord[0] = Edge2GNode[edge][0];
-			key.coord[1] = Edge2GNode[edge][1];
-
-			/*
-			r = (edge_id_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
-
-			if (r != NULL) {
-					r->edge_id = npoints;
-					elem->edge_id[edge] = r->edge_id;
-					fprintf(fdbg,"Edge: %d, id: %d\n",edge, elem->edge_id[edge]);
-					npoints++;
-				} else {
-					r = (edge_id_t*) sc_array_index(&hash_nodes->a, position);
-					elem->edge_id[edge] = r->edge_id;
-					fprintf(fdbg,"Edge: %d, id: %d\n",edge, elem->edge_id[edge]);
-				}
-*/
-			elem->edge_id[edge] = edge_hash_function(Edge2GNode[edge][0], Edge2GNode[edge][1]);
+			//elem->edge_id[edge] = edge_hash_function(Edge2GNode[0], Edge2GNode[1]);
+			elem->edge_id[edge] = edge_id(Edge2GNode, hash_edge, npoints);
 			elem->edge_ref[edge] = false;
-			fprintf(fdbg,"Edge: %d, id: %d\n",edge, elem->edge_id[edge]);
+			fprintf(fdbg,"Edge: %d, global: %d %d, id: %d\n",edge, Edge2GNode[0],Edge2GNode[1], elem->edge_id[edge]);
+
 		}
 
 	}
 	fclose(fdbg);
-
-	/*
-		for(int iel= 0; iel < elements->elem_count; iel++ ){
-			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-			for (int edge = 0; edge < 12; ++edge) {
-				fprintf(fdbg,"%d \n",elem->edge_id[edge]);
-			}
-			fprintf(fdbg,"\n");
-		}
-		*/
-
 
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
-		int Edge2GNode[12][2]={0};
 		GtsSegment * segments[12]={0};
 		GtsPoint * point[12]={NULL};
 		int ed_cont = 0;
 
 		for (int edge = 0; edge < 12; ++edge) {
 			point[edge] = NULL;
-			//elem->edge_ref[edge] = false;
+
 			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
 			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-
-			Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
-			Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
 
 			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
