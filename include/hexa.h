@@ -20,6 +20,7 @@
 typedef struct {
     int32_t id;
     int32_t x,y,z;
+    int color;
 } octant_node_t;
 
 typedef struct {

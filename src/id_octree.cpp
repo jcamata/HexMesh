@@ -8,6 +8,7 @@ using namespace std;
 #include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
+//#include <mpi.h>
 
 #include "hexa.h"
 #include "refinement.h"
@@ -1897,6 +1898,7 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::ve
 			}
 		}
 	}
+	//TODO segfault in MPI
 	//cleaning the element vector
 	std::sort( elements_ids.begin(), elements_ids.end() );
 	elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
@@ -1933,7 +1935,6 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 			Edge2GNode[0] = node1 <= node2 ? node1 : node2;
 			Edge2GNode[1] = node1 >= node2 ? node1 : node2;
 
-			//elem->edge_id[edge] = edge_hash_function(Edge2GNode[0], Edge2GNode[1]);
 			elem->edge_id[edge] = edge_id(Edge2GNode, hash_edge, npoints);
 			elem->edge_ref[edge] = false;
 			fprintf(fdbg,"Edge: %d, global: %d %d, id: %d\n",edge, Edge2GNode[0],Edge2GNode[1], elem->edge_id[edge]);
@@ -1942,6 +1943,15 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 
 	}
 	fclose(fdbg);
+
+	//initialization for the node color
+	for (int iel = 0; iel < elements->elem_count; ++iel) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for(int j = 0; j < 8; j++) {
+			octant_node_t* node = &elem->nodes[j];
+			node->color=-1;
+		}
+	}
 
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
@@ -1993,7 +2003,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 		}
 	}
 
-	for (int i = 0; i < 40; i++){
+	for (int i = 0; i < 1; i++){
 		printf("numero %d\n",i);
 		printf(" Elements ref: %d\n", elements_ids.size());
 		IdentifyTemplate(mesh, coords, elements_ids);
