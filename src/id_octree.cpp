@@ -110,7 +110,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 
 		//template 11
-		elem->pad = 140;
+		elem->pad = 144;
 		elem->tem = 11;
 
 		// element verification
@@ -440,6 +440,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 5
 		if(ed_cont == 4 || ed_cont == 3 || ed_cont == 2){
+			//template 5 com 4
 			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
@@ -749,41 +750,41 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 87;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 88;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 89;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 90;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 91;
 				elem->tem = 5;
@@ -791,30 +792,30 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 			}
 			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 92;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 93;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
+			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 94;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
 				elem->pad = 95;
@@ -822,10 +823,42 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 			}
 			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+
+				elem->pad = 96;
+				elem->tem = 5;
+
+			}
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+
+				elem->pad = 97;
+				elem->tem = 5;
+
+			}
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
+					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+
+				elem->pad = 98;
+				elem->tem = 5;
+
+			}
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
+					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
+					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+
+				elem->pad = 99;
+				elem->tem = 5;
+
+			}
+			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 96;
+				elem->pad = 100;
 				elem->tem = 5;
 
 			}
@@ -833,7 +866,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 97;
+				elem->pad = 101;
 				elem->tem = 5;
 
 			}
@@ -841,7 +874,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 98;
+				elem->pad = 102;
 				elem->tem = 5;
 
 			}
@@ -852,7 +885,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 99;
+				elem->pad = 103;
 				elem->tem = 6;
 
 			}
@@ -860,7 +893,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 100;
+				elem->pad = 104;
 				elem->tem = 6;
 
 			}
@@ -868,7 +901,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 101;
+				elem->pad = 105;
 				elem->tem = 6;
 
 			}
@@ -876,7 +909,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 102;
+				elem->pad = 106;
 				elem->tem = 6;
 
 			}
@@ -884,7 +917,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 103;
+				elem->pad = 107;
 				elem->tem = 6;
 
 			}
@@ -892,7 +925,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 104;
+				elem->pad = 108;
 				elem->tem = 6;
 
 			}
@@ -900,7 +933,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 105;
+				elem->pad = 109;
 				elem->tem = 6;
 
 			}
@@ -908,7 +941,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 106;
+				elem->pad = 110;
 				elem->tem = 6;
 
 			}
@@ -916,7 +949,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 107;
+				elem->pad = 111;
 				elem->tem = 6;
 
 			}
@@ -924,7 +957,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 108;
+				elem->pad = 112;
 				elem->tem = 6;
 
 			}
@@ -932,7 +965,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 109;
+				elem->pad = 113;
 				elem->tem = 6;
 
 			}
@@ -940,7 +973,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 110;
+				elem->pad = 114;
 				elem->tem = 6;
 
 			}
@@ -951,7 +984,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 111;
+				elem->pad = 115;
 				elem->tem = 7;
 
 			}
@@ -959,7 +992,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 112;
+				elem->pad = 116;
 				elem->tem = 7;
 
 			}
@@ -967,7 +1000,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 113;
+				elem->pad = 117;
 				elem->tem = 7;
 
 			}
@@ -975,7 +1008,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 114;
+				elem->pad = 118;
 				elem->tem = 7;
 
 			}
@@ -983,7 +1016,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 115;
+				elem->pad = 119;
 				elem->tem = 7;
 
 			}
@@ -991,7 +1024,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 116;
+				elem->pad = 120;
 				elem->tem = 7;
 
 			}
@@ -999,7 +1032,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 117;
+				elem->pad = 121;
 				elem->tem = 7;
 
 			}
@@ -1007,7 +1040,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 118;
+				elem->pad = 122;
 				elem->tem = 7;
 
 			}
@@ -1018,7 +1051,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 119;
+				elem->pad = 123;
 				elem->tem = 8;
 
 			}
@@ -1026,7 +1059,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 120;
+				elem->pad = 124;
 				elem->tem = 8;
 
 			}
@@ -1034,7 +1067,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 121;
+				elem->pad = 125;
 				elem->tem = 8;
 
 			}
@@ -1045,7 +1078,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 122;
+				elem->pad = 126;
 				elem->tem = 9;
 
 			}
@@ -1053,7 +1086,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 123;
+				elem->pad = 127;
 				elem->tem = 9;
 
 			}
@@ -1061,7 +1094,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 124;
+				elem->pad = 128;
 				elem->tem = 9;
 
 			}
@@ -1069,7 +1102,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 125;
+				elem->pad = 129;
 				elem->tem = 9;
 
 			}
@@ -1077,7 +1110,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 126;
+				elem->pad = 130;
 				elem->tem = 9;
 
 			}
@@ -1085,7 +1118,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 127;
+				elem->pad = 131;
 				elem->tem = 9;
 
 			}
@@ -1096,7 +1129,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 128;
+				elem->pad = 132;
 				elem->tem = 10;
 
 			}
@@ -1104,7 +1137,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 129;
+				elem->pad = 133;
 				elem->tem = 10;
 
 			}
@@ -1112,7 +1145,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 130;
+				elem->pad = 134;
 				elem->tem = 10;
 
 			}
@@ -1120,7 +1153,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 131;
+				elem->pad = 135;
 				elem->tem = 10;
 
 			}
@@ -1128,7 +1161,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 132;
+				elem->pad = 136;
 				elem->tem = 10;
 
 			}
@@ -1136,7 +1169,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 133;
+				elem->pad = 137;
 				elem->tem = 10;
 
 			}
@@ -1144,7 +1177,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 134;
+				elem->pad = 138;
 				elem->tem = 10;
 
 			}
@@ -1152,7 +1185,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 135;
+				elem->pad = 139;
 				elem->tem = 10;
 
 			}
@@ -1160,7 +1193,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 136;
+				elem->pad = 140;
 				elem->tem = 10;
 
 			}
@@ -1168,7 +1201,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
 
-				elem->pad = 137;
+				elem->pad = 141;
 				elem->tem = 10;
 
 			}
@@ -1176,7 +1209,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 138;
+				elem->pad = 142;
 				elem->tem = 10;
 
 			}
@@ -1184,7 +1217,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
 					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
 
-				elem->pad = 139;
+				elem->pad = 143;
 				elem->tem = 10;
 
 			}
@@ -1252,79 +1285,79 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 
 		//template 11
-		if(elem->pad==140){
+		if(elem->pad==144){
 			for (int edge = 0; edge < 12; ++edge) {
 				edges_ids.push_back(elem->edge_id[edge]);
 			}
 		}
 		//template 10
-		else if(elem->pad==139){
+		else if(elem->pad==143){
 			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==142){
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==141){
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[10]);
+		}else if(elem->pad==140){
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==139){
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[10]);
 			edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==138){
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==137){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==136){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
 			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==135){
+			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==134){
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==133){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==132){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==131){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-		}else if(elem->pad==130){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-		}else if(elem->pad==129){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-		}else if(elem->pad==128){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[3]);
@@ -1332,52 +1365,52 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 			edges_ids.push_back(elem->edge_id[5]);
 		}
 		//template 9
-		else if(elem->pad==127){
+		else if(elem->pad==131){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==130){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[10]);
+		}else if(elem->pad==129){
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==128){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==127){
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[10]);
 			edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==126){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-		}else if(elem->pad==125){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==124){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==123){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==122){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[2]);
@@ -1388,7 +1421,7 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 			edges_ids.push_back(elem->edge_id[7]);
 		}
 		//template 8
-		else if(elem->pad==121){
+		else if(elem->pad==125){
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[4]);
@@ -1397,7 +1430,7 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==120){
+		}else if(elem->pad==124){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[4]);
@@ -1406,7 +1439,7 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[10]);
-		}else if(elem->pad==119){
+		}else if(elem->pad==123){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[2]);
@@ -1417,118 +1450,118 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 			edges_ids.push_back(elem->edge_id[11]);
 		}
 		//template 7
-		else if(elem->pad==118){
+		else if(elem->pad==122){
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[10]);
 			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==117){
+		}else if(elem->pad==121){
 			edges_ids.push_back(elem->edge_id[6]);
 			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[10]);
-		}else if(elem->pad==116){
+		}else if(elem->pad==120){
 			edges_ids.push_back(elem->edge_id[5]);
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[9]);
-		}else if(elem->pad==115){
+		}else if(elem->pad==119){
 			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==114){
+		}else if(elem->pad==118){
 			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[7]);
-		}else if(elem->pad==113){
+		}else if(elem->pad==117){
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[6]);
-		}else if(elem->pad==112){
+		}else if(elem->pad==116){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[5]);
-		}else if(elem->pad==111){
+		}else if(elem->pad==115){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[4]);
 		}
 		//template 6
-		else if(elem->pad==110){
+		else if(elem->pad==114){
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[6]);
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==109){
+		}else if(elem->pad==113){
 			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[5]);
 			edges_ids.push_back(elem->edge_id[6]);
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==108){
+		}else if(elem->pad==112){
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[5]);
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==107){
+		}else if(elem->pad==111){
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[4]);
 			edges_ids.push_back(elem->edge_id[5]);
 			edges_ids.push_back(elem->edge_id[6]);
 			edges_ids.push_back(elem->edge_id[7]);
+		}else if(elem->pad==110){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[7]);
+		}else if(elem->pad==109){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[10]);
+		}else if(elem->pad==108){
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[10]);
+		}else if(elem->pad==107){
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==106){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-		}else if(elem->pad==105){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[3]);
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==105){
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[9]);
+			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==104){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[9]);
 			edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==103){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
-		}else if(elem->pad==102){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==101){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==100){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-		}else if(elem->pad==99){
 			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[1]);
 			edges_ids.push_back(elem->edge_id[3]);
@@ -1537,42 +1570,54 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 			edges_ids.push_back(elem->edge_id[11]);
 		}
 		//template 5
-		else if(elem->pad==98){
+		else if(elem->pad==102){
 			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[7]);
+		}else if(elem->pad==101){
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[7]);
+		}else if(elem->pad==100){
+			edges_ids.push_back(elem->edge_id[4]);
+			edges_ids.push_back(elem->edge_id[6]);
+		}else if(elem->pad==99){
+			edges_ids.push_back(elem->edge_id[3]);
+			edges_ids.push_back(elem->edge_id[4]);
+		}else if(elem->pad==98){
+			edges_ids.push_back(elem->edge_id[2]);
 			edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==97){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-		}else if(elem->pad==96){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[6]);
-		}else if(elem->pad==95){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-		}else if(elem->pad==94){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[7]);
-		}else if(elem->pad==93){
 			edges_ids.push_back(elem->edge_id[7]);
 			edges_ids.push_back(elem->edge_id[10]);
+		}else if(elem->pad==96){
+			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[10]);
+		}else if(elem->pad==95){
+			edges_ids.push_back(elem->edge_id[2]);
+			edges_ids.push_back(elem->edge_id[6]);
+		}else if(elem->pad==94){
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[5]);
+		}else if(elem->pad==93){
+			edges_ids.push_back(elem->edge_id[1]);
+			edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==92){
 			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[10]);
+			edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==91){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==90){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[0]);
+			edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==89){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[6]);
-		}else if(elem->pad==88){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
-		}else if(elem->pad==87){
+			edges_ids.push_back(elem->edge_id[0]);
 			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[9]);
+		}else if(elem->pad==88){
+			edges_ids.push_back(elem->edge_id[5]);
+			edges_ids.push_back(elem->edge_id[8]);
+		}else if(elem->pad==87){
+			edges_ids.push_back(elem->edge_id[8]);
+			edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==86){
 			edges_ids.push_back(elem->edge_id[8]);
 			edges_ids.push_back(elem->edge_id[11]);
@@ -1926,6 +1971,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 
 		fprintf(fdbg,"Element: %d\n",iel);
 
+		//initialization for the edge id
 		for (int edge = 0; edge < 12; ++edge) {
 			int Edge2GNode[2];
 
@@ -1999,6 +2045,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 		//clean points
 		for (int edge = 0; edge < 12; edge++) {
 			if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+			//if (segments[edge]) gts_object_destroy(GTS_OBJECT(segments[edge]));
 			point[edge] = NULL;
 		}
 	}

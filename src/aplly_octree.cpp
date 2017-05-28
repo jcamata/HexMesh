@@ -417,8 +417,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
 
 		fprintf(fdbg,"Element: %d\n", elements_ids[iel]);
-		//elem->tem=4;
-		//template 1 test again
+		elem->tem=5;
+		//template 1
 		if(elem->tem==1){
 
 			double cord_in_ref[3];
@@ -796,7 +796,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				}
 
 			}else{
-
+				printf ("Error in template 1\n");
+				exit (EXIT_FAILURE);
 			}
 
 
@@ -890,7 +891,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			}
 		}
 
-		//template 2 test again
+		//template 2
 		if(elem->tem==2){
 
 			double cord_in_ref[3];
@@ -1057,7 +1058,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				}
 
 			}else{
-
+				printf ("Error in template 2\n");
+				exit (EXIT_FAILURE);
 			}
 
 
@@ -1495,7 +1497,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				}
 
 			}else{
-
+				printf ("Error in template 3\n");
+				exit (EXIT_FAILURE);
 			}
 
 
@@ -1967,7 +1970,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				}
 
 			}else{
-
+				printf ("Error in template 4\n");
+				exit (EXIT_FAILURE);
 			}
 
 
@@ -2509,23 +2513,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			int id_node[8];
 			vector<int> ord;
 
-			if(elem->pad==50 || elem->pad==59 || elem->pad==60 || elem->pad==61 || elem->pad==62
-					|| elem->pad==83 || elem->pad==84 || elem->pad==85 || elem->pad==86){
-				//edge 8 9 10 11
-				rot[0] = 0;
-				rot[1] = 0;
-				rot[2] = 0;
-
-				sym[0] = 0;
-				sym[1] = 0;
-				sym[2] = 0;
-
-				ord = RotateHex(rot,sym);
-
-				for(int node_id=0;node_id<8;node_id++){
-					id_node[node_id] = elem->nodes[ord[node_id]].id;
-				}
-			}else if(elem->pad==49 || elem->pad==55 || elem->pad==56 || elem->pad==57 || elem->pad==58
+			if(elem->pad==49 || elem->pad==55 || elem->pad==56 || elem->pad==57 || elem->pad==58
 					|| elem->pad==79 || elem->pad==80 || elem->pad==81 || elem->pad==82){
 				//edge 0 1 2 3
 				rot[0] = 0;
@@ -2541,9 +2529,25 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				for(int node_id=0;node_id<8;node_id++){
 					id_node[node_id] = elem->nodes[ord[node_id]].id;
 				}
-			}else if(elem->pad==51 || elem->pad==63 || elem->pad==64 || elem->pad==65 || elem->pad==66){
+			}else if(elem->pad==50 || elem->pad==59 || elem->pad==60 || elem->pad==61 || elem->pad==62
+					|| elem->pad==83 || elem->pad==84 || elem->pad==85 || elem->pad==86){
+				//edge 8 9 10 11
+				rot[0] = 0;
+				rot[1] = 0;
+				rot[2] = 0;
+
+				sym[0] = 0;
+				sym[1] = 0;
+				sym[2] = 0;
+
+				ord = RotateHex(rot,sym);
+
+				for(int node_id=0;node_id<8;node_id++){
+					id_node[node_id] = elem->nodes[ord[node_id]].id;
+				}
+			} else if(elem->pad==51 || elem->pad==63 || elem->pad==64 || elem->pad==65 || elem->pad==66
+					|| elem->pad==87 || elem->pad==88 || elem->pad==89 || elem->pad==90){
 				//edge 0 4 5 8
-				//code with a bug here, and the identifcation process missed something
 				rot[0] = -1;
 				rot[1] = 0;
 				rot[2] = 0;
@@ -2558,7 +2562,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					id_node[node_id] = elem->nodes[ord[node_id]].id;
 				}
 			}else if(elem->pad==52 || elem->pad==67 || elem->pad==68 || elem->pad==69 || elem->pad==70
-					|| elem->pad==87 || elem->pad==88 || elem->pad==89 || elem->pad==90){
+					|| elem->pad==91 || elem->pad==92 || elem->pad==93 || elem->pad==94){
 				//edge 1 5 6 9
 				rot[0] = 0;
 				rot[1] = -1;
@@ -2574,7 +2578,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					id_node[node_id] = elem->nodes[ord[node_id]].id;
 				}
 			}else if(elem->pad==53 || elem->pad==71 || elem->pad==72 || elem->pad==73 || elem->pad==74
-					|| elem->pad==91 || elem->pad==92 || elem->pad==93 || elem->pad==94){
+					|| elem->pad==95 || elem->pad==96 || elem->pad==97 || elem->pad==98){
 				//edge 2 6 7 10
 				rot[0] = 1;
 				rot[1] = 0;
@@ -2590,7 +2594,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					id_node[node_id] = elem->nodes[ord[node_id]].id;
 				}
 			}else if(elem->pad==54 || elem->pad==75 || elem->pad==76 || elem->pad==77 || elem->pad==78
-					|| elem->pad==95 || elem->pad==96 || elem->pad==97 || elem->pad==98){
+					|| elem->pad==99 || elem->pad==100 || elem->pad==101 || elem->pad==102){
 				//edge 3 4 7 11
 				rot[0] = 0;
 				rot[1] = 1;
@@ -2605,7 +2609,11 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 				for(int node_id=0;node_id<8;node_id++){
 					id_node[node_id] = elem->nodes[ord[node_id]].id;
 				}
+			}else{
+				printf ("Error in template 5\n");
+				exit (EXIT_FAILURE);
 			}
+
 
 
 			for(int i=0;i<13;i++){
@@ -6257,16 +6265,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 							elem1->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
 							elem1->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
 
-							//segfautl with the function
+							//TODO segfautl
 							CopyPropEl(elem,elem1);
-							//elem1->level = elem->level;
-							//elem1->ref = elem->ref+1;
-							//elem1->tem = elem->tem;
-							//elem1->pad = elem->pad;
-							//elem1->n_mat = elem->n_mat;
-							//elem1->pml_id = elem->pml_id;
-							//elem1->pad=140;
-							//elem1->tem=11;
 						} else{
 
 							octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -6281,16 +6281,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 							elem2->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
 							elem2->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
 
-							//segfautl with the function
+							//TODO segfautl
 							CopyPropEl(elem,elem2);
-							//elem2->level = elem->level;
-							//elem2->ref = elem->ref+1;
-							//elem2->tem = elem->tem;
-							//elem2->pad = elem->pad;
-							//elem2->n_mat = elem->n_mat;
-							//elem2->pml_id = elem->pml_id;
-							//elem2->pad=140;
-							//elem2->tem=11;
 						}
 					}
 				}
