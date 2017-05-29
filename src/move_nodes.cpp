@@ -210,15 +210,17 @@ void Move_nodes(hexa_tree_t* mesh, const char* surface_bathy, vector<double>& co
 				p->z = 0;
 				d0 = gts_bb_tree_point_distance(mesh->gdata.bbt, p, distance, NULL);
 
-				int h = ceil(d0/el_size/pow(3,elem->level-1));
+				int n_el = ceil(d0/el_size/pow(3,elem->level-1));
 
-				dz = d0/ (double) h;
+				dz = d0/ (double) n_el;
 
 				int z_el = ceil(coords[3*node+2]/el_size/pow(3,elem->level-1));
 
-				double z = - dz * abs(z_el);
+				z_el=abs(z_el)+1;
 
-				//printf("El: %d, d0: %f, h: %d, z: %f\n",element_ids[iel],d0,h,z);
+				double z = - dz * z_el;
+
+				//printf("El: %d, d0: %f, n_el: %d, z_el: %d, z: %f\n",element_ids[iel],d0,n_el,z_el,z);
 
 				coords[node * 3 + 2] = z;
 
