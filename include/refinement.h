@@ -11,13 +11,13 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t);
 
 void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 
-//unsigned edge_hash_fn(const void *v, const void *u);
-
-//int edge_equal_fn(const void *v, const void *u, const void *w);
+GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z);
 
 void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids);
 
 GtsSurface* SurfaceRead(const char* fname);
+
+gdouble distance(GtsPoint *p, gpointer bounded);
 
  int const EdgeVerticesMap[12][2] = {
 		{0, 1}, // Edge 0

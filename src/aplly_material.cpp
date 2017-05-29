@@ -123,7 +123,8 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 	{
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		elem->n_mat = -1;
-
+		GtsPoint * point;
+/*
 		// Getting baricenter
 		int xyz_max = elem->nodes[2].id;
 		int xyz_min = elem->nodes[4].id;
@@ -133,6 +134,25 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 
 		gts_point_set(p, coords[3*xyz_min]+dx, coords[3*xyz_min+1]+dy,coords[3*xyz_min+2]+ dz);
 		//gts_point_set(p, coords[3*xyz_max], coords[3*xyz_max+1],coords[3*xyz_max+2]);
+*/
+
+		//getting the baricenter of the upper surface;
+        //find the centroid of the upper surface
+        double cord_in_x[8],cord_in_y[8],cord_in_z[8];
+        //add the nodes in the coord vector
+        for (int ii = 0; ii < 8; ii++){
+                cord_in_x[ii]=coords[3*elem->nodes[ii].id] ;
+                cord_in_y[ii]=coords[3*elem->nodes[ii].id+1] ;
+                cord_in_z[ii]=coords[3*elem->nodes[ii].id+2] ;
+        }
+
+        double cord_in_ref[3];
+        cord_in_ref[0] = 0;
+        cord_in_ref[1] = 0;
+        cord_in_ref[2] = -1;
+        point = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
+
+        gts_point_set(p,point->x,point->y,point->z);
 
 		over = is_point_over_surface( p, bbt_bathymetry);
 
@@ -141,6 +161,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 			mat1++;
 		}else{
 			elem->n_mat = 1;
+			element_ids.push_back(iel);
 			mat2++;
 		}
 	}
