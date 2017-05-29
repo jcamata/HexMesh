@@ -24,7 +24,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 //void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids);
 
 void Apply_material(hexa_tree_t* mesh, std::vector<double>& coords,std::vector<int>& element_ids, const char* surface_bathy);
-
+void Move_nodes(hexa_tree_t* tree, const char* surface_bathy, std::vector<double>& coords, std::vector<int>& element_ids);
 
 void AddPMLElements(hexa_tree_t* mesh);
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
@@ -54,26 +54,58 @@ int main(int argc, char** argv) {
 
 	hexa_mesh(&mesh);
 
-	// Note that here we use a gts file.
-	// There is a tool called stl2gts that convert STL files to GTS.
-	// It is installed together with the gts library.
-	GetMeshFromSurface(&mesh, "./input/topo_Pipo_small.gts", coords);
-	GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
+	if(0){
+		// Note that here we use a gts file.
+		// There is a tool called stl2gts that convert STL files to GTS.
+		// It is installed together with the gts library.
+		GetMeshFromSurface(&mesh, "./input/topo_Arg_small.gts", coords);
+		GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
 
-	//GetMeshFromSurface(&mesh, "./input/topo_Arg_small.gts", coords);
-	//GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+		//MPI_Allreduce(element_ids, element_ids, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+		//if (mesh->mpi_rank == 0) {
+		printf(" Elements intercepted: %d\n\n", element_ids.size());
+		//}
 
-	//MPI_Allreduce(element_ids, element_ids, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-	//if (mesh->mpi_rank == 0) {
-	printf(" Elements intercepted: %d\n\n", element_ids.size());
-	//}
+		//printf(" Check and propagate 27-tree templates\n\n");
+		CheckOctreeTemplate(&mesh, coords, element_ids, true);
 
-	CheckOctreeTemplate(&mesh, coords, element_ids, true);
-	ApplyOctreeTemplate(&mesh, coords, element_ids);
+		//printf(" Apply 27-tree templates\n\n");
+		ApplyOctreeTemplate(&mesh, coords, element_ids);
 
-        printf(" Applying material \n\n");
-	Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
-	//Apply_material(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+		printf(" Applying material \n\n");
+		element_ids.clear();
+		Apply_material(&mesh, coords, element_ids, "./input/bathy_Arg_small.gts");
+
+		printf(" Project nodes to the bathymetry\n\n");
+		Move_nodes(&mesh,"./input/bathy_Arg_small.gts", coords,element_ids);
+	}
+
+	if(1){
+		// Note that here we use a gts file.
+		// There is a tool called stl2gts that convert STL files to GTS.
+		// It is installed together with the gts library.
+		GetMeshFromSurface(&mesh, "./input/topo_Pipo_small.gts", coords);
+		GetInterceptedElements(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
+
+		//MPI_Allreduce(element_ids, element_ids, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+		//if (mesh->mpi_rank == 0) {
+		printf(" Elements intercepted: %d\n\n", element_ids.size());
+		//}
+
+		printf(" Check and propagate 27-tree templates\n\n");
+		CheckOctreeTemplate(&mesh, coords, element_ids, true);
+
+		printf(" Apply 27-tree templates\n\n");
+		ApplyOctreeTemplate(&mesh, coords, element_ids);
+
+		printf(" Applying material \n\n");
+		element_ids.clear();
+		Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
+
+		printf(" Project nodes to the bathymetry\n\n");
+		Move_nodes(&mesh,"./input/bathy_Pipo_small.gts", coords,element_ids);
+
+	}
 
 	//printf("Check Template \n");
 	//printf(" Elements ref: %d\n", element_ids.size());
@@ -82,6 +114,7 @@ int main(int argc, char** argv) {
 
 	//ExtrudePMLElements(&mesh,coords);
 
+	printf(" Writing output files \n\n");
 	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
 	hexa_mesh_write_msh(&mesh, "mesh", &coords);
 
@@ -90,6 +123,8 @@ int main(int argc, char** argv) {
 
 	//hexa_mesh_write_unv(&mesh, "mesh", &coords);
 	//hexa_mesh_write_unv(&mesh,"teste", NULL);
+
+	printf(" Cleaning variables \n\n");
 
 	hexa_tree_destroy(&mesh);
 	hexa_finalize(&mesh);
