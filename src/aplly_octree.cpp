@@ -15,71 +15,6 @@ using namespace std;
 #include "hilbert.h"
 #include "refinement.h"
 
-/*
-typedef struct {
-	bitmask_t coord[2];
-	int node_id;
-} node_in_edge_t;
-
-unsigned edge_hash_fn(const void *v, const void *u) {
-	const node_in_edge_t *q = (const node_in_edge_t*) v;
-	uint32_t a, b, c;
-
-	a = (uint32_t) q->coord[0];
-	b = (uint32_t) q->coord[1];
-	c = (uint32_t) 0;
-	sc_hash_mix(a, b, c);
-	sc_hash_final(a, b, c);
-	return (unsigned) c;
-}
-
-int edge_equal_fn(const void *v, const void *u, const void *w) {
-	const node_in_edge_t *e1 = (const node_in_edge_t*) v;
-	const node_in_edge_t *e2 = (const node_in_edge_t*) u;
-
-	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e2->coord[1] == e2->coord[1]));
-
-}
-
-int AddPointOnEdge(int* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords) {
-	size_t position;
-	node_in_edge_t *r;
-	node_in_edge_t key;
-	key.coord[0] = nodes[0];
-	key.coord[1] = nodes[1];
-
-	r = (node_in_edge_t*) sc_hash_array_insert_unique(hash, &key, &position);
-	if (r != NULL) {
-		r->coord[0] = key.coord[0];
-		r->coord[1] = key.coord[1];
-		r->node_id = npoints;
-		npoints++;
-		coords.push_back(p->x);
-		coords.push_back(p->y);
-		coords.push_back(p->z);
-		return r->node_id;
-	} else {
-		r = (node_in_edge_t*) sc_array_index(&hash->a, position);
-		return r->node_id;
-	}
-}
-
-int EdgeCreateSurfMap[24][2] = {
-		{0, 1}, // Edge 0
-		{1, 2}, // Edge 1
-		{2, 3}, //      2
-		{3, 0},
-		{0, 4},
-		{1, 5},
-		{2, 6},
-		{3, 7},
-		{4, 5},
-		{5, 6},
-		{6, 7},
-		{7, 4}
-};
- */
-
 typedef struct {
 	bitmask_t coord[3];
 	int node_id;
@@ -380,9 +315,11 @@ vector<int> RotateHex(int* rot, int* sym){
 	return order;
 }
 
-void CopyPropEl(octant_t *elem, octant_t *elem1){
+void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
+
+	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, id);
+
 	elem1->level = elem->level+1;
-	elem1->ref = elem->ref+1;
 	elem1->tem = elem->tem;
 	elem1->pad = elem->pad;
 	elem1->n_mat = elem->n_mat;
@@ -413,10 +350,12 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		double step = double(2)/double(3);
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
+		int id = elements_ids[iel];
 		sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
 
 		fprintf(fdbg,"Element: %d\n", elements_ids[iel]);
+
+		//printf("Element: %d, pad: %d, temp: %d, level: %d\n",elements_ids[iel],elem->pad,elem->tem,elem->level);
 
 		//template 1
 		if(elem->tem==1){
@@ -870,7 +809,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -885,14 +824,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 2
-		if(elem->tem==2){
+		else if(elem->tem==2){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -1132,7 +1071,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -1147,14 +1086,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 3
-		if(elem->tem==3){
+		else if(elem->tem==3){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -1571,7 +1510,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -1586,14 +1525,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 4
-		if(elem->tem==4){
+		else if(elem->tem==4){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -2044,7 +1983,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -2059,14 +1998,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 5
-		if(elem->tem==5){
+		else if(elem->tem==5){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -2626,7 +2565,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					cord_in_x[ii]=coords[3*id_node[ii]] ;
 					cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 					cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-					fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+					//fprintf(fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 				}
 
 				//add the new nodes in the
@@ -2671,7 +2610,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					}
 				}
 
-
 				//add the new elements and make the connectivity
 				if(i==0){
 					octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
@@ -2686,7 +2624,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -2701,7 +2639,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 
@@ -2710,7 +2648,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		}
 
 		//template 6
-		if(elem->tem==6){
+		else if(elem->tem==6){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -3326,7 +3264,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -3341,14 +3279,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 7
-		if(elem->tem==7){
+		else if(elem->tem==7){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -3801,7 +3739,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -3816,14 +3754,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 8
-		if(elem->tem==8){
+		else if(elem->tem==8){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -4260,7 +4198,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -4275,14 +4213,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 9
-		if(elem->tem==9){
+		else if(elem->tem==9){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -5494,7 +5432,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -5509,7 +5447,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 
@@ -5518,7 +5456,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		}
 
 		//template 10
-		if(elem->tem==10){
+		else if(elem->tem==10){
 
 			double cord_in_ref[3];
 			cord_in_ref[0] = 0;
@@ -6364,7 +6302,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem1->nodes[6].id = conn_p[6];
 					elem1->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem1);
+					CopyPropEl(mesh,id,elem1);
 
 				}else{
 					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -6379,14 +6317,14 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 					elem2->nodes[6].id = conn_p[6];
 					elem2->nodes[7].id = conn_p[7];
 
-					CopyPropEl(elem,elem2);
+					CopyPropEl(mesh,id,elem2);
 
 				}
 			}
 		}
 
 		//template 11
-		if(elem->tem==11){
+		else if(elem->tem==11){
 
 			int conn_p[64];
 			GtsPoint* point[64]={NULL};
@@ -6471,8 +6409,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 							elem1->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
 							elem1->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
 
-							//TODO segfautl
-							CopyPropEl(elem,elem1);
+							CopyPropEl(mesh,id,elem1);
 						} else{
 
 							octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
@@ -6487,8 +6424,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 							elem2->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
 							elem2->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
 
-							//TODO segfautl
-							CopyPropEl(elem,elem2);
+							CopyPropEl(mesh,id,elem2);
 						}
 					}
 				}
@@ -6523,2303 +6459,4 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			mesh->part_nodes[*id] = m->rank;
 		}
 	}
-}
-
-void ApplyTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
-	bool clamped = true;
-	bool face_intecepted[6];
-	int conn_p[8];
-	int original_conn[8];
-	FILE * fdbg;
-
-	int Edge2GNode[12][2]={0};
-	int Edge2GNode_s[12][2]={0};
-	int Edge2GNode_v[4][2]={0};
-
-	GtsSegment * segments[12]={0};
-	GtsSegment * segments_s[12]={0};
-	GtsSegment * segments_v[4]={0};
-
-	GtsPoint * point[12]={NULL};
-	GtsPoint * point_s[12]={NULL};
-	GtsPoint * point_v[4]={NULL};
-	bool edge_list[12]={false};
-	bool edge_list_s[12]={false};
-	bool edge_list_v[4]={false};
-	int ed_cont = 0;
-
-	fdbg = fopen("intercepted_faces.dbg", "w");
-
-	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof (node_t), edge_hash_fn, edge_equal_fn, &clamped);
-
-	for (int iel = 0; iel < elements_ids.size(); ++iel) {
-
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-		for (int i = 0; i < 8; i++) original_conn[i] = elem->nodes[i].id;
-
-		for (int edge = 0; edge < 12; ++edge) {
-			point[edge] = NULL;
-			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
-			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-
-			Edge2GNode[edge][0] = node1 <= node2 ? node1 : node2;
-			Edge2GNode[edge][1] = node1 >= node2 ? node1 : node2;
-
-			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
-
-			segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
-			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
-			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-			edge_list[edge] = false;
-			if (list == NULL) continue;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
-				if (point[edge]) {
-					edge_list[edge] = true;
-					ed_cont++;
-					break;
-				}
-				list = list->next;
-			}
-		}
-
-		//check the diagonals in the surface and find the intersections
-		for (int edge = 0; edge < 12; ++edge) {
-			point_s[edge] = NULL;
-			int node1 = elem->nodes[EdgeVerticesMap_surf_diagonal[edge][0]].id;
-			int node2 = elem->nodes[EdgeVerticesMap_surf_diagonal[edge][1]].id;
-
-			Edge2GNode_s[edge][0] = node1 <= node2 ? node1 : node2;
-			Edge2GNode_s[edge][1] = node1 >= node2 ? node1 : node2;
-
-			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
-
-			segments_s[edge] = gts_segment_new(gts_segment_class(), v1, v2);
-			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments_s[edge]);
-			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-			edge_list_s[edge]=false;
-			if (list == NULL) continue;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				point_s[edge] = SegmentTriangleIntersection(segments_s[edge], GTS_TRIANGLE(b->bounded));
-				if (point_s[edge]) {
-					edge_list_s[edge]=true;
-					break;
-				}
-				list = list->next;
-			}
-		}
-
-		//check the diagonals in the volume and find the intersections
-		for (int edge = 0; edge < 4; ++edge) {
-			point_v[edge] = NULL;
-			int node1 = elem->nodes[EdgeVerticesMap_vol_diagonal[edge][0]].id;
-			int node2 = elem->nodes[EdgeVerticesMap_vol_diagonal[edge][1]].id;
-
-			Edge2GNode_v[edge][0] = node1 <= node2 ? node1 : node2;
-			Edge2GNode_v[edge][1] = node1 >= node2 ? node1 : node2;
-
-			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
-
-			segments_v[edge] = gts_segment_new(gts_segment_class(), v1, v2);
-			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments_v[edge]);
-			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-			edge_list_v[edge]=false;
-			if (list == NULL) continue;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				point_v[edge] = SegmentTriangleIntersection(segments_v[edge], GTS_TRIANGLE(b->bounded));
-				if (point_v[edge]) {
-					edge_list_v[edge]=true;
-					break;
-				}
-				list = list->next;
-			}
-		}
-
-		//check parallel faces
-		for (int face = 0; face < 6; ++face) {
-			face_intecepted[face] = false;
-			for (int fe = 0; fe < 4; ++fe) {
-				int edge = FaceEdgesMap[face][fe];
-				if (point[edge] != NULL) {
-					face_intecepted[face] = true;
-					break;
-				}
-			}
-			if (face_intecepted[face]) continue;
-		}
-
-		fprintf(fdbg, "Faces:  Elem. %d: %d %d %d %d %d %d\n", elements_ids[iel], face_intecepted[0],
-				face_intecepted[1], face_intecepted[2],
-				face_intecepted[3], face_intecepted[4], face_intecepted[5]);
-		fprintf(fdbg, "Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
-				edge_list[1], edge_list[2], edge_list[3],
-				edge_list[4], edge_list[5], edge_list[6],
-				edge_list[7], edge_list[8], edge_list[9],
-				edge_list[10], edge_list[11], ed_cont);
-
-		int n_parallel_faces = (face_intecepted[0] && face_intecepted[1]) +
-				(face_intecepted[2] && face_intecepted[3]) +
-				(face_intecepted[4] && face_intecepted[5]);
-
-
-
-		if(elem->pad == 22){
-			//(edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
-			//(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-			//(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11])
-
-
-		}else if(elem->pad == 23){
-			//(!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
-			//(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-			//(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11])
-
-
-		}else if(elem->pad == 24){
-			//(!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-			//(edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
-			//(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])
-
-			int cut_edge[4];
-
-			cut_edge[0] = 4;
-			cut_edge[1] = 5;
-			cut_edge[2] = 6;
-			cut_edge[3] = 7;
-
-			GtsPoint *p0 = point[0];
-			GtsPoint *p1 = point[0];
-			GtsPoint *p2 = point[0];
-			GtsPoint *p3 = point[0];
-			GtsPoint *p4 = point[0];
-			GtsPoint *p5 = point[0];
-			GtsPoint *p6 = point[0];
-			GtsPoint *p7 = point[0];
-
-			if(p0==NULL) exit(1);
-			if(p1==NULL) exit(1);
-			if(p2==NULL) exit(1);
-			if(p3==NULL) exit(1);
-			if(p4==NULL) exit(1);
-			if(p5==NULL) exit(1);
-			if(p6==NULL) exit(1);
-			if(p7==NULL) exit(1);
-			/*
-			conn_p[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
-			conn_p[1] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p1, coords);
-			conn_p[2] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p2, coords);
-			conn_p[3] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p3, coords);
-			conn_p[4] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p4, coords);
-			conn_p[5] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p5, coords);
-			conn_p[6] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p6, coords);
-			conn_p[7] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p7, coords);
-			 */
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = original_conn[0];
-			elem1->nodes[1].id = original_conn[1];
-			elem1->nodes[2].id = original_conn[2];
-			elem1->nodes[3].id = original_conn[3];
-
-			elem1->nodes[4].id = conn_p[0];
-			elem1->nodes[5].id = conn_p[1];
-			elem1->nodes[6].id = conn_p[2];
-			elem1->nodes[7].id = conn_p[3];
-
-			elem1->level = elem->level;
-			elem1->ref = 1;
-
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[0];
-			elem2->nodes[2].id = conn_p[0];
-			elem2->nodes[3].id = conn_p[0];
-
-			elem2->nodes[4].id = conn_p[0];
-			elem2->nodes[5].id = conn_p[1];
-			elem2->nodes[6].id = conn_p[2];
-			elem2->nodes[7].id = conn_p[3];
-
-			elem2->pad = elem->pad;
-			elem2->level = elem->level;
-			elem2->ref = 1;
-
-			octant_t* elem3 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem3->nodes[0].id = original_conn[0];
-			elem3->nodes[1].id = original_conn[1];
-			elem3->nodes[2].id = original_conn[2];
-			elem3->nodes[3].id = original_conn[3];
-
-			elem3->nodes[4].id = conn_p[0];
-			elem3->nodes[5].id = conn_p[1];
-			elem3->nodes[6].id = conn_p[2];
-			elem3->nodes[7].id = conn_p[3];
-
-			elem3->pad = elem->pad;
-			elem3->level = elem->level;
-			elem3->ref = 1;
-
-
-		}
-
-
-#if 0
-		// verificação dos elementos
-		if(elem->pad==1){
-			if (n_parallel_faces == 2 && ed_cont == 4) {
-				// Check template 1.
-				int cut_edge[4];
-				int connec_order_in[8];
-				int connec_order_out1[8];
-				int connec_order_out2[8];
-
-				if (    (!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11]) ) {
-
-					cut_edge[0] = 3;
-					cut_edge[1] = 1;
-					cut_edge[2] = 11;
-					cut_edge[3] = 9;
-
-					connec_order_in[0] = 0;
-					connec_order_in[1] = 1;
-					connec_order_in[2] = 4;
-					connec_order_in[3] = 5;
-					connec_order_in[4] = 2;
-					connec_order_in[5] = 3;
-					connec_order_in[6] = 6;
-					connec_order_in[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 5;
-					connec_order_out1[4] = 3;
-					connec_order_out1[5] = 2;
-					connec_order_out1[6] = 7;
-					connec_order_out1[7] = 6;
-
-					connec_order_out2[0] = 0;
-					connec_order_out2[1] = 1;
-					connec_order_out2[2] = 4;
-					connec_order_out2[3] = 5;
-					connec_order_out2[4] = 2;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					elem->pad = 1;
-
-				} else if (     (edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11]) ) {
-
-					cut_edge[0] = 0;
-					cut_edge[1] = 2;
-					cut_edge[2] = 8;
-					cut_edge[3] = 10;
-
-					connec_order_in[0] = 0;
-					connec_order_in[1] = 3;
-					connec_order_in[2] = 4;
-					connec_order_in[3] = 7;
-					connec_order_in[4] = 1;
-					connec_order_in[5] = 2;
-					connec_order_in[6] = 5;
-					connec_order_in[7] = 6;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 3;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 1;
-					connec_order_out1[5] = 2;
-					connec_order_out1[6] = 5;
-					connec_order_out1[7] = 6;
-
-					connec_order_out2[0] = 0;
-					connec_order_out2[1] = 3;
-					connec_order_out2[2] = 4;
-					connec_order_out2[3] = 7;
-					connec_order_out2[4] = 1;
-					connec_order_out2[5] = 2;
-					connec_order_out2[6] = 5;
-					connec_order_out2[7] = 6;
-
-					elem->pad = 1;
-
-				} else if (     (!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) ) {
-
-					cut_edge[0] = 4;
-					cut_edge[1] = 5;
-					cut_edge[2] = 6;
-					cut_edge[3] = 7;
-
-					connec_order_in[0] = 0;
-					connec_order_in[1] = 1;
-					connec_order_in[2] = 2;
-					connec_order_in[3] = 3;
-					connec_order_in[4] = 4;
-					connec_order_in[5] = 5;
-					connec_order_in[6] = 6;
-					connec_order_in[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 2;
-					connec_order_out1[3] = 3;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 5;
-					connec_order_out1[6] = 6;
-					connec_order_out1[7] = 7;
-
-					connec_order_out2[0] = 0;
-					connec_order_out2[1] = 1;
-					connec_order_out2[2] = 2;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 4;
-					connec_order_out2[5] = 5;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					elem->pad = 1;
-
-				} else {
-					elem->pad = -1;
-					printf("Warning: Bad Element: %d, case 1\n",elements_ids[iel]);
-					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
-							edge_list[1], edge_list[2], edge_list[3],
-							edge_list[4], edge_list[5], edge_list[6],
-							edge_list[7], edge_list[8], edge_list[9],
-							edge_list[10], edge_list[11], ed_cont);
-
-					continue;
-				}
-
-				GtsPoint *p0 = point[cut_edge[0]];
-				GtsPoint *p1 = point[cut_edge[1]];
-				GtsPoint *p2 = point[cut_edge[2]];
-				GtsPoint *p3 = point[cut_edge[3]];
-
-				//g_assert(p0 != NULL);
-				//g_assert(p1 != NULL);
-				//g_assert(p2 != NULL);
-				//g_assert(p3 != NULL);
-
-				if(p0==NULL) exit(1);
-				if(p1==NULL) exit(1);
-				if(p2==NULL) exit(1);
-				if(p3==NULL) exit(1);
-
-
-				conn_p[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
-				conn_p[1] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p1, coords);
-				conn_p[2] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p2, coords);
-				conn_p[3] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p3, coords);
-
-				octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-				elem1->nodes[connec_order_out1[0]].id = original_conn[connec_order_in[0]];
-				elem1->nodes[connec_order_out1[1]].id = original_conn[connec_order_in[1]];
-				elem1->nodes[connec_order_out1[2]].id = original_conn[connec_order_in[2]];
-				elem1->nodes[connec_order_out1[3]].id = original_conn[connec_order_in[3]];
-
-				elem1->nodes[connec_order_out1[4]].id = conn_p[0];
-				elem1->nodes[connec_order_out1[5]].id = conn_p[1];
-				elem1->nodes[connec_order_out1[6]].id = conn_p[2];
-				elem1->nodes[connec_order_out1[7]].id = conn_p[3];
-
-				octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-				elem2->nodes[connec_order_out2[0]].id = conn_p[0];
-				elem2->nodes[connec_order_out2[1]].id = conn_p[1];
-				elem2->nodes[connec_order_out2[2]].id = conn_p[2];
-				elem2->nodes[connec_order_out2[3]].id = conn_p[3];
-
-				elem2->nodes[connec_order_out2[4]].id = original_conn[connec_order_in[4]];
-				elem2->nodes[connec_order_out2[5]].id = original_conn[connec_order_in[5]];
-				elem2->nodes[connec_order_out2[6]].id = original_conn[connec_order_in[6]];
-				elem2->nodes[connec_order_out2[7]].id = original_conn[connec_order_in[7]];
-
-				elem2->pad = elem->pad;
-				elem2->level = elem->level;
-
-
-			}
-		}else if(elem->pad==2){
-
-			if (n_parallel_faces == 1 && ed_cont==4) {
-				// Check template 2.
-
-				int conn_t2[6];
-				int cut_edge[4];
-				int cut_edge_s[2];
-				int connec_order_in1[8];
-				int connec_order_out1[8];
-				int connec_order_in2[8];
-				int connec_order_out2[8];
-				int connec_order_in3[8];
-				int connec_order_out3[8];
-
-				//Edge 0
-				if ( (!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
-						(edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
-						(edge_list_s[4]) && (edge_list_s[6]) ) {
-					//printf("Entrou na 0!\n");
-
-					cut_edge[0] = 3;
-					cut_edge[1] = 1;
-					cut_edge[2] = 4;
-					cut_edge[3] = 5;
-
-					cut_edge_s[0] = 4;
-					cut_edge_s[1] = 6;
-
-					connec_order_in1[0] = 2;
-					connec_order_in1[1] = 3;
-					connec_order_in1[2] = 6;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 1;
-					connec_order_in1[6] = 4;
-					connec_order_in1[7] = 5;
-
-					connec_order_out1[0] = 2;
-					connec_order_out1[1] = 3;
-					connec_order_out1[2] = 6;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 0;
-					connec_order_out1[5] = 1;
-					connec_order_out1[6] = 4;
-					connec_order_out1[7] = 5;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 2;
-					connec_order_in2[3] = 3;
-					connec_order_in2[4] = 4;
-					connec_order_in2[5] = 5;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 2;
-					connec_order_out2[1] = 3;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 4;
-					connec_order_out2[4] = 4;
-					connec_order_out2[5] = 5;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 1;
-					connec_order_in3[2] = 2;
-					connec_order_in3[3] = 3;
-					connec_order_in3[4] = 4;
-					connec_order_in3[5] = 5;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 0;
-					connec_order_out3[1] = 1;
-					connec_order_out3[2] = 1;
-					connec_order_out3[3] = 0;
-					connec_order_out3[4] = 2;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 5;
-					connec_order_out3[7] = 4;
-
-					elem->pad = 2;
-
-				}//Edge 1
-				else if ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[1]) && (edge_list_s[3]) ) {
-					//printf("Entrou na 1!\n");
-
-					cut_edge[0] = 0;
-					cut_edge[1] = 2;
-					cut_edge[2] = 5;
-					cut_edge[3] = 6;
-
-					cut_edge_s[0] = 1;
-					cut_edge_s[1] = 3;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 3;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 1;
-					connec_order_in1[5] = 2;
-					connec_order_in1[6] = 5;
-					connec_order_in1[7] = 6;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 3;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 0;
-					connec_order_out1[5] = 1;
-					connec_order_out1[6] = 4;
-					connec_order_out1[7] = 5;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 2;
-					connec_order_in2[3] = 3;
-					connec_order_in2[4] = 4;
-					connec_order_in2[5] = 5;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 4;
-					connec_order_out2[1] = 2;
-					connec_order_out2[2] = 3;
-					connec_order_out2[3] = 5;
-					connec_order_out2[4] = 4;
-					connec_order_out2[5] = 5;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 1;
-					connec_order_in3[1] = 2;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 3;
-					connec_order_in3[4] = 4;
-					connec_order_in3[5] = 5;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 1;
-					connec_order_out3[1] = 2;
-					connec_order_out3[2] = 0;
-					connec_order_out3[3] = 1;
-					connec_order_out3[4] = 4;
-					connec_order_out3[5] = 2;
-					connec_order_out3[6] = 3;
-					connec_order_out3[7] = 5;
-
-					elem->pad = 2;
-
-				}//Edge 2
-				else if ((!edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[5]) && (edge_list_s[7]) ) {
-					//printf("Entrou na 2!\n");
-
-					cut_edge[0] = 3;
-					cut_edge[1] = 1;
-					cut_edge[2] = 7;
-					cut_edge[3] = 6;
-
-					cut_edge_s[0] = 5;
-					cut_edge_s[1] = 7;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 5;
-					connec_order_in1[4] = 2;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 5;
-					connec_order_out1[4] = 1;
-					connec_order_out1[5] = 0;
-					connec_order_out1[6] = 5;
-					connec_order_out1[7] = 4;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 2;
-					connec_order_in2[3] = 3;
-					connec_order_in2[4] = 4;
-					connec_order_in2[5] = 5;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 4;
-					connec_order_out2[1] = 5;
-					connec_order_out2[2] = 3;
-					connec_order_out2[3] = 2;
-					connec_order_out2[4] = 4;
-					connec_order_out2[5] = 5;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 2;
-					connec_order_in3[1] = 3;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 4;
-					connec_order_in3[5] = 5;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 2;
-					connec_order_out3[1] = 3;
-					connec_order_out3[2] = 0;
-					connec_order_out3[3] = 1;
-					connec_order_out3[4] = 4;
-					connec_order_out3[5] = 5;
-					connec_order_out3[6] = 3;
-					connec_order_out3[7] = 2;
-
-					elem->pad = 2;
-
-				}//Edge 3
-				else if ((edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
-						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[0]) && (edge_list_s[2])) {
-					//printf("Entrou na 3!\n");
-
-					cut_edge[0] = 0;
-					cut_edge[1] = 2;
-					cut_edge[2] = 4;
-					cut_edge[3] = 7;
-
-					cut_edge_s[0] = 0;
-					cut_edge_s[1] = 2;
-
-					connec_order_in1[0] = 1;
-					connec_order_in1[1] = 2;
-					connec_order_in1[2] = 5;
-					connec_order_in1[3] = 6;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 4;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 1;
-					connec_order_out1[1] = 2;
-					connec_order_out1[2] = 5;
-					connec_order_out1[3] = 6;
-					connec_order_out1[4] = 0;
-					connec_order_out1[5] = 1;
-					connec_order_out1[6] = 4;
-					connec_order_out1[7] = 5;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 2;
-					connec_order_in2[3] = 3;
-					connec_order_in2[4] = 4;
-					connec_order_in2[5] = 5;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 2;
-					connec_order_out2[1] = 4;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 4;
-					connec_order_out2[5] = 5;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 3;
-					connec_order_in3[2] = 1;
-					connec_order_in3[3] = 2;
-					connec_order_in3[4] = 4;
-					connec_order_in3[5] = 5;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 0;
-					connec_order_out3[1] = 3;
-					connec_order_out3[2] = 0;
-					connec_order_out3[3] = 1;
-					connec_order_out3[4] = 2;
-					connec_order_out3[5] = 4;
-					connec_order_out3[6] = 5;
-					connec_order_out3[7] = 3;
-
-					elem->pad = 2;
-
-				}//Edge 4
-				else if ((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11])&&
-						(edge_list_s[8]) && (edge_list_s[10])) {
-					//printf("Entrou na 4!\n");
-
-					cut_edge[0] = 0;
-					cut_edge[1] = 3;
-					cut_edge[2] = 11;
-					cut_edge[3] = 8;
-
-					cut_edge_s[0] = 10;
-					cut_edge_s[1] = 8;
-
-					connec_order_in1[0] = 1;
-					connec_order_in1[1] = 2;
-					connec_order_in1[2] = 5;
-					connec_order_in1[3] = 6;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 4;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 1;
-					connec_order_out1[1] = 2;
-					connec_order_out1[2] = 5;
-					connec_order_out1[3] = 6;
-					connec_order_out1[4] = 0;
-					connec_order_out1[5] = 4;
-					connec_order_out1[6] = 3;
-					connec_order_out1[7] = 5;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 5;
-					connec_order_in2[4] = 2;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 1;
-					connec_order_out2[1] = 4;
-					connec_order_out2[2] = 2;
-					connec_order_out2[3] = 5;
-					connec_order_out2[4] = 2;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 4;
-					connec_order_in3[2] = 1;
-					connec_order_in3[3] = 2;
-					connec_order_in3[4] = 3;
-					connec_order_in3[5] = 5;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 0;
-					connec_order_out3[1] = 4;
-					connec_order_out3[2] = 0;
-					connec_order_out3[3] = 4;
-					connec_order_out3[4] = 1;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 5;
-					connec_order_out3[7] = 2;
-
-					elem->pad = 2;
-
-				}//Edge 5
-				else if ((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[9]) && (edge_list_s[11])) {
-					//printf("Entrou na 5!\n");
-
-					cut_edge[0] = 1;
-					cut_edge[1] = 0;
-					cut_edge[2] = 8;
-					cut_edge[3] = 9;
-
-					cut_edge_s[0] = 11;
-					cut_edge_s[1] = 9;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 3;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 1;
-					connec_order_in1[5] = 2;
-					connec_order_in1[6] = 5;
-					connec_order_in1[7] = 6;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 3;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 1;
-					connec_order_out1[5] = 4;
-					connec_order_out1[6] = 2;
-					connec_order_out1[7] = 5;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 5;
-					connec_order_in2[4] = 2;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 4;
-					connec_order_out2[1] = 0;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 2;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 1;
-					connec_order_in3[1] = 5;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 2;
-					connec_order_in3[4] = 3;
-					connec_order_in3[5] = 4;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 1;
-					connec_order_out3[1] = 5;
-					connec_order_out3[2] = 1;
-					connec_order_out3[3] = 0;
-					connec_order_out3[4] = 4;
-					connec_order_out3[5] = 2;
-					connec_order_out3[6] = 3;
-					connec_order_out3[7] = 5;
-
-					elem->pad = 2;
-
-				}//Edge 6
-				else if ((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[8]) && (edge_list_s[10])) {
-					//printf("Entrou na 6!\n");
-
-					cut_edge[0] = 2;
-					cut_edge[1] = 10;
-					cut_edge[2] = 1;
-					cut_edge[3] = 9;
-
-					cut_edge_s[0] = 10;
-					cut_edge_s[1] = 8;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 5;
-					connec_order_in1[4] = 2;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 5;
-					connec_order_out1[4] = 2;
-					connec_order_out1[5] = 4;
-					connec_order_out1[6] = 3;
-					connec_order_out1[7] = 5;
-
-					connec_order_in2[0] = 1;
-					connec_order_in2[1] = 2;
-					connec_order_in2[2] = 5;
-					connec_order_in2[3] = 6;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 4;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 4;
-					connec_order_out2[1] = 0;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 1;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 4;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 2;
-					connec_order_in3[1] = 6;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 3;
-					connec_order_in3[5] = 4;
-					connec_order_in3[6] = 5;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 2;
-					connec_order_out3[1] = 6;
-					connec_order_out3[2] = 4;
-					connec_order_out3[3] = 2;
-					connec_order_out3[4] = 0;
-					connec_order_out3[5] = 5;
-					connec_order_out3[6] = 3;
-					connec_order_out3[7] = 1;
-
-					elem->pad = 2;
-
-				}//Edge 7
-				else if ((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11])&&
-						(edge_list_s[9]) && (edge_list_s[11])) {
-					//printf("Entrou na 7!\n");
-
-					cut_edge[0] = 3;
-					cut_edge[1] = 11;
-					cut_edge[2] = 2;
-					cut_edge[3] = 10;
-
-					cut_edge_s[0] = 11;
-					cut_edge_s[1] = 9;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 5;
-					connec_order_in1[4] = 2;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 5;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 0;
-					connec_order_out1[6] = 5;
-					connec_order_out1[7] = 1;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 3;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 1;
-					connec_order_in2[5] = 2;
-					connec_order_in2[6] = 5;
-					connec_order_in2[7] = 6;
-
-					connec_order_out2[0] = 4;
-					connec_order_out2[1] = 2;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 1;
-					connec_order_out2[5] = 2;
-					connec_order_out2[6] = 5;
-					connec_order_out2[7] = 6;
-
-					connec_order_in3[0] = 3;
-					connec_order_in3[1] = 7;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 4;
-					connec_order_in3[6] = 5;
-					connec_order_in3[7] = 6;
-
-					connec_order_out3[0] = 3;
-					connec_order_out3[1] = 7;
-					connec_order_out3[2] = 0;
-					connec_order_out3[3] = 4;
-					connec_order_out3[4] = 2;
-					connec_order_out3[5] = 1;
-					connec_order_out3[6] = 5;
-					connec_order_out3[7] = 3;
-
-					elem->pad = 2;
-
-				}//Edge 8
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11])&&
-						(edge_list_s[5]) && (edge_list_s[7])) {
-					//printf("Entrou na 8!\n");
-
-					cut_edge[0] = 11;
-					cut_edge[1] = 9;
-					cut_edge[2] = 4;
-					cut_edge[3] = 5;
-
-					cut_edge_s[0] = 5;
-					cut_edge_s[1] = 7;
-
-					connec_order_in1[0] = 2;
-					connec_order_in1[1] = 3;
-					connec_order_in1[2] = 6;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 1;
-					connec_order_in1[6] = 4;
-					connec_order_in1[7] = 5;
-
-					connec_order_out1[0] = 2;
-					connec_order_out1[1] = 3;
-					connec_order_out1[2] = 6;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 5;
-					connec_order_out1[6] = 0;
-					connec_order_out1[7] = 1;
-
-					connec_order_in2[0] = 4;
-					connec_order_in2[1] = 5;
-					connec_order_in2[2] = 6;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 1;
-					connec_order_in2[6] = 2;
-					connec_order_in2[7] = 3;
-
-					connec_order_out2[0] = 2;
-					connec_order_out2[1] = 3;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 4;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 1;
-					connec_order_out2[6] = 2;
-					connec_order_out2[7] = 3;
-
-					connec_order_in3[0] = 4;
-					connec_order_in3[1] = 5;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 4;
-					connec_order_out3[1] = 5;
-					connec_order_out3[2] = 2;
-					connec_order_out3[3] = 3;
-					connec_order_out3[4] = 5;
-					connec_order_out3[5] = 4;
-					connec_order_out3[6] = 1;
-					connec_order_out3[7] = 0;
-
-					elem->pad = 2;
-
-				}//Edge 9
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
-						(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[0]) && (edge_list_s[2])) {
-					//printf("Entrou na 9!\n");
-
-					cut_edge[0] = 8;
-					cut_edge[1] = 10;
-					cut_edge[2] = 5;
-					cut_edge[3] = 6;
-
-					cut_edge_s[0] = 0;
-					cut_edge_s[1] = 2;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 3;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 1;
-					connec_order_in1[5] = 2;
-					connec_order_in1[6] = 5;
-					connec_order_in1[7] = 6;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 3;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 5;
-					connec_order_out1[6] = 0;
-					connec_order_out1[7] = 1;
-
-					connec_order_in2[0] = 4;
-					connec_order_in2[1] = 5;
-					connec_order_in2[2] = 6;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 1;
-					connec_order_in2[6] = 2;
-					connec_order_in2[7] = 3;
-
-					connec_order_out2[0] = 4;
-					connec_order_out2[1] = 2;
-					connec_order_out2[2] = 3;
-					connec_order_out2[3] = 5;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 1;
-					connec_order_out2[6] = 2;
-					connec_order_out2[7] = 3;
-
-					connec_order_in3[0] = 5;
-					connec_order_in3[1] = 6;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 4;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 5;
-					connec_order_out3[1] = 6;
-					connec_order_out3[2] = 4;
-					connec_order_out3[3] = 2;
-					connec_order_out3[4] = 3;
-					connec_order_out3[5] = 5;
-					connec_order_out3[6] = 0;
-					connec_order_out3[7] = 1;
-
-					elem->pad = 2;
-
-				}//Edge 10
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (edge_list[7]) &&
-						(!edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (edge_list[11])&&
-						(edge_list_s[4]) && (edge_list_s[6])) {
-					//printf("Entrou na 10!\n");
-
-					cut_edge[0] = 9;
-					cut_edge[1] = 11;
-					cut_edge[2] = 6;
-					cut_edge[3] = 7;
-
-					cut_edge_s[0] = 6;
-					cut_edge_s[1] = 4;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 4;
-					connec_order_in1[3] = 5;
-					connec_order_in1[4] = 2;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 4;
-					connec_order_out1[3] = 5;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 5;
-					connec_order_out1[6] = 0;
-					connec_order_out1[7] = 1;
-
-					connec_order_in2[0] = 4;
-					connec_order_in2[1] = 5;
-					connec_order_in2[2] = 6;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 1;
-					connec_order_in2[6] = 2;
-					connec_order_in2[7] = 3;
-
-					connec_order_out2[0] = 5;
-					connec_order_out2[1] = 4;
-					connec_order_out2[2] = 2;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 1;
-					connec_order_out2[6] = 2;
-					connec_order_out2[7] = 3;
-
-					connec_order_in3[0] = 6;
-					connec_order_in3[1] = 7;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 4;
-					connec_order_in3[7] = 5;
-
-					connec_order_out3[0] = 6;
-					connec_order_out3[1] = 7;
-					connec_order_out3[2] = 5;
-					connec_order_out3[3] = 4;
-					connec_order_out3[4] = 2;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 1;
-					connec_order_out3[7] = 0;
-
-					elem->pad = 2;
-
-				}//Edge 11
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
-						(edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[1]) && (edge_list_s[3])) {
-					//printf("Entrou na 11!\n");
-
-					cut_edge[0] = 8;
-					cut_edge[1] = 10;
-					cut_edge[2] = 4;
-					cut_edge[3] = 7;
-
-					cut_edge_s[0] = 1;
-					cut_edge_s[1] = 3;
-
-					connec_order_in1[0] = 1;
-					connec_order_in1[1] = 2;
-					connec_order_in1[2] = 5;
-					connec_order_in1[3] = 6;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 3;
-					connec_order_in1[6] = 4;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 1;
-					connec_order_out1[1] = 2;
-					connec_order_out1[2] = 5;
-					connec_order_out1[3] = 6;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 5;
-					connec_order_out1[6] = 0;
-					connec_order_out1[7] = 1;
-
-					connec_order_in2[0] = 4;
-					connec_order_in2[1] = 5;
-					connec_order_in2[2] = 6;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 1;
-					connec_order_in2[6] = 2;
-					connec_order_in2[7] = 3;
-
-					connec_order_out2[0] = 2;
-					connec_order_out2[1] = 4;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 1;
-					connec_order_out2[6] = 2;
-					connec_order_out2[7] = 3;
-
-					connec_order_in3[0] = 4;
-					connec_order_in3[1] = 7;
-					connec_order_in3[2] = 0;
-					connec_order_in3[3] = 1;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 5;
-					connec_order_in3[7] = 6;
-
-					connec_order_out3[0] = 4;
-					connec_order_out3[1] = 7;
-					connec_order_out3[2] = 2;
-					connec_order_out3[3] = 4;
-					connec_order_out3[4] = 5;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 0;
-					connec_order_out3[7] = 1;
-
-					elem->pad = 2;
-
-				} else {
-					elem->pad = -1;
-					printf("Warning: Bad Element: %d, case 2\n",elements_ids[iel]);
-					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
-							edge_list[1], edge_list[2], edge_list[3],
-							edge_list[4], edge_list[5], edge_list[6],
-							edge_list[7], edge_list[8], edge_list[9],
-							edge_list[10], edge_list[11], ed_cont);
-					continue;
-				}
-
-				GtsPoint *p0 = point[cut_edge[0]];
-				GtsPoint *p1 = point[cut_edge[1]];
-				GtsPoint *p2 = point[cut_edge[2]];
-				GtsPoint *p3 = point[cut_edge[3]];
-
-				GtsPoint *p4 = point_s[cut_edge_s[0]];
-				GtsPoint *p5 = point_s[cut_edge_s[1]];
-
-				//g_assert(p0 != NULL);
-				//g_assert(p1 != NULL);
-				//g_assert(p2 != NULL);
-				//g_assert(p3 != NULL);
-				//g_assert(p4 != NULL);
-				//g_assert(p5 != NULL);
-
-				if(p0==NULL) exit(1);
-				if(p1==NULL) exit(2);
-				if(p2==NULL) exit(3);
-				if(p3==NULL) exit(4);
-				if(p4==NULL) exit(5);
-				if(p5==NULL) exit(6);
-
-				conn_t2[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
-				conn_t2[1] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p1, coords);
-				conn_t2[2] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p2, coords);
-				conn_t2[3] = AddPointOnEdge(Edge2GNode[cut_edge[3]], hash_nodes, mesh->local_n_nodes, p3, coords);
-
-				// add 2 extra points in the surface
-				conn_t2[4] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[0]], hash_nodes, mesh->local_n_nodes, p4, coords);
-				conn_t2[5] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[1]], hash_nodes, mesh->local_n_nodes, p5, coords);
-
-				octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-				elem1->nodes[connec_order_in1[0]].id = original_conn[connec_order_out1[0]];
-				elem1->nodes[connec_order_in1[1]].id = original_conn[connec_order_out1[1]];
-				elem1->nodes[connec_order_in1[2]].id = original_conn[connec_order_out1[2]];
-				elem1->nodes[connec_order_in1[3]].id = original_conn[connec_order_out1[3]];
-
-				elem1->nodes[connec_order_in1[4]].id = conn_t2[connec_order_out1[4]];
-				elem1->nodes[connec_order_in1[5]].id = conn_t2[connec_order_out1[5]];
-				elem1->nodes[connec_order_in1[6]].id = conn_t2[connec_order_out1[6]];
-				elem1->nodes[connec_order_in1[7]].id = conn_t2[connec_order_out1[7]];
-
-				octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-				elem2->nodes[connec_order_in2[0]].id = conn_t2[connec_order_out2[0]];
-				elem2->nodes[connec_order_in2[1]].id = conn_t2[connec_order_out2[1]];
-				elem2->nodes[connec_order_in2[2]].id = conn_t2[connec_order_out2[2]];
-				elem2->nodes[connec_order_in2[3]].id = conn_t2[connec_order_out2[3]];
-
-				elem2->nodes[connec_order_in2[4]].id = original_conn[connec_order_out2[4]];
-				elem2->nodes[connec_order_in2[5]].id = original_conn[connec_order_out2[5]];
-				elem2->nodes[connec_order_in2[6]].id = original_conn[connec_order_out2[6]];
-				elem2->nodes[connec_order_in2[7]].id = original_conn[connec_order_out2[7]];
-
-				elem2->pad = elem->pad;
-				elem2->level = elem->level;
-
-				octant_t* elem3 = (octant_t*) sc_array_push(&mesh->elements);
-
-				elem3->nodes[connec_order_in3[0]].id = original_conn[connec_order_out3[0]];
-				elem3->nodes[connec_order_in3[1]].id = original_conn[connec_order_out3[1]];
-
-				elem3->nodes[connec_order_in3[2]].id = conn_t2[connec_order_out3[2]];
-				elem3->nodes[connec_order_in3[3]].id = conn_t2[connec_order_out3[3]];
-				elem3->nodes[connec_order_in3[4]].id = conn_t2[connec_order_out3[4]];
-				elem3->nodes[connec_order_in3[5]].id = conn_t2[connec_order_out3[5]];
-				elem3->nodes[connec_order_in3[6]].id = conn_t2[connec_order_out3[6]];
-				elem3->nodes[connec_order_in3[7]].id = conn_t2[connec_order_out3[7]];
-
-				elem3->pad = elem->pad;
-				elem3->level = elem->level;
-			}
-		}else if(elem->pad==3){
-
-			if (n_parallel_faces == 0 && ed_cont == 3) {
-				// Check template 3.
-
-				int conn_t2[7];
-				int cut_edge[3];
-				int cut_edge_s[3];
-				int cut_edge_v[1];
-				int connec_order_in1[8];
-				int connec_order_out1[8];
-				int connec_order_in2[8];
-				int connec_order_out2[8];
-				int connec_order_in3[8];
-				int connec_order_out3[8];
-				int connec_order_in4[8];
-				int connec_order_out4[8];
-
-
-				//Corner 0
-				if ((edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (edge_list[3]) &&
-						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
-						(edge_list_s[4]) && (edge_list_s[0]) && (edge_list_s[10]) &&
-						(edge_list_v[0]) ) {
-					//printf("Entrou no 0!\n");
-
-					cut_edge[0] = 4;
-					cut_edge[1] = 0;
-					cut_edge[2] = 3;
-
-					cut_edge_s[0] = 0;
-					cut_edge_s[1] = 4;
-					cut_edge_s[2] = 10;
-
-					cut_edge_v[0] = 0;
-
-					connec_order_in1[0] = 4;
-					connec_order_in1[1] = 5;
-					connec_order_in1[2] = 6;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 1;
-					connec_order_in1[6] = 2;
-					connec_order_in1[7] = 3;
-
-					connec_order_out1[0] = 4;
-					connec_order_out1[1] = 5;
-					connec_order_out1[2] = 6;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 0;
-					connec_order_out1[5] = 3;
-					connec_order_out1[6] = 6;
-					connec_order_out1[7] = 4;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 3;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 1;
-					connec_order_in2[5] = 2;
-					connec_order_in2[6] = 5;
-					connec_order_in2[7] = 6;
-
-					connec_order_out2[0] = 1;
-					connec_order_out2[1] = 5;
-					connec_order_out2[2] = 3;
-					connec_order_out2[3] = 6;
-					connec_order_out2[4] = 1;
-					connec_order_out2[5] = 2;
-					connec_order_out2[6] = 5;
-					connec_order_out2[7] = 6;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 1;
-					connec_order_in3[2] = 4;
-					connec_order_in3[3] = 5;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 2;
-					connec_order_out3[1] = 5;
-					connec_order_out3[2] = 4;
-					connec_order_out3[3] = 6;
-					connec_order_out3[4] = 2;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 6;
-					connec_order_out3[7] = 7;
-
-					connec_order_in4[0] = 0;
-					connec_order_in4[1] = 1;
-					connec_order_in4[2] = 2;
-					connec_order_in4[3] = 3;
-					connec_order_in4[4] = 4;
-					connec_order_in4[5] = 5;
-					connec_order_in4[6] = 6;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 0;
-					connec_order_out4[1] = 1;
-					connec_order_out4[2] = 5;
-					connec_order_out4[3] = 2;
-					connec_order_out4[4] = 0;
-					connec_order_out4[5] = 3;
-					connec_order_out4[6] = 6;
-					connec_order_out4[7] = 4;
-
-					elem->pad = 3;
-
-				}
-
-				//Corner 1
-				else if ((edge_list[0]) && (edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11])&&
-						(edge_list_s[1]) && (edge_list_s[6]) && (edge_list_s[11])  &&
-						(edge_list_v[1]) ) {
-					//printf("Entrou no 1!\n");
-
-					cut_edge[0] = 5;
-					cut_edge[1] = 1;
-					cut_edge[2] = 0;
-
-					cut_edge_s[0] = 6;
-					cut_edge_s[1] = 1;
-					cut_edge_s[2] = 11;
-
-					cut_edge_v[0] = 1;
-
-					connec_order_in1[0] = 4;
-					connec_order_in1[1] = 5;
-					connec_order_in1[2] = 6;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 1;
-					connec_order_in1[6] = 2;
-					connec_order_in1[7] = 3;
-
-					connec_order_out1[0] = 4;
-					connec_order_out1[1] = 5;
-					connec_order_out1[2] = 6;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 0;
-					connec_order_out1[6] = 3;
-					connec_order_out1[7] = 6;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 5;
-					connec_order_in2[4] = 2;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 5;
-					connec_order_out2[1] = 1;
-					connec_order_out2[2] = 6;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 2;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 1;
-					connec_order_in3[1] = 2;
-					connec_order_in3[2] = 5;
-					connec_order_in3[3] = 6;
-					connec_order_in3[4] = 0;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 4;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 2;
-					connec_order_out3[1] = 5;
-					connec_order_out3[2] = 4;
-					connec_order_out3[3] = 6;
-					connec_order_out3[4] = 0;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 4;
-					connec_order_out3[7] = 7;
-
-					connec_order_in4[0] = 1;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 2;
-					connec_order_in4[3] = 3;
-					connec_order_in4[4] = 4;
-					connec_order_in4[5] = 5;
-					connec_order_in4[6] = 6;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 1;
-					connec_order_out4[1] = 2;
-					connec_order_out4[2] = 1;
-					connec_order_out4[3] = 5;
-					connec_order_out4[4] = 4;
-					connec_order_out4[5] = 0;
-					connec_order_out4[6] = 3;
-					connec_order_out4[7] = 6;
-
-					elem->pad = 3;
-
-				}
-
-				//Corner 2
-				else if ((!edge_list[0]) && (edge_list[1]) && (edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
-						(edge_list_s[3]) && (edge_list_s[7]) && (edge_list_s[10])  &&
-						(edge_list_v[2]) ) {
-					//printf("Entrou no 2!\n");
-
-					cut_edge[0] = 6;
-					cut_edge[1] = 2;
-					cut_edge[2] = 1;
-
-					cut_edge_s[0] = 3;
-					cut_edge_s[1] = 7;
-					cut_edge_s[2] = 10;
-
-					cut_edge_v[0] = 2;
-
-					connec_order_in1[0] = 4;
-					connec_order_in1[1] = 5;
-					connec_order_in1[2] = 6;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 1;
-					connec_order_in1[5] = 2;
-					connec_order_in1[6] = 3;
-					connec_order_in1[7] = 4;
-
-					connec_order_out1[0] = 4;
-					connec_order_out1[1] = 5;
-					connec_order_out1[2] = 6;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 0;
-					connec_order_out1[6] = 3;
-					connec_order_out1[7] = 6;
-
-					connec_order_in2[0] = 1;
-					connec_order_in2[1] = 2;
-					connec_order_in2[2] = 5;
-					connec_order_in2[3] = 6;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 4;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 5;
-					connec_order_out2[1] = 1;
-					connec_order_out2[2] = 6;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 4;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 2;
-					connec_order_in3[1] = 3;
-					connec_order_in3[2] = 6;
-					connec_order_in3[3] = 7;
-					connec_order_in3[4] = 0;
-					connec_order_in3[5] = 1;
-					connec_order_in3[6] = 4;
-					connec_order_in3[7] = 5;
-
-					connec_order_out3[0] = 2;
-					connec_order_out3[1] = 5;
-					connec_order_out3[2] = 4;
-					connec_order_out3[3] = 6;
-					connec_order_out3[4] = 0;
-					connec_order_out3[5] = 1;
-					connec_order_out3[6] = 4;
-					connec_order_out3[7] = 5;
-
-					connec_order_in4[0] = 2;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 1;
-					connec_order_in4[3] = 3;
-					connec_order_in4[4] = 4;
-					connec_order_in4[5] = 5;
-					connec_order_in4[6] = 6;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 2;
-					connec_order_out4[1] = 5;
-					connec_order_out4[2] = 2;
-					connec_order_out4[3] = 1;
-					connec_order_out4[4] = 6;
-					connec_order_out4[5] = 4;
-					connec_order_out4[6] = 0;
-					connec_order_out4[7] = 3;
-
-					elem->pad = 3;
-
-				}
-
-				//Corner 3
-				else if ((!edge_list[0]) && (!edge_list[1]) && (edge_list[2]) && (edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
-						(edge_list_s[5]) && (edge_list_s[2]) && (edge_list_s[11])  &&
-						(edge_list_v[3]) ) {
-					//printf("Entrou no 3!\n");
-
-					cut_edge[0] = 7;
-					cut_edge[1] = 3;
-					cut_edge[2] = 2;
-
-					cut_edge_s[0] = 5;
-					cut_edge_s[1] = 2;
-					cut_edge_s[2] = 11;
-
-					cut_edge_v[0] = 3;
-
-					connec_order_in1[0] = 4;
-					connec_order_in1[1] = 5;
-					connec_order_in1[2] = 6;
-					connec_order_in1[3] = 7;
-					connec_order_in1[4] = 0;
-					connec_order_in1[5] = 1;
-					connec_order_in1[6] = 2;
-					connec_order_in1[7] = 3;
-
-					connec_order_out1[0] = 4;
-					connec_order_out1[1] = 5;
-					connec_order_out1[2] = 6;
-					connec_order_out1[3] = 7;
-					connec_order_out1[4] = 3;
-					connec_order_out1[5] = 6;
-					connec_order_out1[6] = 4;
-					connec_order_out1[7] = 0;
-
-					connec_order_in2[0] = 2;
-					connec_order_in2[1] = 3;
-					connec_order_in2[2] = 6;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 1;
-					connec_order_in2[6] = 4;
-					connec_order_in2[7] = 5;
-
-					connec_order_out2[0] = 5;
-					connec_order_out2[1] = 1;
-					connec_order_out2[2] = 6;
-					connec_order_out2[3] = 3;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 1;
-					connec_order_out2[6] = 4;
-					connec_order_out2[7] = 5;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 3;
-					connec_order_in3[2] = 4;
-					connec_order_in3[3] = 7;
-					connec_order_in3[4] = 1;
-					connec_order_in3[5] = 2;
-					connec_order_in3[6] = 5;
-					connec_order_in3[7] = 6;
-
-					connec_order_out3[0] = 5;
-					connec_order_out3[1] = 2;
-					connec_order_out3[2] = 6;
-					connec_order_out3[3] = 4;
-					connec_order_out3[4] = 1;
-					connec_order_out3[5] = 2;
-					connec_order_out3[6] = 5;
-					connec_order_out3[7] = 6;
-
-					connec_order_in4[0] = 3;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 1;
-					connec_order_in4[3] = 2;
-					connec_order_in4[4] = 4;
-					connec_order_in4[5] = 5;
-					connec_order_in4[6] = 6;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 3;
-					connec_order_out4[1] = 1;
-					connec_order_out4[2] = 5;
-					connec_order_out4[3] = 2;
-					connec_order_out4[4] = 3;
-					connec_order_out4[5] = 6;
-					connec_order_out4[6] = 4;
-					connec_order_out4[7] = 0;
-
-					elem->pad = 3;
-
-				}
-
-
-				//Corner 4
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(edge_list[8]) && (!edge_list[9]) && (!edge_list[10]) && (edge_list[11]) &&
-						(edge_list_s[1]) && (edge_list_s[5]) && (edge_list_s[8])  &&
-						(edge_list_v[2]) ) {
-					//printf("Entrou no 4!\n");
-
-					cut_edge[0] = 4;
-					cut_edge[1] = 8;
-					cut_edge[2] = 11;
-
-					cut_edge_s[0] = 1;
-					cut_edge_s[1] = 5;
-					cut_edge_s[2] = 8;
-
-					cut_edge_v[0] = 2;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 2;
-					connec_order_in1[3] = 3;
-					connec_order_in1[4] = 4;
-					connec_order_in1[5] = 5;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 2;
-					connec_order_out1[3] = 3;
-					connec_order_out1[4] = 0;
-					connec_order_out1[5] = 3;
-					connec_order_out1[6] = 6;
-					connec_order_out1[7] = 4;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 3;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 1;
-					connec_order_in2[5] = 2;
-					connec_order_in2[6] = 5;
-					connec_order_in2[7] = 6;
-
-					connec_order_out2[0] = 3;
-					connec_order_out2[1] = 6;
-					connec_order_out2[2] = 1;
-					connec_order_out2[3] = 5;
-					connec_order_out2[4] = 1;
-					connec_order_out2[5] = 2;
-					connec_order_out2[6] = 5;
-					connec_order_out2[7] = 6;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 1;
-					connec_order_in3[2] = 4;
-					connec_order_in3[3] = 5;
-					connec_order_in3[4] = 2;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 6;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 4;
-					connec_order_out3[1] = 6;
-					connec_order_out3[2] = 2;
-					connec_order_out3[3] = 5;
-					connec_order_out3[4] = 2;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 6;
-					connec_order_out3[7] = 7;
-
-					connec_order_in4[0] = 4;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 1;
-					connec_order_in4[3] = 2;
-					connec_order_in4[4] = 3;
-					connec_order_in4[5] = 5;
-					connec_order_in4[6] = 6;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 4;
-					connec_order_out4[1] = 0;
-					connec_order_out4[2] = 3;
-					connec_order_out4[3] = 6;
-					connec_order_out4[4] = 4;
-					connec_order_out4[5] = 1;
-					connec_order_out4[6] = 5;
-					connec_order_out4[7] = 2;
-
-					elem->pad = 3;
-
-				}
-
-				//Corner 5
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (edge_list[5]) && (!edge_list[6]) && (!edge_list[7]) &&
-						(edge_list[8]) && (edge_list[9]) && (!edge_list[10]) && (!edge_list[11]) &&
-						(edge_list_s[7]) && (edge_list_s[0]) && (edge_list_s[9])  &&
-						(edge_list_v[3]) ) {
-					//printf("Entrou no 5!\n");
-
-					cut_edge[0] = 5;
-					cut_edge[1] = 9;
-					cut_edge[2] = 8;
-
-					cut_edge_s[0] = 7;
-					cut_edge_s[1] = 0;
-					cut_edge_s[2] = 9;
-
-					cut_edge_v[0] = 3;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 2;
-					connec_order_in1[3] = 3;
-					connec_order_in1[4] = 4;
-					connec_order_in1[5] = 5;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 2;
-					connec_order_out1[3] = 3;
-					connec_order_out1[4] = 4;
-					connec_order_out1[5] = 0;
-					connec_order_out1[6] = 3;
-					connec_order_out1[7] = 6;
-
-					connec_order_in2[0] = 0;
-					connec_order_in2[1] = 1;
-					connec_order_in2[2] = 4;
-					connec_order_in2[3] = 5;
-					connec_order_in2[4] = 2;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 6;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 6;
-					connec_order_out2[1] = 3;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 1;
-					connec_order_out2[4] = 2;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 6;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 1;
-					connec_order_in3[1] = 2;
-					connec_order_in3[2] = 5;
-					connec_order_in3[3] = 6;
-					connec_order_in3[4] = 0;
-					connec_order_in3[5] = 3;
-					connec_order_in3[6] = 4;
-					connec_order_in3[7] = 7;
-
-					connec_order_out3[0] = 4;
-					connec_order_out3[1] = 6;
-					connec_order_out3[2] = 2;
-					connec_order_out3[3] = 5;
-					connec_order_out3[4] = 0;
-					connec_order_out3[5] = 3;
-					connec_order_out3[6] = 4;
-					connec_order_out3[7] = 7;
-
-					connec_order_in4[0] = 5;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 1;
-					connec_order_in4[3] = 2;
-					connec_order_in4[4] = 3;
-					connec_order_in4[5] = 4;
-					connec_order_in4[6] = 6;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 5;
-					connec_order_out4[1] = 4;
-					connec_order_out4[2] = 0;
-					connec_order_out4[3] = 3;
-					connec_order_out4[4] = 6;
-					connec_order_out4[5] = 2;
-					connec_order_out4[6] = 1;
-					connec_order_out4[7] = 5;
-
-					elem->pad = 3;
-
-				}
-
-				//Corner 6
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (edge_list[6]) && (!edge_list[7]) &&
-						(!edge_list[8]) && (edge_list[9]) && (edge_list[10]) && (!edge_list[11]) &&
-						(edge_list_s[2]) && (edge_list_s[6]) && (edge_list_s[8])  &&
-						(edge_list_v[0]) ) {
-					//printf("Entrou no 6!\n");
-
-
-					cut_edge[0] = 6;
-					cut_edge[1] = 10;
-					cut_edge[2] = 9;
-
-					cut_edge_s[0] = 2;
-					cut_edge_s[1] = 6;
-					cut_edge_s[2] = 8;
-
-					cut_edge_v[0] = 0;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 2;
-					connec_order_in1[3] = 3;
-					connec_order_in1[4] = 4;
-					connec_order_in1[5] = 5;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 2;
-					connec_order_out1[3] = 3;
-					connec_order_out1[4] = 6;
-					connec_order_out1[5] = 4;
-					connec_order_out1[6] = 0;
-					connec_order_out1[7] = 3;
-
-					connec_order_in2[0] = 1;
-					connec_order_in2[1] = 2;
-					connec_order_in2[2] = 5;
-					connec_order_in2[3] = 6;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 3;
-					connec_order_in2[6] = 4;
-					connec_order_in2[7] = 7;
-
-					connec_order_out2[0] = 6;
-					connec_order_out2[1] = 3;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 1;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 3;
-					connec_order_out2[6] = 4;
-					connec_order_out2[7] = 7;
-
-					connec_order_in3[0] = 2;
-					connec_order_in3[1] = 3;
-					connec_order_in3[2] = 6;
-					connec_order_in3[3] = 7;
-					connec_order_in3[4] = 0;
-					connec_order_in3[5] = 1;
-					connec_order_in3[6] = 4;
-					connec_order_in3[7] = 5;
-
-					connec_order_out3[0] = 4;
-					connec_order_out3[1] = 6;
-					connec_order_out3[2] = 2;
-					connec_order_out3[3] = 5;
-					connec_order_out3[4] = 0;
-					connec_order_out3[5] = 1;
-					connec_order_out3[6] = 4;
-					connec_order_out3[7] = 5;
-
-					connec_order_in4[0] = 6;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 1;
-					connec_order_in4[3] = 2;
-					connec_order_in4[4] = 3;
-					connec_order_in4[5] = 4;
-					connec_order_in4[6] = 5;
-					connec_order_in4[7] = 7;
-
-					connec_order_out4[0] = 6;
-					connec_order_out4[1] = 6;
-					connec_order_out4[2] = 4;
-					connec_order_out4[3] = 0;
-					connec_order_out4[4] = 3;
-					connec_order_out4[5] = 5;
-					connec_order_out4[6] = 2;
-					connec_order_out4[7] = 1;
-
-					elem->pad = 3;
-
-				}
-
-				//Corner 7
-				else if ((!edge_list[0]) && (!edge_list[1]) && (!edge_list[2]) && (!edge_list[3]) &&
-						(!edge_list[4]) && (!edge_list[5]) && (!edge_list[6]) && (edge_list[7]) &&
-						(!edge_list[8]) && (!edge_list[9]) && (edge_list[10]) && (edge_list[11]) &&
-						(edge_list_s[4]) && (edge_list_s[3]) && (edge_list_s[9])  &&
-						(edge_list_v[1]) ) {
-					//printf("Entrou no 7!\n");
-
-
-					cut_edge[0] = 7;
-					cut_edge[1] = 11;
-					cut_edge[2] = 10;
-
-					cut_edge_s[0] = 4;
-					cut_edge_s[1] = 3;
-					cut_edge_s[2] = 9;
-
-					cut_edge_v[0] = 1;
-
-					connec_order_in1[0] = 0;
-					connec_order_in1[1] = 1;
-					connec_order_in1[2] = 2;
-					connec_order_in1[3] = 3;
-					connec_order_in1[4] = 4;
-					connec_order_in1[5] = 5;
-					connec_order_in1[6] = 6;
-					connec_order_in1[7] = 7;
-
-					connec_order_out1[0] = 0;
-					connec_order_out1[1] = 1;
-					connec_order_out1[2] = 2;
-					connec_order_out1[3] = 3;
-					connec_order_out1[4] = 3;
-					connec_order_out1[5] = 6;
-					connec_order_out1[6] = 4;
-					connec_order_out1[7] = 0;
-
-					connec_order_in2[0] = 2;
-					connec_order_in2[1] = 3;
-					connec_order_in2[2] = 6;
-					connec_order_in2[3] = 7;
-					connec_order_in2[4] = 0;
-					connec_order_in2[5] = 1;
-					connec_order_in2[6] = 4;
-					connec_order_in2[7] = 5;
-
-					connec_order_out2[0] = 6;
-					connec_order_out2[1] = 3;
-					connec_order_out2[2] = 5;
-					connec_order_out2[3] = 1;
-					connec_order_out2[4] = 0;
-					connec_order_out2[5] = 1;
-					connec_order_out2[6] = 4;
-					connec_order_out2[7] = 5;
-
-					connec_order_in3[0] = 0;
-					connec_order_in3[1] = 3;
-					connec_order_in3[2] = 4;
-					connec_order_in3[3] = 7;
-					connec_order_in3[4] = 1;
-					connec_order_in3[5] = 2;
-					connec_order_in3[6] = 5;
-					connec_order_in3[7] = 6;
-
-					connec_order_out3[0] = 6;
-					connec_order_out3[1] = 4;
-					connec_order_out3[2] = 5;
-					connec_order_out3[3] = 2;
-					connec_order_out3[4] = 1;
-					connec_order_out3[5] = 2;
-					connec_order_out3[6] = 5;
-					connec_order_out3[7] = 6;
-
-					connec_order_in4[0] = 7;
-					connec_order_in4[1] = 0;
-					connec_order_in4[2] = 1;
-					connec_order_in4[3] = 2;
-					connec_order_in4[4] = 3;
-					connec_order_in4[5] = 4;
-					connec_order_in4[6] = 5;
-					connec_order_in4[7] = 6;
-
-					connec_order_out4[0] = 7;
-					connec_order_out4[1] = 3;
-					connec_order_out4[2] = 6;
-					connec_order_out4[3] = 4;
-					connec_order_out4[4] = 0;
-					connec_order_out4[5] = 1;
-					connec_order_out4[6] = 5;
-					connec_order_out4[7] = 2;
-
-					elem->pad = 3;
-
-				} else {
-					elem->pad = -1;
-					printf("Warning: Bad Element: %d, case 3\n",elements_ids[iel]);
-					printf("Edges:  Elem. %d: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", elements_ids[iel], edge_list[0],
-							edge_list[1], edge_list[2], edge_list[3],
-							edge_list[4], edge_list[5], edge_list[6],
-							edge_list[7], edge_list[8], edge_list[9],
-							edge_list[10], edge_list[11], ed_cont);
-					continue;
-				}
-
-				GtsPoint *p0 = point[cut_edge[0]];
-				GtsPoint *p1 = point[cut_edge[1]];
-				GtsPoint *p2 = point[cut_edge[2]];
-
-				GtsPoint *p3 = point_s[cut_edge_s[0]];
-				GtsPoint *p4 = point_s[cut_edge_s[1]];
-				GtsPoint *p5 = point_s[cut_edge_s[2]];
-
-				GtsPoint *p6 = point_v[cut_edge_v[0]];
-
-				//g_assert(p0 != NULL);
-				//g_assert(p1 != NULL);
-				//g_assert(p2 != NULL);
-				//g_assert(p3 != NULL);
-				//g_assert(p4 != NULL);
-				//g_assert(p5 != NULL);
-				//g_assert(p6 != NULL);
-
-				if(p0==NULL) exit(1);
-				if(p1==NULL) exit(2);
-				if(p2==NULL) exit(3);
-				if(p3==NULL) exit(4);
-				if(p4==NULL) exit(5);
-				if(p5==NULL) exit(6);
-				if(p6==NULL) exit(7);
-
-				conn_t2[0] = AddPointOnEdge(Edge2GNode[cut_edge[0]], hash_nodes, mesh->local_n_nodes, p0, coords);
-				conn_t2[1] = AddPointOnEdge(Edge2GNode[cut_edge[1]], hash_nodes, mesh->local_n_nodes, p1, coords);
-				conn_t2[2] = AddPointOnEdge(Edge2GNode[cut_edge[2]], hash_nodes, mesh->local_n_nodes, p2, coords);
-
-				// add 3 extra points in the surface
-				conn_t2[3] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[0]], hash_nodes, mesh->local_n_nodes, p3, coords);
-				conn_t2[4] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[1]], hash_nodes, mesh->local_n_nodes, p4, coords);
-				conn_t2[5] = AddPointOnEdge(Edge2GNode_s[cut_edge_s[2]], hash_nodes, mesh->local_n_nodes, p5, coords);
-
-				// add 1 extra points in the volume
-				conn_t2[6] = AddPointOnEdge(Edge2GNode_s[cut_edge_v[0]], hash_nodes, mesh->local_n_nodes, p6, coords);
-
-				octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-				elem1->nodes[connec_order_in1[0]].id = original_conn[connec_order_out1[0]];
-				elem1->nodes[connec_order_in1[1]].id = original_conn[connec_order_out1[1]];
-				elem1->nodes[connec_order_in1[2]].id = original_conn[connec_order_out1[2]];
-				elem1->nodes[connec_order_in1[3]].id = original_conn[connec_order_out1[3]];
-
-				elem1->nodes[connec_order_in1[4]].id = conn_t2[connec_order_out1[4]];
-				elem1->nodes[connec_order_in1[5]].id = conn_t2[connec_order_out1[5]];
-				elem1->nodes[connec_order_in1[6]].id = conn_t2[connec_order_out1[6]];
-				elem1->nodes[connec_order_in1[7]].id = conn_t2[connec_order_out1[7]];
-
-				octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-				elem2->nodes[connec_order_in2[0]].id = conn_t2[connec_order_out2[0]];
-				elem2->nodes[connec_order_in2[1]].id = conn_t2[connec_order_out2[1]];
-				elem2->nodes[connec_order_in2[2]].id = conn_t2[connec_order_out2[2]];
-				elem2->nodes[connec_order_in2[3]].id = conn_t2[connec_order_out2[3]];
-
-				elem2->nodes[connec_order_in2[4]].id = original_conn[connec_order_out2[4]];
-				elem2->nodes[connec_order_in2[5]].id = original_conn[connec_order_out2[5]];
-				elem2->nodes[connec_order_in2[6]].id = original_conn[connec_order_out2[6]];
-				elem2->nodes[connec_order_in2[7]].id = original_conn[connec_order_out2[7]];
-
-				elem2->pad = elem->pad;
-				elem2->level = elem->level;
-
-				octant_t* elem3 = (octant_t*) sc_array_push(&mesh->elements);
-
-				elem3->nodes[connec_order_in3[0]].id = conn_t2[connec_order_out3[0]];
-				elem3->nodes[connec_order_in3[1]].id = conn_t2[connec_order_out3[1]];
-				elem3->nodes[connec_order_in3[2]].id = conn_t2[connec_order_out3[2]];
-				elem3->nodes[connec_order_in3[3]].id = conn_t2[connec_order_out3[3]];
-
-				elem3->nodes[connec_order_in3[4]].id = original_conn[connec_order_out3[4]];
-				elem3->nodes[connec_order_in3[5]].id = original_conn[connec_order_out3[5]];
-				elem3->nodes[connec_order_in3[6]].id = original_conn[connec_order_out3[6]];
-				elem3->nodes[connec_order_in3[7]].id = original_conn[connec_order_out3[7]];
-
-				elem3->pad = elem->pad;
-				elem3->level = elem->level;
-
-				octant_t* elem4 = (octant_t*) sc_array_push(&mesh->elements);
-
-				elem4->nodes[connec_order_in4[0]].id = original_conn[connec_order_out4[0]];
-
-				elem4->nodes[connec_order_in4[1]].id = conn_t2[connec_order_out4[1]];
-				elem4->nodes[connec_order_in4[2]].id = conn_t2[connec_order_out4[2]];
-				elem4->nodes[connec_order_in4[3]].id = conn_t2[connec_order_out4[3]];
-				elem4->nodes[connec_order_in4[4]].id = conn_t2[connec_order_out4[4]];
-				elem4->nodes[connec_order_in4[5]].id = conn_t2[connec_order_out4[5]];
-				elem4->nodes[connec_order_in4[6]].id = conn_t2[connec_order_out4[6]];
-				elem4->nodes[connec_order_in4[7]].id = conn_t2[connec_order_out4[7]];
-
-				elem4->pad = elem->pad;
-				elem4->level = elem->level;
-			}
-
-		}
-
-#endif
-
-		for (int edge = 0; edge < 4; edge++) {
-			if (point_v[edge]) gts_object_destroy(GTS_OBJECT(point_v[edge]));
-			point_v[edge] = NULL;
-		}
-
-		for (int edge = 0; edge < 12; edge++) {
-			if (point_s[edge]) gts_object_destroy(GTS_OBJECT(point_s[edge]));
-			point_s[edge] = NULL;
-		}
-
-		for (int edge = 0; edge < 12; edge++) {
-			if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
-			point[edge] = NULL;
-		}
-
-	}
-
-	mesh->local_n_elements = mesh->elements.elem_count;
-	//mesh->local_n_nodes = coords.size()/3;
-
-	//MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-	//MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-
-	//	if (mesh->mpi_rank == 0) {
-	//		printf("Total number of elements: %lld\n", mesh->local_n_elements);
-	//		printf("Total number of nodes: %lld\n", mesh->local_n_nodes);
-	//	}
-
-	fclose(fdbg);
-	sc_hash_array_destroy(hash_nodes);
 }

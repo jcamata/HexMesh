@@ -26,7 +26,6 @@ typedef struct {
 typedef struct {
     int32_t    x,y,z;
     int8_t     level;
-    int8_t     ref;
     int     pad;
     int     tem;
     int8_t     pml_id;
