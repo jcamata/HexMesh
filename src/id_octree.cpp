@@ -8,7 +8,7 @@ using namespace std;
 #include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
-//#include <mpi.h>
+
 
 #include "hexa.h"
 #include "refinement.h"
@@ -19,6 +19,10 @@ typedef struct {
 	bitmask_t coord[2];
 	unsigned int edge_id;
 } edge_id_t;
+
+typedef struct {
+	unsigned int id;
+} name_t;
 
 unsigned edge_hash(const void *v, const void *u) {
 	const edge_id_t *q = (const edge_id_t*) v;
@@ -40,26 +44,24 @@ int edge_equal(const void *v, const void *u, const void *w) {
 
 }
 
-//unsigned long int edge_hash_function(int c, int d){
-unsigned int edge_hash_function(int c, int d){
-	//unsigned long int e;
-	unsigned int e;
-	int a;
-	int b;
+unsigned id_hash(const void *v, const void *u) {
+	const name_t *q = (const name_t*) v;
+	uint32_t a, b, c;
 
-	if(c>d){
-		a = c;
-		b = d;
-	}else{
-		a=d;
-		b=c;
-	}
+	a = (uint32_t) q->id;
+	b = (uint32_t) 0;
+	c = (uint32_t) 0;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
 
-	if(a>=b){
-		return e = a*a+a+b;
-	}else{
-		return e = a+b*b;
-	}
+int id_equal(const void *v, const void *u, const void *w) {
+	const name_t *e1 = (const name_t*) v;
+	const name_t *e2 = (const name_t*) u;
+
+	return (unsigned) ((e1->id == e2->id));
+
 }
 
 unsigned int edge_id(int* nodes, sc_hash_array_t* hash, int &npoints) {
@@ -81,6 +83,20 @@ unsigned int edge_id(int* nodes, sc_hash_array_t* hash, int &npoints) {
 		r = (edge_id_t*) sc_array_index(&hash->a, position);
 		return r->edge_id;
 	}
+}
+
+void edge_add(int edge_id, sc_hash_array_t* hash_id ) {
+	size_t position;
+	name_t *r;
+	name_t key;
+        key.id = edge_id;
+
+        r = (name_t*) sc_hash_array_insert_unique(hash_id, &key, &position);
+        if(r != NULL)
+        {
+            //printf("dentro do add-edge");
+            r->id = key.id;
+        }
 }
 
 void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids){
@@ -1278,7 +1294,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 }
 
-void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<unsigned int>& edges_ids) {
+void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash) {
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -1286,636 +1302,1105 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 
 		//template 11
 		if(elem->pad==144){
-			for (int edge = 0; edge < 12; ++edge) {
-				edges_ids.push_back(elem->edge_id[edge]);
-			}
+                    for (int edge = 0; edge < 12; ++edge) {
+                        edge_add(elem->edge_id[edge], hash );
+                            //edges_ids.push_back(elem->edge_id[edge]);
+                    }
 		}
 		//template 10
 		else if(elem->pad==143){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==142){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==141){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==140){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==139){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
-		}else if(elem->pad==138){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
+		}else if(elem->pad==138){                    
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==137){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==136){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==135){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==134){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==133){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==132){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}
 		//template 9
 		else if(elem->pad==131){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==130){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==129){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==128){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==127){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==126){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}
 		//template 8
 		else if(elem->pad==125){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==124){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==123){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}
 		//template 7
 		else if(elem->pad==122){
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==121){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==120){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==119){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==118){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==117){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==116){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==115){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
 		}
 		//template 6
 		else if(elem->pad==114){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[6], hash );                    
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==113){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );                    
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==112){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );                    
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==111){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );                    
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==110){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[4], hash );                    
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==109){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[4], hash );                    
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==108){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );                    
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==107){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[5], hash );                    
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==106){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );                    
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==105){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );                    
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==104){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );                    
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==103){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );                    
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}
 		//template 5
 		else if(elem->pad==102){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==101){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==100){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==99){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==98){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==97){
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==96){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==95){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==94){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==93){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==92){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==91){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==90){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[4]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[4], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==89){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==88){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==87){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[4]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[4], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==86){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==85){
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==84){
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==83){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==82){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==81){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==80){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
 		}else if(elem->pad==79){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
 		}else if(elem->pad==78){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==77){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==76){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==75){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==74){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==73){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==72){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==71){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==70){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==69){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==68){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==67){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==66){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==65){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==64){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==63){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==62){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==61){
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==60){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==59){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==58){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==57){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==56){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
 		}else if(elem->pad==55){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==54){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==53){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[10], hash );
+                        //edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==52){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==51){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==50){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==49){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}
 		//template 4
 		else if(elem->pad==48){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==47){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==46){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==45){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==44){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==43){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==42){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==41){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==40){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==39){
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[10]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[10]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==38){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==37){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}
 		//template 3
 		else if(elem->pad==36){
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==35){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==34){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==33){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==32){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==31){
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==30){
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==29){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==28){
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==27){
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==26){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==25){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
 		}
 		//template 2
 		else if(elem->pad==24){
-			edges_ids.push_back(elem->edge_id[4]);
-			edges_ids.push_back(elem->edge_id[5]);
-			edges_ids.push_back(elem->edge_id[6]);
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
+			//edges_ids.push_back(elem->edge_id[5]);
+			//edges_ids.push_back(elem->edge_id[6]);
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==23){
-			edges_ids.push_back(elem->edge_id[1]);
-			edges_ids.push_back(elem->edge_id[3]);
-			edges_ids.push_back(elem->edge_id[9]);
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
+			//edges_ids.push_back(elem->edge_id[3]);
+			//edges_ids.push_back(elem->edge_id[9]);
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==22){
-			edges_ids.push_back(elem->edge_id[0]);
-			edges_ids.push_back(elem->edge_id[2]);
-			edges_ids.push_back(elem->edge_id[8]);
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
+			//edges_ids.push_back(elem->edge_id[2]);
+			//edges_ids.push_back(elem->edge_id[8]);
+			//edges_ids.push_back(elem->edge_id[10]);
 		}
 		//template 1
 		else if(elem->pad==21){
-			edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[11], hash );
+			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==20){
-			edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[10], hash );
+			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==19){
-			edges_ids.push_back(elem->edge_id[9]);
+                    edge_add(elem->edge_id[9], hash );
+			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==18){
-			edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[8], hash );
+			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==17){
-			edges_ids.push_back(elem->edge_id[7]);
+                    edge_add(elem->edge_id[7], hash );
+			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==16){
-			edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[6], hash );
+			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==15){
-			edges_ids.push_back(elem->edge_id[5]);
+                    edge_add(elem->edge_id[5], hash );
+			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==14){
-			edges_ids.push_back(elem->edge_id[4]);
+                    edge_add(elem->edge_id[4], hash );
+			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==13){
-			edges_ids.push_back(elem->edge_id[3]);
+                    edge_add(elem->edge_id[3], hash );
+			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==12){
-			edges_ids.push_back(elem->edge_id[2]);
+                    edge_add(elem->edge_id[2], hash );
+			//edges_ids.push_back(elem->edge_id[2]);
 		}else if(elem->pad==11){
-			edges_ids.push_back(elem->edge_id[1]);
+                    edge_add(elem->edge_id[1], hash );
+			//edges_ids.push_back(elem->edge_id[1]);
 		}else if(elem->pad==10){
-			edges_ids.push_back(elem->edge_id[0]);
+                    edge_add(elem->edge_id[0], hash );
+			//edges_ids.push_back(elem->edge_id[0]);
 		}
 	}
 
 	//TODO check the time of the two implementations
-	printf(" Edges intercepted: %d\n", edges_ids.size());
+	//printf(" Edges intercepted: %d\n", edges_ids.size());
 
 	//remove duplicates edges
 	//std::set<int> s;
@@ -1924,23 +2409,35 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, std:
 	//edges_ids.assign( s.begin(), s.end() );
 	//printf("Cleaned Edges intercepted: %d\n", edges_ids.size());
 
-	std::sort( edges_ids.begin(), edges_ids.end() );
-	edges_ids.erase( std::unique( edges_ids.begin(), edges_ids.end() ), edges_ids.end() );
-	printf("Cleaned Edges intercepted: %d\n", edges_ids.size());
+	//std::sort( edges_ids.begin(), edges_ids.end() );
+	//edges_ids.erase( std::unique( edges_ids.begin(), edges_ids.end() ), edges_ids.end() );
+	//printf("Cleaned Edges intercepted: %d\n", edges_ids.size());
 
 }
 
-void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, std::vector<unsigned int>& edges_ids) {
+void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_id) {
 
+    size_t* position;
+    
 	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
 		for (int edge = 0; edge < 12; ++edge) {
+                    bool out = false;
+                    out =  sc_hash_array_lookup(hash_id, &elem->edge_id[edge], position);	
+                    
+                    if(out){
+                        elem->edge_ref[edge]=true;
+                        elem->pad = -1;
+                        elements_ids.push_back(iel);
+                    }
+                    /*
 			if(binary_search(edges_ids.begin(), edges_ids.end(), elem->edge_id[edge])){
 				elem->edge_ref[edge]=true;
 				elem->pad = -1;
 				elements_ids.push_back(iel);
 			}
+                    */
 		}
 	}
 	//TODO segfault in MPI
@@ -1964,6 +2461,8 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 	fdbg = fopen(filename, "w");
 
 	sc_hash_array_t* hash_edge = sc_hash_array_new(sizeof (edge_id_t), edge_hash, edge_equal, &clamped);
+        
+        sc_hash_array_t* hash_id = sc_hash_array_new(sizeof (name_t), id_hash, id_equal, &clamped);
 
 	for (int iel = 0; iel < elements->elem_count; ++iel) {
 
@@ -2050,12 +2549,14 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 		}
 	}
 
-	for (int i = 0; i < 1; i++){
+        //TODO change the for to while, check convergence criteria
+	for (int i = 0; i < 100; i++){
 		printf("numero %d\n",i);
 		printf(" Elements ref: %d\n", elements_ids.size());
 		IdentifyTemplate(mesh, coords, elements_ids);
-		Edge_identification( mesh, elements_ids, edges_ids);
-		Edge_propagation( mesh, elements_ids, edges_ids);
+		Edge_identification( mesh, elements_ids, hash_id);
+                printf("Tamanho da hash: %d\n",hash_id->a.elem_count);
+		Edge_propagation( mesh, elements_ids, hash_id);
 	}
 	printf(" Elements ref: %d\n", elements_ids.size());
 	IdentifyTemplate(mesh, coords, elements_ids);
