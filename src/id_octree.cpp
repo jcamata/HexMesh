@@ -14,35 +14,9 @@ using namespace std;
 #include "refinement.h"
 #include "hilbert.h"
 
-
-typedef struct {
-	bitmask_t coord[2];
-	unsigned int edge_id;
-} edge_id_t;
-
 typedef struct {
 	unsigned int id;
 } name_t;
-
-unsigned edge_hash(const void *v, const void *u) {
-	const edge_id_t *q = (const edge_id_t*) v;
-	uint32_t a, b, c;
-
-	a = (uint32_t) q->coord[0];
-	b = (uint32_t) q->coord[1];
-	c = (uint32_t) 0;
-	sc_hash_mix(a, b, c);
-	sc_hash_final(a, b, c);
-	return (unsigned) c;
-}
-
-int edge_equal(const void *v, const void *u, const void *w) {
-	const edge_id_t *e1 = (const edge_id_t*) v;
-	const edge_id_t *e2 = (const edge_id_t*) u;
-
-	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e1->coord[1] == e2->coord[1]));
-
-}
 
 unsigned id_hash(const void *v, const void *u) {
 	const name_t *q = (const name_t*) v;
@@ -64,27 +38,6 @@ int id_equal(const void *v, const void *u, const void *w) {
 
 }
 
-unsigned int edge_id(int* nodes, sc_hash_array_t* hash, int &npoints) {
-	size_t position;
-	edge_id_t *r;
-	edge_id_t key;
-	key.coord[0] = nodes[0];
-	key.coord[1] = nodes[1];
-
-	r = (edge_id_t*) sc_hash_array_insert_unique(hash, &key, &position);
-	if (r != NULL) {
-		r->coord[0] = key.coord[0];
-		r->coord[1] = key.coord[1];
-		r->coord[2] = key.coord[2];
-		r->edge_id = npoints;
-		npoints++;
-		return r->edge_id;
-	} else {
-		r = (edge_id_t*) sc_array_index(&hash->a, position);
-		return r->edge_id;
-	}
-}
-
 void edge_add(int edge_id, sc_hash_array_t* hash_id ) {
 	size_t position;
 	name_t *r;
@@ -94,7 +47,6 @@ void edge_add(int edge_id, sc_hash_array_t* hash_id ) {
         r = (name_t*) sc_hash_array_insert_unique(hash_id, &key, &position);
         if(r != NULL)
         {
-            //printf("dentro do add-edge");
             r->id = key.id;
         }
 }
@@ -2417,30 +2369,22 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
 
 void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_id) {
 
-    size_t* position;
+    size_t position;
     
 	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
 		for (int edge = 0; edge < 12; ++edge) {
                     bool out = false;
-                    out =  sc_hash_array_lookup(hash_id, &elem->edge_id[edge], position);	
+                    out =  sc_hash_array_lookup(hash_id, &elem->edge_id[edge], &position);	
                     
                     if(out){
                         elem->edge_ref[edge]=true;
                         elem->pad = -1;
                         elements_ids.push_back(iel);
                     }
-                    /*
-			if(binary_search(edges_ids.begin(), edges_ids.end(), elem->edge_id[edge])){
-				elem->edge_ref[edge]=true;
-				elem->pad = -1;
-				elements_ids.push_back(iel);
-			}
-                    */
 		}
 	}
-	//TODO segfault in MPI
 	//cleaning the element vector
 	std::sort( elements_ids.begin(), elements_ids.end() );
 	elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
@@ -2449,56 +2393,11 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
 
 	bool clamped = true;
-
-	std::vector<unsigned int> edges_ids;
-
-	sc_array_t *elements = &mesh->elements;
-	int npoints = 0;
-
-	FILE * fdbg;
-	char filename[80];
-	sprintf(filename, "Edge_deb_%04d.txt", mesh->mpi_rank);
-	fdbg = fopen(filename, "w");
-
-	sc_hash_array_t* hash_edge = sc_hash_array_new(sizeof (edge_id_t), edge_hash, edge_equal, &clamped);
+        int npoints = 0;
         
+	sc_array_t *elements = &mesh->elements;        
         sc_hash_array_t* hash_id = sc_hash_array_new(sizeof (name_t), id_hash, id_equal, &clamped);
-
-	for (int iel = 0; iel < elements->elem_count; ++iel) {
-
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-
-		fprintf(fdbg,"Element: %d\n",iel);
-
-		//initialization for the edge id
-		for (int edge = 0; edge < 12; ++edge) {
-			int Edge2GNode[2];
-
-			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
-			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-
-			Edge2GNode[0] = node1 <= node2 ? node1 : node2;
-			Edge2GNode[1] = node1 >= node2 ? node1 : node2;
-
-			elem->edge_id[edge] = edge_id(Edge2GNode, hash_edge, npoints);
-			elem->edge_ref[edge] = false;
-			fprintf(fdbg,"Edge: %d, global: %d %d, id: %d\n",edge, Edge2GNode[0],Edge2GNode[1], elem->edge_id[edge]);
-
-		}
-
-	}
-	fclose(fdbg);
-
-	//initialization for the node color
-	for (int iel = 0; iel < elements->elem_count; ++iel) {
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		for(int j = 0; j < 8; j++) {
-			octant_node_t* node = &elem->nodes[j];
-			node->color=-1;
-		}
-	}
-
-
+        
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);

@@ -3,6 +3,14 @@
 #include <sc.h>
 
 #include "hexa.h"
+#include "refinement.h"
+#include "hilbert.h"
+
+typedef struct {
+	bitmask_t coord[2];
+	unsigned int edge_id;
+} edge_id_t;
+
 void communicate_global_ids(hexa_tree_t* mesh);
 
 unsigned node_hash_fn (const void *v, const void *u)
@@ -73,14 +81,80 @@ void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* no
     }
 }
 
+unsigned edge_hash_f(const void *v, const void *u) {
+	const edge_id_t *q = (const edge_id_t*) v;
+	uint32_t a, b, c;
 
+	a = (uint32_t) q->coord[0];
+	b = (uint32_t) q->coord[1];
+	c = (uint32_t) 0;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int edge_equal_f(const void *v, const void *u, const void *w) {
+	const edge_id_t *e1 = (const edge_id_t*) v;
+	const edge_id_t *e2 = (const edge_id_t*) u;
+
+	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e1->coord[1] == e2->coord[1]));
+
+}
+
+unsigned int edge_id(int* nodes, sc_hash_array_t* hash, int &npoints) {
+	size_t position;
+	edge_id_t *r;
+	edge_id_t key;
+	key.coord[0] = nodes[0];
+	key.coord[1] = nodes[1];
+
+	r = (edge_id_t*) sc_hash_array_insert_unique(hash, &key, &position);
+	if (r != NULL) {
+		r->coord[0] = key.coord[0];
+		r->coord[1] = key.coord[1];
+		r->coord[2] = key.coord[2];
+		r->edge_id = npoints;
+		npoints++;
+		return r->edge_id;
+	} else {
+		r = (edge_id_t*) sc_array_index(&hash->a, position);
+		return r->edge_id;
+	}
+}
+
+void hexa_insert_shared_edge(sc_hash_array_t *shared_edges, shared_edge_t* edge, int processor){
+    size_t position;
+    shared_edge_t *sn;
+    int i;
+    
+    if( processor < 0) return;
+    
+    sn = (shared_edge_t*) sc_hash_array_insert_unique (shared_edges, edge, &position);
+    if(sn != NULL)
+    {
+        sn->id = edge->id;
+        sn->listSz = 1;
+        sn->rankList[0] = processor;
+    } else
+    {
+        sn = (shared_edge_t*) sc_array_index(&shared_edges->a, position);
+        for(i=0; i < sn->listSz; ++i)
+            if(sn->rankList[i] == processor) break;
+        if(i == sn->listSz){
+            sn->rankList[sn->listSz] = processor;
+            sn->listSz++;
+        }
+    }
+}
 
 void hexa_mesh(hexa_tree_t* mesh)
 {
     
     bool                clamped = true;
     sc_hash_array_t    *indep_nodes;
+    sc_hash_array_t    *indep_edges;
     sc_hash_array_t    *shared_nodes;
+    sc_hash_array_t    *shared_edges;
     sc_hash_array_t    *SendTo;
     sc_hash_array_t    *RecvFrom;
     size_t              position;
@@ -89,8 +163,11 @@ void hexa_mesh(hexa_tree_t* mesh)
     int64_t    local[2], global[2];
     
     indep_nodes     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
+    indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_f, edge_equal_f, &clamped);
     shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
+    shared_edges    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_f, edge_equal_f, &clamped);
     
+    //insert internal nodes in the hash_array
     for(int i = 0; i < mesh->elements.elem_count; i++)
     {
         octant_t *h  = (octant_t*) sc_array_index(&mesh->elements, i);
@@ -121,9 +198,10 @@ void hexa_mesh(hexa_tree_t* mesh)
             }
         }
     }
-    
+    //extract the nodes from indep_nodes
     sc_hash_array_rip (indep_nodes,  &mesh->nodes);
     
+    //insert the shared nodes in the has_array
     for(int i = 0; i < mesh->nodes.elem_count; i++)
     {
         octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, i);
@@ -154,38 +232,117 @@ void hexa_mesh(hexa_tree_t* mesh)
                  hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[5]);
     }
     
+    //initialization for the node color
+    for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+        for(int j = 0; j < 8; j++) {
+                octant_node_t* node = &elem->nodes[j];
+                node->color=-1;
+        }
+    }
+    
+    //add edge_identification
+    int npoints = 0;    
+    sc_hash_array_t* hash_edge = sc_hash_array_new(sizeof (edge_id_t), edge_hash_f, edge_equal_f, &clamped);
+    //initialization for the edge id
+    for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+        for (int edge = 0; edge < 12; ++edge) {
+            int Edge2GNode[2];
+
+            int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
+            int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+
+            Edge2GNode[0] = node1 <= node2 ? node1 : node2;
+            Edge2GNode[1] = node1 >= node2 ? node1 : node2;
+
+            elem->edge_id[edge] = edge_id(Edge2GNode, hash_edge, npoints);
+            elem->edge_ref[edge] = false;  
+        }
+    }
+
+    // create the shared edges hash
+    for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+        size_t position0;
+        size_t position1;
+
+        for (int edge = 0; edge < 12; ++edge) {
+
+            bool out0 = false;
+            bool out1 = false;
+            octant_node_t* node0 = (octant_node_t*) sc_array_index (&mesh->nodes, elem->nodes[EdgeVerticesMap[edge][0]].id);
+            octant_node_t* node1 = (octant_node_t*) sc_array_index (&mesh->nodes, elem->nodes[EdgeVerticesMap[edge][1]].id);
+
+            out0 =  sc_hash_array_lookup(shared_nodes, node0, &position0);
+            out1 =  sc_hash_array_lookup(shared_nodes, node1, &position1);	
+
+            
+            if(out0 && out1){              
+                shared_node_t* sn0 = (shared_node_t*) sc_array_index(&shared_nodes->a, position0);
+                shared_node_t* sn1 = (shared_node_t*) sc_array_index(&shared_nodes->a, position1);
+
+                for(int i = 0; i < sn0->listSz; i++){
+                    for(int j = 0; j < sn1->listSz; j++){
+                        if(sn0->rankList[i] == sn1->rankList[j]){
+                            shared_edge_t      e;
+                            e.id = elem->edge_id[edge];
+                           hexa_insert_shared_edge(shared_edges, &e , sn0->rankList[i]);
+                        }
+                    }
+                }
+            } 
+        }
+    }
     
     //
     // getting global index
     // building communication map
     //
-    
+    //extract the share nodes from shared_nodes
     sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
+    //extract the shared edges from shared_edges
+    sc_hash_array_rip (shared_edges, &mesh->shared_edges);
     
     local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
     local[1] = mesh->local_n_elements = mesh->elements.elem_count;
 
     
 #ifdef HEXA_DEBUG_
-#if  0
-    fprintf(tree->fdbg, "Nodes: \n");
-    for(int i = 0; i < tree->nodes.elem_count; ++i)
+    fprintf(mesh->fdbg, "Nodes: \n");
+    for(int i = 0; i < mesh->nodes.elem_count; ++i)
     {
-        octant_node_t* n = (octant_node_t*) sc_array_index(&tree->nodes,i);
-        fprintf(tree->fdbg, "(%d): %d %d %d\n", n->id, n->x, n->y, n->z);
+        octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
+        fprintf(mesh->fdbg, "(%d): %d %d %d\n", n->id, n->x, n->y, n->z);
     }
     
-    fprintf(tree->fdbg, "Shared Nodes: \n");
-    for(int i = 0; i < tree->shared_nodes.elem_count; ++i)
+    fprintf(mesh->fdbg, "Shared Nodes: \n");
+    fprintf(mesh->fdbg, "Total: %d\n",mesh->shared_nodes.elem_count);
+    for(int i = 0; i < mesh->shared_nodes.elem_count; ++i)
     {
-        shared_node_t* sn = (shared_node_t*) sc_array_index(&tree->shared_nodes,i);
-        fprintf(tree->fdbg, "(%d): %d %d %d\n", sn->id, sn->x, sn->y, sn->z);
-        fprintf(tree->fdbg, "     shared with processors: ");
-        for(int j = 0; j < sn->listSz; j++)
-            fprintf(tree->fdbg, "%d ", sn->rankList[j]);
-        fprintf(tree->fdbg, "\n");
+        shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
+        fprintf(mesh->fdbg, "(%d): %d %d %d\n", sn->id, sn->x, sn->y, sn->z);
+        fprintf(mesh->fdbg, "     shared with processors: ");
+        for(int j = 0; j < sn->listSz; j++){
+            fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+        }
+        fprintf(mesh->fdbg, "\n");
     }
-#endif
+    fprintf(mesh->fdbg, "Shared Edges: \n");
+    fprintf(mesh->fdbg, "Total: %d\n",mesh->shared_edges.elem_count);
+    for(int i = 0; i < mesh->shared_edges.elem_count; ++i){
+        shared_edge_t* sn = (shared_edge_t*) sc_array_index(&mesh->shared_edges,i);
+        fprintf(mesh->fdbg, "%d\n", sn->id);
+        fprintf(mesh->fdbg, "     shared with processors: ");
+            for(int j = 0; j < sn->listSz; j++){
+                fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+            }
+            fprintf(mesh->fdbg, "\n");
+    }
+    
 #endif
     
 

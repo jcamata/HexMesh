@@ -44,6 +44,13 @@ typedef struct shared_node
   int32_t      rankList[8];
 } shared_node_t;
 
+typedef struct shared_edge
+{
+  int32_t      id;
+  int32_t      listSz;
+  int32_t      rankList[4];
+} shared_edge_t;
+
 typedef struct 
 {
     int rank;
@@ -74,15 +81,18 @@ typedef struct {
     
     int64_t total_n_elements;
     int64_t total_n_nodes;
-    int        total_n_mat;
+    int64_t total_n_edges;
+    int64_t total_n_mat;
     
     int32_t local_n_elements;
     int32_t local_n_nodes;
+    int32_t local_n_edges;
     int32_t max_step;
     
     sc_array_t      elements;
     sc_array_t      nodes;
     sc_array_t      shared_nodes; 
+    sc_array_t      shared_edges;
     int64_t *global_id;
     int32_t *part_nodes;
     int32_t ncellx;
