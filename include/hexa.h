@@ -15,6 +15,8 @@
 #include <gts.h>
 #include <vector>
 
+#include "hilbert.h"
+
 #define HEXA_DEBUG_
 
 typedef struct {
@@ -22,6 +24,12 @@ typedef struct {
     int32_t x,y,z;
     int color;
 } octant_node_t;
+
+typedef struct {
+    int32_t id;
+    bool ref;
+    bitmask_t coord[2];
+} octant_edge_t;
 
 typedef struct {
     int32_t    x,y,z;
@@ -33,6 +41,7 @@ typedef struct {
     unsigned int edge_id[12];
     bool edge_ref[12];
     octant_node_t nodes[8];
+    octant_edge_t edge[12];
     int32_t    id;
 } octant_t;
 
@@ -90,9 +99,11 @@ typedef struct {
     int32_t max_step;
     
     sc_array_t      elements;
+    sc_array_t      edges;
     sc_array_t      nodes;
     sc_array_t      shared_nodes; 
     sc_array_t      shared_edges;
+    sc_array_t      edges_ref;
     int64_t *global_id;
     int32_t *part_nodes;
     int32_t ncellx;
@@ -108,6 +119,7 @@ typedef struct {
     int32_t y_end;
     int neighbors[9];
     comm_map_t comm_map;
+    comm_map_t  comm_map_edge;
 #ifdef HEXA_DEBUG_
     FILE* fdbg;
 #endif

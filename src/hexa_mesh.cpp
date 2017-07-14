@@ -6,11 +6,6 @@
 #include "refinement.h"
 #include "hilbert.h"
 
-typedef struct {
-	bitmask_t coord[2];
-	unsigned int edge_id;
-} edge_id_t;
-
 void communicate_global_ids(hexa_tree_t* mesh);
 
 unsigned node_hash_fn (const void *v, const void *u)
@@ -82,7 +77,7 @@ void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* no
 }
 
 unsigned edge_hash_f(const void *v, const void *u) {
-	const edge_id_t *q = (const edge_id_t*) v;
+	const octant_edge_t *q = (const octant_edge_t*) v;
 	uint32_t a, b, c;
 
 	a = (uint32_t) q->coord[0];
@@ -94,8 +89,8 @@ unsigned edge_hash_f(const void *v, const void *u) {
 }
 
 int edge_equal_f(const void *v, const void *u, const void *w) {
-	const edge_id_t *e1 = (const edge_id_t*) v;
-	const edge_id_t *e2 = (const edge_id_t*) u;
+	const octant_edge_t *e1 = (const octant_edge_t*) v;
+	const octant_edge_t *e2 = (const octant_edge_t*) u;
 
 	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e1->coord[1] == e2->coord[1]));
 
@@ -103,22 +98,21 @@ int edge_equal_f(const void *v, const void *u, const void *w) {
 
 unsigned int edge_id(int* nodes, sc_hash_array_t* hash, int &npoints) {
 	size_t position;
-	edge_id_t *r;
-	edge_id_t key;
+	octant_edge_t *r;
+	octant_edge_t key;
 	key.coord[0] = nodes[0];
 	key.coord[1] = nodes[1];
 
-	r = (edge_id_t*) sc_hash_array_insert_unique(hash, &key, &position);
+	r = (octant_edge_t*) sc_hash_array_insert_unique(hash, &key, &position);
 	if (r != NULL) {
 		r->coord[0] = key.coord[0];
 		r->coord[1] = key.coord[1];
-		r->coord[2] = key.coord[2];
-		r->edge_id = npoints;
+		r->id = npoints;
 		npoints++;
-		return r->edge_id;
+		return r->id;
 	} else {
-		r = (edge_id_t*) sc_array_index(&hash->a, position);
-		return r->edge_id;
+		r = (octant_edge_t*) sc_array_index(&hash->a, position);
+		return r->id;
 	}
 }
 
@@ -160,10 +154,10 @@ void hexa_mesh(hexa_tree_t* mesh)
     size_t              position;
     octant_node_t      *r;
     int num_indep_nodes = 0;
-    int64_t    local[2], global[2];
+    int64_t    local[3], global[3];
     
     indep_nodes     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
-    indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_f, edge_equal_f, &clamped);
+    indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_edge_t), edge_hash_f, edge_equal_f, &clamped);
     shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
     shared_edges    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_f, edge_equal_f, &clamped);
     
@@ -173,6 +167,8 @@ void hexa_mesh(hexa_tree_t* mesh)
         octant_t *h  = (octant_t*) sc_array_index(&mesh->elements, i);
         for(int j = 0; j < 8; j++) {
             octant_node_t* node = &h->nodes[j];
+            //initialization for the node color
+            node->color = -1;
             r = (octant_node_t*) sc_hash_array_insert_unique (indep_nodes, node, &position);
             if(r != NULL)
             {
@@ -232,18 +228,8 @@ void hexa_mesh(hexa_tree_t* mesh)
                  hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[5]);
     }
     
-    //initialization for the node color
-    for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
-        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-        for(int j = 0; j < 8; j++) {
-                octant_node_t* node = &elem->nodes[j];
-                node->color=-1;
-        }
-    }
-    
     //add edge_identification
-    int npoints = 0;    
-    sc_hash_array_t* hash_edge = sc_hash_array_new(sizeof (edge_id_t), edge_hash_f, edge_equal_f, &clamped);
+    int nedges = 0;    
     //initialization for the edge id
     for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
@@ -257,12 +243,18 @@ void hexa_mesh(hexa_tree_t* mesh)
 
             Edge2GNode[0] = node1 <= node2 ? node1 : node2;
             Edge2GNode[1] = node1 >= node2 ? node1 : node2;
-
-            elem->edge_id[edge] = edge_id(Edge2GNode, hash_edge, npoints);
+            // TODO must be removed
+            elem->edge_id[edge] = edge_id(Edge2GNode, indep_edges, nedges);
             elem->edge_ref[edge] = false;  
+            
+            //new data structure 
+            elem->edge[edge].id = edge_id(Edge2GNode, indep_edges, nedges);
+            elem->edge[edge].ref = false;  
+            elem->edge[edge].coord[0] = Edge2GNode[0];
+            elem->edge[edge].coord[1] = Edge2GNode[1];
         }
     }
-
+    
     // create the shared edges hash
     for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
@@ -302,6 +294,10 @@ void hexa_mesh(hexa_tree_t* mesh)
     // getting global index
     // building communication map
     //
+
+    //extract the edges from indep_edges
+    
+    sc_hash_array_rip (indep_edges,  &mesh->edges);
     //extract the share nodes from shared_nodes
     sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
     //extract the shared edges from shared_edges
@@ -309,7 +305,7 @@ void hexa_mesh(hexa_tree_t* mesh)
     
     local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
     local[1] = mesh->local_n_elements = mesh->elements.elem_count;
-
+    local[2] = mesh->local_n_edges = mesh->edges.elem_count;
     
 #ifdef HEXA_DEBUG_
     fprintf(mesh->fdbg, "Nodes: \n");
@@ -345,7 +341,7 @@ void hexa_mesh(hexa_tree_t* mesh)
     
 #endif
     
-
+    // node map
     int not_my_nodes    = 0;
     int my_own_nodes    = 0;
     mesh->global_id     = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
@@ -403,22 +399,81 @@ void hexa_mesh(hexa_tree_t* mesh)
     
     local[0] -= not_my_nodes;
     
-    MPI_Allreduce(local, global,2,MPI_LONG_LONG_INT,MPI_SUM,MPI_COMM_WORLD);
+    sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
+    sc_hash_array_rip(SendTo  , &mesh->comm_map.SendTo   );
+    
+    //edge map
+    int not_my_edges    = 0;
+    int my_own_edges    = 0;
+
+    SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+    RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+    
+    for(int i = 0; i < mesh->shared_edges.elem_count; ++i)
+    { 
+        shared_edge_t* sn = (shared_edge_t*) sc_array_index(&mesh->shared_edges,i);
+        for(int j = 0; j < sn->listSz; j++)
+        {
+            if(sn->rankList[j] < mesh->mpi_rank) {               
+                message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&sn->rankList[j],&position);
+                if(m!=NULL)
+                {
+                    m->rank  = sn->rankList[j];
+                    sc_array_init(&m->idxs, sizeof(uint32_t));
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+                    *p = sn->id;
+                } else
+                {
+                    message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+                    *p = sn->id;   
+                }
+                my_own_edges++;
+            } 
+            else if (sn->rankList[j] > mesh->mpi_rank)
+            {
+                message_t *m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&sn->rankList[j],&position);
+                if(m!=NULL)
+                {
+                    m->rank  = sn->rankList[j];
+                    sc_array_init(&m->idxs, sizeof(uint32_t));
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+                    *p = sn->id;
+                } else
+                {
+                    message_t* m = (message_t*)sc_array_index(&RecvFrom->a, position);
+                    uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+                    *p = sn->id;   
+                }
+                not_my_edges++;
+            }
+        }
+         
+    }
+    
+    local[2] -= not_my_edges;
+    
+    sc_hash_array_rip(RecvFrom, &mesh->comm_map_edge.RecvFrom );
+    sc_hash_array_rip(SendTo  , &mesh->comm_map_edge.SendTo   );
+    
+    MPI_Allreduce(local, global,3,MPI_LONG_LONG_INT,MPI_SUM,MPI_COMM_WORLD);
     
     mesh->total_n_nodes    = global[0];
     mesh->total_n_elements = global[1];
+    mesh->total_n_edges = global[2];
    
     if(mesh->mpi_rank == 0)
     {
         printf("Total number of elements: %lld\n", mesh->total_n_elements);
+        printf("Total number of edges: %lld\n", mesh->total_n_edges);
         printf("Total number of nodes: %lld\n", mesh->total_n_nodes);
     }
     
-    sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
-    sc_hash_array_rip(SendTo  , &mesh->comm_map.SendTo   );
+
     
 #ifdef HEXA_DEBUG_
-#if 1
+//nodes
+    fprintf(mesh->fdbg,"Nodes:\n");
     fprintf(mesh->fdbg, "Recv from %ld processors\n", mesh->comm_map.RecvFrom.elem_count);
     for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
     {
@@ -432,6 +487,7 @@ void hexa_mesh(hexa_tree_t* mesh)
         }
             
     }
+    fprintf(mesh->fdbg,"\n");
     fprintf(mesh->fdbg, "Send to %ld processors\n", mesh->comm_map.SendTo.elem_count);
     for(int i=0; i < mesh->comm_map.SendTo.elem_count; i++)
     {
@@ -445,10 +501,40 @@ void hexa_mesh(hexa_tree_t* mesh)
         }
         
     }
-#endif
+
+    
+    //edges
+    fprintf(mesh->fdbg,"Edges:\n");
+    fprintf(mesh->fdbg, "Recv from %ld processors\n", mesh->comm_map_edge.RecvFrom.elem_count);
+    for(int i=0; i < mesh->comm_map_edge.RecvFrom.elem_count; i++)
+    {
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+        fprintf(mesh->fdbg, "  \n Recv %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+        for(int j =0; j < m->idxs.elem_count; j++)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            fprintf(mesh->fdbg, "%d ", *id);
+            if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+        }
+            
+    }
+    fprintf(mesh->fdbg,"\n");
+    fprintf(mesh->fdbg, "Send to %ld processors\n", mesh->comm_map_edge.SendTo.elem_count);
+    for(int i=0; i < mesh->comm_map_edge.SendTo.elem_count; i++)
+    {
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
+        fprintf(mesh->fdbg, "\n Sending %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+        for(int j =0; j < m->idxs.elem_count; j++)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            fprintf(mesh->fdbg, "%d ", *id);
+            if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+        }
+        
+    }
 #endif
     
-    
+    //size for the nodes message
     mesh->comm_map.max_recvbuf_size = 0;
     for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; i++)
     {
@@ -475,6 +561,26 @@ void hexa_mesh(hexa_tree_t* mesh)
     int count = offset;
     for(int i=0; i < mesh->local_n_nodes; ++i)
         if(mesh->global_id[i] != -1) mesh->global_id[i] = count++;
+    
+    //size for the edges message
+    mesh->comm_map_edge.max_recvbuf_size = 0;
+    for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; i++)
+    {
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+        mesh->comm_map_edge.max_recvbuf_size +=  m->idxs.elem_count;
+    }
+    
+    mesh->comm_map_edge.max_sendbuf_size = 0;
+    for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; i++)
+    {
+        message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
+        mesh->comm_map_edge.max_sendbuf_size +=  m->idxs.elem_count;
+    }
+    
+
+    
+    mesh->comm_map_edge.nrequests = mesh->comm_map_edge.RecvFrom.elem_count + 
+                                     mesh->comm_map_edge.SendTo.elem_count;
     
     
     communicate_global_ids(mesh);

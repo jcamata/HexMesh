@@ -5,6 +5,7 @@
 using namespace std;
 #include <set>
 #include <algorithm>
+#include <assert.h>
 #include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
@@ -12,14 +13,9 @@ using namespace std;
 
 #include "hexa.h"
 #include "refinement.h"
-#include "hilbert.h"
-
-typedef struct {
-	unsigned int id;
-} name_t;
 
 unsigned id_hash(const void *v, const void *u) {
-	const name_t *q = (const name_t*) v;
+	const octant_edge_t *q = (const octant_edge_t*) v;
 	uint32_t a, b, c;
 
 	a = (uint32_t) q->id;
@@ -31,20 +27,20 @@ unsigned id_hash(const void *v, const void *u) {
 }
 
 int id_equal(const void *v, const void *u, const void *w) {
-	const name_t *e1 = (const name_t*) v;
-	const name_t *e2 = (const name_t*) u;
+	const octant_edge_t *e1 = (const octant_edge_t*) v;
+	const octant_edge_t *e2 = (const octant_edge_t*) u;
 
 	return (unsigned) ((e1->id == e2->id));
 
 }
 
-void edge_add(int edge_id, sc_hash_array_t* hash_id ) {
+void edge_add(int id, sc_hash_array_t* hash_edge_ref ) {
 	size_t position;
-	name_t *r;
-	name_t key;
-        key.id = edge_id;
+	octant_edge_t *r;
+	octant_edge_t key;
+        key.id = id;
 
-        r = (name_t*) sc_hash_array_insert_unique(hash_id, &key, &position);
+        r = (octant_edge_t*) sc_hash_array_insert_unique(hash_edge_ref, &key, &position);
         if(r != NULL)
         {
             r->id = key.id;
@@ -72,7 +68,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		int ed_cont = 0;
 
 		for (int edge = 0; edge < 12; ++edge) {
-			if(elem->edge_ref[edge]){
+			if(elem->edge[edge].ref){
 				ed_cont++;
 			}
 		}
@@ -84,97 +80,97 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		// element verification
 		// template 1
 		if(ed_cont == 1){
-			if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 10;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 11;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 12;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 13;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 14;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 15;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 16;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 17;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 18;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 19;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 20;
 				elem->tem = 1;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 21;
 				elem->tem = 1;
@@ -183,25 +179,25 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 2
 		if(ed_cont == 4){
-			if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 22;
 				elem->tem = 2;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 23;
 				elem->tem = 2;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 24;
 				elem->tem = 2;
@@ -210,97 +206,97 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 3
 		if(ed_cont == 2){
-			if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 25;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 26;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 27;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 28;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 29;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 30;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 31;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 32;
 				elem->tem = 3;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 33;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 34;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 35;
 				elem->tem = 3;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 36;
 				elem->tem = 3;
@@ -309,97 +305,97 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 4
 		if(ed_cont == 4){
-			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 37;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 38;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 39;
 				elem->tem = 4;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 40;
 				elem->tem = 4;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 41;
 				elem->tem = 4;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 42;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 43;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 44;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 45;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 46;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 47;
 				elem->tem = 4;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 48;
 				elem->tem = 4;
@@ -409,49 +405,49 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		//template 5
 		if(ed_cont == 4 || ed_cont == 3 || ed_cont == 2){
 			//template 5 com 4
-			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 49;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 50;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 51;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 52;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 53;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 54;
 				elem->tem = 5;
@@ -460,193 +456,193 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 
 			//template 5 com 3
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 55;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 56;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 57;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 58;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 59;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 60;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 61;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 62;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 63;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 64;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 65;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 66;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 67;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 68;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 69;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 70;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 71;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 72;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 73;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 74;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 75;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 76;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 77;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 78;
 				elem->tem = 5;
@@ -654,193 +650,193 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 			}
 
 			// templete 5 com 2
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 79;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 80;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 81;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 82;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 83;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 84;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 85;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 86;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 87;
 				elem->tem = 5;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 88;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 89;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 90;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 91;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 92;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 93;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 94;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 95;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 96;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 97;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 98;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 99;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 100;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 101;
 				elem->tem = 5;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 102;
 				elem->tem = 5;
@@ -849,97 +845,97 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 6
 		if(ed_cont == 6){
-			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 103;
 				elem->tem = 6;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 104;
 				elem->tem = 6;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 105;
 				elem->tem = 6;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 106;
 				elem->tem = 6;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 107;
 				elem->tem = 6;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 108;
 				elem->tem = 6;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 109;
 				elem->tem = 6;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 110;
 				elem->tem = 6;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 111;
 				elem->tem = 6;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 112;
 				elem->tem = 6;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 113;
 				elem->tem = 6;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 114;
 				elem->tem = 6;
@@ -948,65 +944,65 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 7
 		if(ed_cont == 3){
-			if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 115;
 				elem->tem = 7;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 116;
 				elem->tem = 7;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 117;
 				elem->tem = 7;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 118;
 				elem->tem = 7;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 119;
 				elem->tem = 7;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 120;
 				elem->tem = 7;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 121;
 				elem->tem = 7;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 122;
 				elem->tem = 7;
@@ -1015,25 +1011,25 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 8
 		if(ed_cont == 8){
-			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 123;
 				elem->tem = 8;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 124;
 				elem->tem = 8;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 125;
 				elem->tem = 8;
@@ -1042,49 +1038,49 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 9
 		if(ed_cont == 8){
-			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 126;
 				elem->tem = 9;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 127;
 				elem->tem = 9;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 128;
 				elem->tem = 9;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 129;
 				elem->tem = 9;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 130;
 				elem->tem = 9;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 131;
 				elem->tem = 9;
@@ -1093,97 +1089,97 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		}
 		//template 10
 		if(ed_cont == 5){
-			if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 132;
 				elem->tem = 10;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 133;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 134;
 				elem->tem = 10;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 135;
 				elem->tem = 10;
 
 			}
-			else if ( (elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 136;
 				elem->tem = 10;
 
 			}
-			else if ( (elem->edge_ref[0]) && (elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (elem->edge[0].ref) && (elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 137;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (elem->edge_ref[1]) && (elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (elem->edge[1].ref) && (elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 138;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (elem->edge_ref[2]) && (elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (elem->edge[2].ref) && (elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 139;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (elem->edge_ref[5]) && (!elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (!elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (elem->edge[5].ref) && (!elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (!elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 140;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (elem->edge_ref[5]) && (elem->edge_ref[6]) && (!elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (!elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (elem->edge[5].ref) && (elem->edge[6].ref) && (!elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (!elem->edge[11].ref)) {
 
 				elem->pad = 141;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(!elem->edge_ref[4]) && (!elem->edge_ref[5]) && (elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(!elem->edge_ref[8]) && (elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(!elem->edge[4].ref) && (!elem->edge[5].ref) && (elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(!elem->edge[8].ref) && (elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 142;
 				elem->tem = 10;
 
 			}
-			else if ( (!elem->edge_ref[0]) && (!elem->edge_ref[1]) && (!elem->edge_ref[2]) && (!elem->edge_ref[3]) &&
-					(elem->edge_ref[4]) && (!elem->edge_ref[5]) && (!elem->edge_ref[6]) && (elem->edge_ref[7]) &&
-					(elem->edge_ref[8]) && (!elem->edge_ref[9]) && (elem->edge_ref[10]) && (elem->edge_ref[11])) {
+			else if ( (!elem->edge[0].ref) && (!elem->edge[1].ref) && (!elem->edge[2].ref) && (!elem->edge[3].ref) &&
+					(elem->edge[4].ref) && (!elem->edge[5].ref) && (!elem->edge[6].ref) && (elem->edge[7].ref) &&
+					(elem->edge[8].ref) && (!elem->edge[9].ref) && (elem->edge[10].ref) && (elem->edge[11].ref)) {
 
 				elem->pad = 143;
 				elem->tem = 10;
@@ -1225,7 +1221,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 	//for debug, work just in serial!!!
 #if 0
 	FILE * fdbg;
-	char filename[80];
+	char filename[80].ref;
 	sprintf(filename, "Edge_id_%04d.txt", mesh->mpi_rank);
 	fdbg = fopen(filename, "w");
 
@@ -1233,11 +1229,11 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		fprintf(fdbg,"El: %d\n",iel);
 		for (int edge = 0; edge < 12; ++edge) {
-			fprintf(fdbg,"%d ",elem->edge_id[edge]);
+			fprintf(fdbg,"%d ",elem->edge_id[edge].ref);
 		}
 		fprintf(fdbg,"\n");
 		for (int edge = 0; edge < 12; ++edge) {
-			fprintf(fdbg,"%d ",elem->edge_ref[edge]);
+			fprintf(fdbg,"%d ",elem->edge[edge].ref);
 		}
 		fprintf(fdbg,"\n");
 	}
@@ -1246,7 +1242,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 }
 
-void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash) {
+void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref) {
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -1255,655 +1251,736 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
 		//template 11
 		if(elem->pad==144){
                     for (int edge = 0; edge < 12; ++edge) {
-                        edge_add(elem->edge_id[edge], hash );
+                        edge_add(elem->edge[edge].id, hash_edge_ref );
                     }
 		}
 		//template 10
 		else if(elem->pad==143){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==142){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==141){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==140){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==139){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==138){                    
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==137){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==136){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==135){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==134){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==133){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==132){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}
 		//template 9
 		else if(elem->pad==131){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==130){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==129){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==128){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==127){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==126){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}
 		//template 8
 		else if(elem->pad==125){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==124){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );;
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );;
 		}else if(elem->pad==123){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}
 		//template 7
 		else if(elem->pad==122){
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==121){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==120){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==119){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==118){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==117){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==116){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==115){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
 		}
 		//template 6
 		else if(elem->pad==114){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[6], hash );                    
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );                    
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==113){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );                    
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );                    
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==112){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );                    
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );                    
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==111){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );                    
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );                    
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==110){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[4], hash );                    
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );                    
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==109){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[4], hash );                    
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );                    
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==108){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );                    
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );                    
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==107){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[5], hash );                    
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );                    
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==106){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );                    
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );                    
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==105){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );                    
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );;
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );                    
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );;
 		}else if(elem->pad==104){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );                    
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );                    
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==103){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );                    
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );                    
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}
 		//template 5
 		else if(elem->pad==102){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==101){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==100){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==99){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
 		}else if(elem->pad==98){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==97){
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==96){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==95){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );;
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );;
 		}else if(elem->pad==94){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==93){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==92){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==91){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==90){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
 		}else if(elem->pad==89){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==88){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );;
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );;
 		}else if(elem->pad==87){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
 		}else if(elem->pad==86){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==85){
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==84){
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==83){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==82){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}else if(elem->pad==81){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}else if(elem->pad==80){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
 		}else if(elem->pad==79){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
 		}else if(elem->pad==78){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==77){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==76){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==75){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==74){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==73){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==72){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==71){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==70){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==69){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==68){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==67){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==66){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
 		}else if(elem->pad==65){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
 		}else if(elem->pad==64){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
 		}else if(elem->pad==63){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==62){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==61){
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==60){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==59){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==58){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==57){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}else if(elem->pad==56){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
 		}else if(elem->pad==55){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}else if(elem->pad==54){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==53){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==52){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==51){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
 		}else if(elem->pad==50){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==49){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}
 		//template 4
 		else if(elem->pad==48){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==47){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==46){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==45){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==44){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==43){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==42){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==41){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==40){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==39){
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==38){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==37){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}
 		//template 3
 		else if(elem->pad==36){
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==35){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==34){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==33){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
 		}else if(elem->pad==32){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==31){
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==30){
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==29){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==28){
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==27){
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==26){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}else if(elem->pad==25){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
 		}
 		//template 2
 		else if(elem->pad==24){
-                    edge_add(elem->edge_id[4], hash );
-                    edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[6], hash );
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==23){
-                    edge_add(elem->edge_id[1], hash );
-                    edge_add(elem->edge_id[3], hash );
-                    edge_add(elem->edge_id[9], hash );
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==22){
-                    edge_add(elem->edge_id[0], hash );
-                    edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}
 		//template 1
 		else if(elem->pad==21){
-                    edge_add(elem->edge_id[11], hash );
+                    edge_add(elem->edge[11].id, hash_edge_ref );
 		}else if(elem->pad==20){
-                    edge_add(elem->edge_id[10], hash );
+                    edge_add(elem->edge[10].id, hash_edge_ref );
 		}else if(elem->pad==19){
-                    edge_add(elem->edge_id[9], hash );
+                    edge_add(elem->edge[9].id, hash_edge_ref );
 		}else if(elem->pad==18){
-                    edge_add(elem->edge_id[8], hash );
+                    edge_add(elem->edge[8].id, hash_edge_ref );
 		}else if(elem->pad==17){
-                    edge_add(elem->edge_id[7], hash );
+                    edge_add(elem->edge[7].id, hash_edge_ref );
 		}else if(elem->pad==16){
-                    edge_add(elem->edge_id[6], hash );
+                    edge_add(elem->edge[6].id, hash_edge_ref );
 		}else if(elem->pad==15){
-                    edge_add(elem->edge_id[5], hash );
+                    edge_add(elem->edge[5].id, hash_edge_ref );
 		}else if(elem->pad==14){
-                    edge_add(elem->edge_id[4], hash );
+                    edge_add(elem->edge[4].id, hash_edge_ref );
 		}else if(elem->pad==13){
-                    edge_add(elem->edge_id[3], hash );
+                    edge_add(elem->edge[3].id, hash_edge_ref );
 		}else if(elem->pad==12){
-                    edge_add(elem->edge_id[2], hash );
+                    edge_add(elem->edge[2].id, hash_edge_ref );
 		}else if(elem->pad==11){
-                    edge_add(elem->edge_id[1], hash );
+                    edge_add(elem->edge[1].id, hash_edge_ref );
 		}else if(elem->pad==10){
-                    edge_add(elem->edge_id[0], hash );
+                    edge_add(elem->edge[0].id, hash_edge_ref );
 		}
 	}
+        
+        size_t position;
+        for (int iedge = 0; iedge< mesh->shared_edges.elem_count; iedge++){
+            
+            octant_edge_t* shared_ed = (octant_edge_t*) sc_array_index(&mesh->shared_edges, iedge);
+
+            bool out =  sc_hash_array_lookup(hash_edge_ref, &shared_ed->id, &position);	
+
+            if (out){
+               shared_ed->ref = true;
+            }
+
+        }
 }
+
+void Edge_comunication(hexa_tree_t* mesh){
+    int          n_requests;
+    
+    MPI_Request *requests;
+    MPI_Status  *statuses;
+    int    *recvbuf;
+    int   *sendbuf;
+    
+    n_requests = mesh->comm_map_edge.nrequests;
+    recvbuf    = (int*)malloc(mesh->comm_map_edge.max_recvbuf_size*sizeof(int));
+    sendbuf    = (int*)malloc(mesh->comm_map_edge.max_sendbuf_size*sizeof(int));
+    
+    requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+    statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+    int c = 0;
+
+    
+    int offset = 0;
+   
+    // post all non-blocking receives
+    for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i) {
+        message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+        MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+        offset += m->idxs.elem_count;
+        c++;
+    }
+
+    assert(offset == mesh->comm_map_edge.max_recvbuf_size);
+    
+    offset = 0;
+    for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i) {
+         message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
+         for(int j = 0; j < m->idxs.elem_count; ++j){
+             int *id = (int*) sc_array_index(&m->idxs,j);
+             sendbuf[j] = (int) *id;
+         }
+         MPI_Isend(&sendbuf, m->idxs.elem_count, MPI_INT, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+         offset += m->idxs.elem_count;
+         c++;
+    }
+    
+    assert(offset == mesh->comm_map.max_sendbuf_size);
+     
+    assert(c == n_requests);
+     
+    MPI_Waitall(n_requests,requests,statuses);
+    /*
+    offset = 0;
+    for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
+        message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+        for(int j = 0; j < m->idxs.elem_count; ++j)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            mesh->global_id[*id] = recvbuf[offset+j];
+        }
+        offset += m->idxs.elem_count;
+    }
+       * */  
+    free(&recvbuf[0]);
+    free(&sendbuf[0]);
+    free(requests);
+    free(statuses);
+    
+}
+
+
+
 
 void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_id) {
 
     size_t position;
     
-	for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+    for(int iel= 0; iel < mesh->total_n_elements; iel++ ){
+            octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-		for (int edge = 0; edge < 12; ++edge) {
-                    bool out = false;
-                    out =  sc_hash_array_lookup(hash_id, &elem->edge_id[edge], &position);	
-                    
-                    if(out){
-                        elem->edge_ref[edge]=true;
-                        elem->pad = -1;
-                        elements_ids.push_back(iel);
-                    }
-		}
-	}
-	//cleaning the element vector
-	std::sort( elements_ids.begin(), elements_ids.end() );
-	elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
+            for (int edge = 0; edge < 12; ++edge) {
+                bool out = false;
+                out =  sc_hash_array_lookup(hash_id, &elem->edge[edge].id, &position);	
+
+                if(out){
+                    elem->edge[edge].ref=true;
+                    elem->pad = -1;
+                    elements_ids.push_back(iel);
+                }
+            }
+    }
+    //cleaning the element vector
+    std::sort( elements_ids.begin(), elements_ids.end() );
+    elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
 }
 
 void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids, bool flag) {
@@ -1912,7 +1989,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
         int npoints = 0;
         
 	sc_array_t *elements = &mesh->elements;        
-        sc_hash_array_t* hash_id = sc_hash_array_new(sizeof (name_t), id_hash, id_equal, &clamped);
+        sc_hash_array_t* hash_edge_ref = sc_hash_array_new(sizeof (octant_edge_t), id_hash, id_equal, &clamped);
         
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -1939,7 +2016,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 				GtsBBox *b = GTS_BBOX(list->data);
 				point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
 				if (point[edge]) {
-					elem->edge_ref[edge] = true;
+					elem->edge[edge].ref = true;
 					ed_cont++;
 					break;
 				}
@@ -1952,7 +2029,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 			elements_ids.erase(elements_ids.begin() + iel);
 			elem->pad = 0;
 			for (int edge = 0; edge < 12; ++edge) {
-				elem->edge_ref[edge] = false;
+				elem->edge[edge].ref = false;
 			}
 		}
 
@@ -1969,11 +2046,13 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 		printf("numero %d\n",i);
 		printf(" Elements ref: %d\n", elements_ids.size());
 		IdentifyTemplate(mesh, coords, elements_ids);
-		Edge_identification( mesh, elements_ids, hash_id);
-                printf("Tamanho da hash: %d\n",hash_id->a.elem_count);
-		Edge_propagation( mesh, elements_ids, hash_id);
+		Edge_identification( mesh, elements_ids, hash_edge_ref);
+                //Edge_comunication(mesh);
+		Edge_propagation( mesh, elements_ids, hash_edge_ref);
 	}
 	printf(" Elements ref: %d\n", elements_ids.size());
 	IdentifyTemplate(mesh, coords, elements_ids);
+        
+        sc_hash_array_rip(hash_edge_ref,&mesh->edges_ref);
 
 }
