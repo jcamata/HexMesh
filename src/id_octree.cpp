@@ -1256,7 +1256,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
 		if(elem->pad==144){
                     for (int edge = 0; edge < 12; ++edge) {
                         edge_add(elem->edge_id[edge], hash );
-                            //edges_ids.push_back(elem->edge_id[edge]);
                     }
 		}
 		//template 10
@@ -1266,132 +1265,72 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==142){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==141){
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==140){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==139){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==138){                    
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==137){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==136){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==135){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==134){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==133){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==132){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}
 		//template 9
 		else if(elem->pad==131){
@@ -1403,14 +1342,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==130){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
@@ -1420,14 +1351,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==129){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
@@ -1437,14 +1360,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==128){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
@@ -1454,14 +1369,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==127){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
@@ -1471,14 +1378,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==126){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
@@ -1488,14 +1387,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}
 		//template 8
 		else if(elem->pad==125){
@@ -1507,14 +1398,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==124){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
@@ -1523,15 +1406,7 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[8], hash );
-                    edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
+                    edge_add(elem->edge_id[10], hash );;
 		}else if(elem->pad==123){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
@@ -1541,72 +1416,40 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}
 		//template 7
 		else if(elem->pad==122){
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==121){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==120){
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==119){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==118){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==117){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==116){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==115){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
 		}
 		//template 6
 		else if(elem->pad==114){
@@ -1616,12 +1459,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==113){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
@@ -1629,12 +1466,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==112){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
@@ -1642,12 +1473,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==111){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
@@ -1655,12 +1480,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==110){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
@@ -1668,12 +1487,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==109){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
@@ -1681,12 +1494,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==108){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
@@ -1694,12 +1501,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==107){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
@@ -1707,12 +1508,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==106){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
@@ -1720,25 +1515,13 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==105){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );                    
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-                    edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
+                    edge_add(elem->edge_id[11], hash );;
 		}else if(elem->pad==104){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
@@ -1746,12 +1529,6 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==103){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
@@ -1759,356 +1536,206 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}
 		//template 5
 		else if(elem->pad==102){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==101){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==100){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==99){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==98){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==97){
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==96){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==95){
                     edge_add(elem->edge_id[2], hash );
-                    edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[6]);
+                    edge_add(elem->edge_id[6], hash );;
 		}else if(elem->pad==94){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==93){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==92){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==91){
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==90){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[4], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==89){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==88){
                     edge_add(elem->edge_id[5], hash );
-                    edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
+                    edge_add(elem->edge_id[8], hash );;
 		}else if(elem->pad==87){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[4], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==86){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==85){
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==84){
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==83){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==82){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==81){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==80){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
 		}else if(elem->pad==79){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
 		}else if(elem->pad==78){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==77){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==76){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==75){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==74){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==73){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==72){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==71){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==70){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==69){
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==68){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==67){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==66){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==65){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==64){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==63){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==62){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==61){
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==60){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==59){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==58){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==57){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==56){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
 		}else if(elem->pad==55){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==54){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==53){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[10], hash );
-                        //edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==52){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==51){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==50){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==49){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}
 		//template 4
 		else if(elem->pad==48){
@@ -2116,171 +1743,99 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==47){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==46){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==45){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==44){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==43){
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==42){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==41){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==40){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==39){
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[10], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[10]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==38){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==37){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}
 		//template 3
 		else if(elem->pad==36){
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==35){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==34){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==33){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==32){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==31){
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==30){
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==29){
                     edge_add(elem->edge_id[4], hash );
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==28){
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==27){
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==26){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==25){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
 		}
 		//template 2
 		else if(elem->pad==24){
@@ -2288,83 +1843,44 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
                     edge_add(elem->edge_id[5], hash );
                     edge_add(elem->edge_id[6], hash );
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
-			//edges_ids.push_back(elem->edge_id[5]);
-			//edges_ids.push_back(elem->edge_id[6]);
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==23){
                     edge_add(elem->edge_id[1], hash );
                     edge_add(elem->edge_id[3], hash );
                     edge_add(elem->edge_id[9], hash );
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
-			//edges_ids.push_back(elem->edge_id[3]);
-			//edges_ids.push_back(elem->edge_id[9]);
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==22){
                     edge_add(elem->edge_id[0], hash );
                     edge_add(elem->edge_id[2], hash );
                     edge_add(elem->edge_id[8], hash );
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
-			//edges_ids.push_back(elem->edge_id[2]);
-			//edges_ids.push_back(elem->edge_id[8]);
-			//edges_ids.push_back(elem->edge_id[10]);
 		}
 		//template 1
 		else if(elem->pad==21){
                     edge_add(elem->edge_id[11], hash );
-			//edges_ids.push_back(elem->edge_id[11]);
 		}else if(elem->pad==20){
                     edge_add(elem->edge_id[10], hash );
-			//edges_ids.push_back(elem->edge_id[10]);
 		}else if(elem->pad==19){
                     edge_add(elem->edge_id[9], hash );
-			//edges_ids.push_back(elem->edge_id[9]);
 		}else if(elem->pad==18){
                     edge_add(elem->edge_id[8], hash );
-			//edges_ids.push_back(elem->edge_id[8]);
 		}else if(elem->pad==17){
                     edge_add(elem->edge_id[7], hash );
-			//edges_ids.push_back(elem->edge_id[7]);
 		}else if(elem->pad==16){
                     edge_add(elem->edge_id[6], hash );
-			//edges_ids.push_back(elem->edge_id[6]);
 		}else if(elem->pad==15){
                     edge_add(elem->edge_id[5], hash );
-			//edges_ids.push_back(elem->edge_id[5]);
 		}else if(elem->pad==14){
                     edge_add(elem->edge_id[4], hash );
-			//edges_ids.push_back(elem->edge_id[4]);
 		}else if(elem->pad==13){
                     edge_add(elem->edge_id[3], hash );
-			//edges_ids.push_back(elem->edge_id[3]);
 		}else if(elem->pad==12){
                     edge_add(elem->edge_id[2], hash );
-			//edges_ids.push_back(elem->edge_id[2]);
 		}else if(elem->pad==11){
                     edge_add(elem->edge_id[1], hash );
-			//edges_ids.push_back(elem->edge_id[1]);
 		}else if(elem->pad==10){
                     edge_add(elem->edge_id[0], hash );
-			//edges_ids.push_back(elem->edge_id[0]);
 		}
 	}
-
-	//TODO check the time of the two implementations
-	//printf(" Edges intercepted: %d\n", edges_ids.size());
-
-	//remove duplicates edges
-	//std::set<int> s;
-	//unsigned size = edges_ids.size();
-	//for( unsigned i = 0; i < size; ++i ) s.insert( edges_ids[i] );
-	//edges_ids.assign( s.begin(), s.end() );
-	//printf("Cleaned Edges intercepted: %d\n", edges_ids.size());
-
-	//std::sort( edges_ids.begin(), edges_ids.end() );
-	//edges_ids.erase( std::unique( edges_ids.begin(), edges_ids.end() ), edges_ids.end() );
-	//printf("Cleaned Edges intercepted: %d\n", edges_ids.size());
-
 }
 
 void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_id) {
