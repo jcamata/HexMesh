@@ -435,7 +435,7 @@ void hexa_mesh(hexa_tree_t* mesh){
                                      mesh->comm_map.SendTo.elem_count;
 
     int offset = 0;
-    int my_nodes = mesh->local_n_nodes - not_my_nodes;
+    //int my_nodes = mesh->local_n_nodes - not_my_nodes;
     MPI_Scan(&my_own_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
     int count = offset;
@@ -708,23 +708,17 @@ void hexa_mesh(hexa_tree_t* mesh){
                                      mesh->comm_map_edge.SendTo.elem_count;
     
     //find the global edge_id
-    /*
     offset = 0;
-    my_nodes = mesh->local_n_nodes - not_my_nodes;
-    MPI_Scan(&my_own_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    int my_edges = mesh->local_n_edges - not_my_edges;
+    printf("my own edges:%d rank:%d\n",my_own_edges,mesh->mpi_rank);
+    MPI_Scan(&my_own_edges, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
     count = offset;
     for(int i=0; i < mesh->edges.elem_count; ++i)
         if(mesh->global_edge_id[i] != -1) mesh->global_edge_id[i] = count++;
 
     communicate_global_edge_ids(mesh);
-    
-    //update edge_id
-    for(int i = 0; i < mesh->edges.elem_count; ++i){
-        octant_edge_t* n = (octant_edge_t*) sc_array_index(&mesh->edges,i);
-        n->id=mesh->global_edge_id[i];
-    }
-    
+       
 #ifdef HEXA_DEBUG_
     fprintf(mesh->fdbg, "Offset: %d\n", offset);
 
@@ -732,11 +726,17 @@ void hexa_mesh(hexa_tree_t* mesh){
     fprintf(mesh->fdbg, "Edges number:%d \n",mesh->edges.elem_count);
     for(int i = 0; i < mesh->edges.elem_count; ++i){
         octant_edge_t* n = (octant_edge_t*) sc_array_index(&mesh->edges,i);
-        fprintf(mesh->fdbg, "id:%d  global:%d\n", n->id, mesh->global_edge_id[i]);
-    }
-
+        fprintf(mesh->fdbg, "id:%d  global:%ld\n", n->id, mesh->global_edge_id[i]);
+}
 #endif    
-    */
+    
+    //update edge_id
+    for(int i = 0; i < mesh->edges.elem_count; ++i){
+        octant_edge_t* n = (octant_edge_t*) sc_array_index(&mesh->edges,i);
+        n->id=mesh->global_edge_id[i];
+    }
+    
+    
     local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
     local[1] = mesh->local_n_elements = mesh->elements.elem_count;
     
@@ -821,3 +821,65 @@ void communicate_global_ids(hexa_tree_t* mesh){
         
 }
 
+void communicate_global_edge_ids(hexa_tree_t* mesh){
+    int          n_requests;
+    
+    MPI_Request *requests;
+    MPI_Status  *statuses;
+    long long    *recvbuf;
+    long long   *sendbuf;
+    
+    n_requests = mesh->comm_map_edge.nrequests;
+    recvbuf    = (long long*)malloc(mesh->comm_map_edge.max_recvbuf_size*sizeof(long long));
+    sendbuf    = (long long*)malloc(mesh->comm_map_edge.max_sendbuf_size*sizeof(long long));
+    
+    requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+    statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+    int c = 0;
+       
+    int offset = 0;
+   
+    // post all non-blocking receives
+    for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i) {
+        message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+        MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+        offset += m->idxs.elem_count;
+        c++;
+    }
+    
+    assert(offset == mesh->comm_map_edge.max_recvbuf_size);
+    
+    offset = 0;
+    for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i) {
+         message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
+         for(int j = 0; j < m->idxs.elem_count; ++j)
+         {
+             int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+             sendbuf[offset+j] = (long long) mesh->global_edge_id[*id];
+         }
+         MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+         offset += m->idxs.elem_count;
+         c++;
+    }
+     assert(offset == mesh->comm_map_edge.max_sendbuf_size);
+     
+     assert(c == n_requests);
+     
+    MPI_Waitall(n_requests,requests,statuses);
+    
+    offset = 0;
+    for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i) {
+        message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+        for(int j = 0; j < m->idxs.elem_count; ++j)
+        {
+            int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+            mesh->global_edge_id[*id] = recvbuf[offset+j];
+        }
+        offset += m->idxs.elem_count;
+    }
+        
+    free(&recvbuf[0]);
+    free(&sendbuf[0]);
+    free(requests);
+    free(statuses);     
+}
