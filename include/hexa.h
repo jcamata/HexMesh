@@ -67,6 +67,14 @@ typedef struct
     //sc_array_t message;
 } message_t;
 
+typedef struct 
+{
+    int rank;
+    sc_array_t idxs;
+    sc_array_t ref;
+    //sc_array_t message;
+} message_edge_t;
+
 typedef struct
 {
     sc_array_t SendTo;
@@ -105,6 +113,7 @@ typedef struct {
     sc_array_t      shared_edges;
     sc_array_t      edges_ref;
     int64_t *global_id;
+    int64_t *global_edge_id;
     int32_t *part_nodes;
     int32_t ncellx;
     int32_t ncelly;
@@ -156,6 +165,10 @@ void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<d
 void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 
 void hexa_debug_face_hanging(hexa_tree_t* mesh);
+
+unsigned processors_hash_fn (const void *v, const void *u);
+
+int processors_equal_fn (const void *v1, const void *v2, const void *u);
 
 
 #endif	/* HEXA_H */
