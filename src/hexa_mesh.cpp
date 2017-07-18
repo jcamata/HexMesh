@@ -470,7 +470,7 @@ void hexa_mesh(hexa_tree_t* mesh){
     }
 
 #endif
-     /*
+     
     ///////////////////////////////
     ///////////////////////////////
     ///////////////////////////////
@@ -706,7 +706,7 @@ void hexa_mesh(hexa_tree_t* mesh){
  
     mesh->comm_map_edge.nrequests = mesh->comm_map_edge.RecvFrom.elem_count + 
                                      mesh->comm_map_edge.SendTo.elem_count;
-    */
+    
     //find the global edge_id
     /*
     offset = 0;
