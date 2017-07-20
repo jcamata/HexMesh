@@ -497,7 +497,7 @@ void hexa_mesh(hexa_tree_t* mesh){
     }
     }
 #endif
-    
+    /*
     //update the local node_id to global node_id in the element structure
     for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
         octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
@@ -505,7 +505,7 @@ void hexa_mesh(hexa_tree_t* mesh){
             elem->nodes[node].id = mesh->global_id[elem->nodes[node].id];
         }
     }
-    
+    */
 #ifdef HEXA_DEBUG_
     if(0){
         fprintf(mesh->fdbg, "Updated Nodes: \n");
@@ -568,8 +568,8 @@ void hexa_mesh(hexa_tree_t* mesh){
             int Edge2GNode[2];
 
             //look for the global_node_id to create the edge_id
-            int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
-            int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
+            int node1 = mesh->global_id[elem->nodes[EdgeVerticesMap[edge][0]].id];
+            int node2 = mesh->global_id[elem->nodes[EdgeVerticesMap[edge][1]].id];
             //assert(node1 >= 0);
             //assert(node2 >= 0);
             
@@ -581,6 +581,9 @@ void hexa_mesh(hexa_tree_t* mesh){
             //elem->edge[edge].coord[0] = Edge2GNode[0];
             //elem->edge[edge].coord[1] = Edge2GNode[1];
             elem->edge[edge].id = cantor_function_id(node1,node2);
+            elem->edge[edge].ref = false;  
+            elem->edge[edge].coord[0] = Edge2GNode[0];
+            elem->edge[edge].coord[1] = Edge2GNode[1];
             
             size_t position;
             octant_edge_t *r;
