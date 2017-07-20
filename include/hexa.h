@@ -26,7 +26,7 @@ typedef struct {
 } octant_node_t;
 
 typedef struct {
-    int32_t id;
+    uint64_t id;
     bool ref;
     bitmask_t coord[2];
 } octant_edge_t;
@@ -53,9 +53,8 @@ typedef struct shared_node
   int32_t      rankList[8];
 } shared_node_t;
 
-typedef struct shared_edge
-{
-  int32_t      id;
+typedef struct shared_edge{
+  uint64_t     id;
   int32_t      listSz;
   int32_t      rankList[4];
 } shared_edge_t;
@@ -66,14 +65,6 @@ typedef struct
     sc_array_t idxs;
     //sc_array_t message;
 } message_t;
-
-typedef struct 
-{
-    int rank;
-    sc_array_t idxs;
-    sc_array_t ref;
-    //sc_array_t message;
-} message_edge_t;
 
 typedef struct
 {
@@ -113,7 +104,7 @@ typedef struct {
     sc_array_t      shared_edges;
     sc_array_t      edges_ref;
     int64_t *global_id;
-    int64_t *global_edge_id;
+    //uint64_t *global_edge_id;
     int32_t *part_nodes;
     int32_t ncellx;
     int32_t ncelly;
