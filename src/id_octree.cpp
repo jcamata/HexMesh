@@ -2145,7 +2145,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
                 point[edge] = NULL;
         }
     }
-
+/*
 #ifdef HEXA_DEBUG_
     fprintf(mesh->fdbg,"\nInitial state\n");
     for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
@@ -2161,10 +2161,9 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
         fprintf(mesh->fdbg,"\n");
     }
 #endif
+    */
     //work in serial
-    /*
-    for (int i = 0; i < 10; i++){
-        //printf("numero %d, in proc:%d\n",i,mesh->mpi_rank);
+    for (int i = 0; i < 100; i++){
         printf(" Elements ref: %d\n", elements_ids.size());
         IdentifyTemplate(mesh, elements_ids);
         Edge_identification( mesh, elements_ids, hash_edge_ref);
@@ -2172,9 +2171,9 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
     }
     printf(" Elements ref: %d\n", elements_ids.size());
     IdentifyTemplate(mesh, elements_ids);
-    */
     
     
+    /*
     for (int i = 0; i < 10; i++){
             //printf("numero %d, in proc:%d\n",i,mesh->mpi_rank);
             //printf(" Elements ref: %d\n", elements_ids.size());
@@ -2202,5 +2201,5 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 #endif
    
    //sc_hash_array_rip(hash_edge_ref,&mesh->edges_ref);
-
+*/
 }

@@ -95,31 +95,24 @@ int main(int argc, char** argv) {
 		printf(" Check and propagate 27-tree templates\n\n");
 		CheckOctreeTemplate(&mesh, coords, element_ids, true);
 
-		printf(" Apply 27-tree templates\n\n");
-		ApplyOctreeTemplate(&mesh, coords, element_ids);
+		//printf(" Apply 27-tree templates\n\n");
+		//ApplyOctreeTemplate(&mesh, coords, element_ids);
 
-		printf(" Applying material \n\n");
-		element_ids.clear();
-		Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
+		//printf(" Applying material \n\n");
+		//element_ids.clear();
+		//Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 
-		printf(" Project nodes to the bathymetry\n\n");
-		Move_nodes(&mesh,"./input/bathy_Pipo_small.gts", coords,element_ids);
+		//printf(" Project nodes to the bathymetry\n\n");
+		//Move_nodes(&mesh,"./input/bathy_Pipo.gts", coords,element_ids);
 
 	}
-
-	//printf("Check Template \n");
-	//printf(" Elements ref: %d\n", element_ids.size());
-
-	//ApplyTemplate(&mesh, coords, element_ids);
-
-	//ExtrudePMLElements(&mesh,coords);
 
 	printf(" Writing output files \n\n");
 	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
 	hexa_mesh_write_msh(&mesh, "mesh", &coords);
 
-	//hexa_mesh_write_vtk(&mesh,"template", NULL);
-	//hexa_mesh_write_msh(&mesh,"teste", NULL);
+	hexa_mesh_write_vtk(&mesh,"template", NULL);
+	hexa_mesh_write_msh(&mesh,"teste", NULL);
 
 	//hexa_mesh_write_unv(&mesh, "mesh", &coords);
 	//hexa_mesh_write_unv(&mesh,"teste", NULL);
