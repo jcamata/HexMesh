@@ -139,7 +139,7 @@ int edge_equal_f(const void *v, const void *u, const void *w) {
 	const octant_edge_t *e1 = (const octant_edge_t*) v;
 	const octant_edge_t *e2 = (const octant_edge_t*) u;
 
-	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e1->coord[1] == e2->coord[1]));
+	return (unsigned) ((e1->coord[0] == e2->coord[0]) && (e1->coord[1] == e2->coord[1]) && (e1->id == e2->id));
 
 }
 */
@@ -433,8 +433,9 @@ void hexa_mesh(hexa_tree_t* mesh){
                                      mesh->comm_map.SendTo.elem_count;
 
     int offset = 0;
-    MPI_Scan(&my_own_nodes, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Scan(&local[0], &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
+    offset = offset-local[0];
     int count = offset;
     for(int i=0; i < mesh->local_n_nodes; ++i)
         if(mesh->global_id[i] != -1) mesh->global_id[i] = count++;
@@ -476,27 +477,6 @@ void hexa_mesh(hexa_tree_t* mesh){
         n->id=mesh->global_id[i];
     }
     
-    
-#ifdef HEXA_DEBUG_
-    if(0){
-
-    fprintf(mesh->fdbg, "Updated Nodes: \n");
-    for(int i = 0; i < mesh->nodes.elem_count; ++i)
-    {
-        octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
-        fprintf(mesh->fdbg, "(%d) (%d) (%ld): %d %d %d\n", n->id, mesh->part_nodes[i], mesh->global_id[i], n->x, n->y, n->z);
-    }
-
-    fprintf(mesh->fdbg, "Nodes in element structure: \n");
-    for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
-        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-        for (int node = 0; node < 8; ++node) {
-                    
-            fprintf(mesh->fdbg, "elem:%ld global:%ld\n", elem->nodes[node].id, mesh->global_id[elem->nodes[node].id]);
-        }
-    }
-    }
-#endif
     /*
     //update the local node_id to global node_id in the element structure
     for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
@@ -601,7 +581,18 @@ void hexa_mesh(hexa_tree_t* mesh){
             }
         }
     }
+#ifdef HEXA_DEBUG_   
+if(0){
+    for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
+        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+        for (int edge = 0; edge < 12; ++edge) {
+            fprintf(mesh->fdbg,"El:%lld, edge:%lld, coord[0]:%lld, coord[1]:%lld\n",iel,elem->edge[edge].id,elem->edge[edge].coord[0],elem->edge[edge].coord[1]);
+        }
+    }
+}
+#endif
     // create the shared edges hash
     for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
@@ -639,17 +630,19 @@ void hexa_mesh(hexa_tree_t* mesh){
     //extract the share nodes from shared_nodes
     sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
 
-#ifdef HEXA_DEBUG_    
-    fprintf(mesh->fdbg,"Shared nodes in global ids:\n");
-    fprintf(mesh->fdbg,"Total:%d\n",mesh->shared_nodes.elem_count);
-    for(int i = 0; i < mesh->shared_nodes.elem_count; ++i){
-        shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
-        fprintf(mesh->fdbg, "(%ld): %d %d %d\n", sn->id, sn->x, sn->y, sn->z);
-        fprintf(mesh->fdbg, "     shared with processors: ");
-        for(int j = 0; j < sn->listSz; j++){
-            fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+#ifdef HEXA_DEBUG_   
+    if(0){
+        fprintf(mesh->fdbg,"Shared nodes in global ids:\n");
+        fprintf(mesh->fdbg,"Total:%d\n",mesh->shared_nodes.elem_count);
+        for(int i = 0; i < mesh->shared_nodes.elem_count; ++i){
+            shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
+            fprintf(mesh->fdbg, "(%ld): %d %d %d\n", sn->id, sn->x, sn->y, sn->z);
+            fprintf(mesh->fdbg, "     shared with processors: ");
+            for(int j = 0; j < sn->listSz; j++){
+                fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+            }
+            fprintf(mesh->fdbg, "\n");
         }
-        fprintf(mesh->fdbg, "\n");
     }
 #endif
     ////////////////////////////////////
