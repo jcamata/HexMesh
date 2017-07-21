@@ -109,10 +109,10 @@ int main(int argc, char** argv) {
 
 	printf(" Writing output files \n\n");
 	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
-	hexa_mesh_write_msh(&mesh, "mesh", &coords);
+	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
 
-	hexa_mesh_write_vtk(&mesh,"template", NULL);
-	hexa_mesh_write_msh(&mesh,"teste", NULL);
+	//hexa_mesh_write_vtk(&mesh,"template", NULL);
+	//hexa_mesh_write_msh(&mesh,"teste", NULL);
 
 	//hexa_mesh_write_unv(&mesh, "mesh", &coords);
 	//hexa_mesh_write_unv(&mesh,"teste", NULL);

@@ -1915,19 +1915,21 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
         for(int j = 0; j< m->idxs.elem_count;j++){
             long long* mm = (long long*) sc_array_index(&m->idxs, j);
             
-            octant_edge_t key;
-            key.id = *mm;
+            //octant_edge_t key;
+            //key.id = *mm;
             //TODO fix this bug
-            bool out =  sc_hash_array_lookup(hash_edge_ref, &key, &position); 
-            //bool out = 0;
-            //for(int j=0; j< hash_edge_ref->a.elem_count; j++){
-            //    octant_edge_t* edge = (octant_edge_t*) sc_array_index(&hash_edge_ref->a,j);        
-            //    if(edge->id==*mm){
-            //        out = 1;
-            //    }
-            //}
-            sendbuf[(j+offset)] = (long long) *mm;
-            sendbuf[2*(j+offset)+1] = (long long)   out; 
+            //bool out =  sc_hash_array_lookup(hash_edge_ref, &key, &position); 
+            long long out = 0;
+            for(int j=0; j< hash_edge_ref->a.elem_count; j++){
+                octant_edge_t* edge = (octant_edge_t*) sc_array_index(&hash_edge_ref->a,j);        
+                if(edge->id==*mm){
+                    out = 1;
+                }
+            }
+            sendbuf[2*(j+offset)] = (long long) *mm;
+            sendbuf[2*(j+offset)+1] = (long long) out; 
+            //fprintf(mesh->fdbg,"buffer: %lld, %lld\n",sendbuf[2*(j+offset)],sendbuf[2*(j+offset)+1]);
+            
         }
         MPI_Isend(&sendbuf[offset], 2*m->idxs.elem_count, MPI_INT, m->rank,0,MPI_COMM_WORLD, &requests[c]);
         offset += 2*m->idxs.elem_count;
@@ -1946,8 +1948,8 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
     for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i) {
         message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
         for(int j = 0; j < m->idxs.elem_count; ++j){
-                if(recvbuf[2*(j+offset)+1]){
-                        edge_add(recvbuf[2*(j+offset)], hash_edge_ref );
+            if(recvbuf[2*(j+offset)+1]){
+                edge_add(recvbuf[2*(j+offset)], hash_edge_ref );
             }
         }
         offset += 2*m->idxs.elem_count;
@@ -1989,16 +1991,17 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
             octant_edge_t key;
             key.id = *mm;
             //TODO fix this bug
-            bool out =  sc_hash_array_lookup(hash_edge_ref, &key, &position); 
-            //bool out = 0;
-            //for(int j=0; j< hash_edge_ref->a.elem_count; j++){
-            //   octant_edge_t* edge = (octant_edge_t*) sc_array_index(&hash_edge_ref->a,j);        
-            //    if(edge->id==*mm){
-            //        out = 1;
-            //    }
-            //}
-            sendbuf[(j+offset)] = (long long) *mm;
+            //bool out =  sc_hash_array_lookup(hash_edge_ref, &key, &position); 
+            bool out = 0;
+            for(int j=0; j< hash_edge_ref->a.elem_count; j++){
+               octant_edge_t* edge = (octant_edge_t*) sc_array_index(&hash_edge_ref->a,j);        
+                if(edge->id==*mm){
+                    out = 1;
+                }
+            }
+            sendbuf[2*(j+offset)] = (long long) *mm;
             sendbuf[2*(j+offset)+1] = (long long)   out; 
+            //fprintf(mesh->fdbg,"buffer: %lld, %lld\n",sendbuf[2*(j+offset)],sendbuf[2*(j+offset)+1]);
         }
         MPI_Isend(&sendbuf[offset], 2*m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
         offset += 2*m->idxs.elem_count;
@@ -2016,44 +2019,13 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
     for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i) {
         message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
         for(int j = 0; j < m->idxs.elem_count; ++j){
-                if(recvbuf[2*(j+offset)+1]){
-                        edge_add(recvbuf[2*(j+offset)], hash_edge_ref );
+            if(recvbuf[2*(j+offset)+1]){
+                edge_add(recvbuf[2*(j+offset)], hash_edge_ref );
             }
         }
         offset += 2*m->idxs.elem_count;
     }
-    
-    
-    //
-    for (int iel = 0; iel < elements_ids.size(); ++iel) {
-        size_t position;
-        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-        for(int ied=0; ied<12; ied++){
-            bool out = sc_hash_array_lookup(hash_edge_ref, &elem->edge[ied].id, &position);
-            elem->edge[ied].ref = out;
-        }
-    }
-    
-#ifdef HEXA_DEBUG_
-    if(1){
-        fprintf(mesh->fdbg ,"after comm\n");
-
-        fprintf(mesh->fdbg,"\n");
-        for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
-            octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-            fprintf(mesh->fdbg,"El: %d template:%d pad:%d\n",iel,elem->tem,elem->pad);
-            for (int edge = 0; edge < 12; ++edge) {
-                fprintf(mesh->fdbg,"%lld ",elem->edge[edge].id);
-            }
-            fprintf(mesh->fdbg,"\n");
-            for (int edge = 0; edge < 12; ++edge) {
-                fprintf(mesh->fdbg,"%d ",elem->edge[edge].ref);
-            }
-            fprintf(mesh->fdbg,"\n");
-        }
-    }
-#endif
-    
+  
     free(&recvbuf[0]);
     free(&sendbuf[0]);
     free(requests);
@@ -2145,7 +2117,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
                 point[edge] = NULL;
         }
     }
-/*
+
 #ifdef HEXA_DEBUG_
     fprintf(mesh->fdbg,"\nInitial state\n");
     for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
@@ -2161,8 +2133,9 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
         fprintf(mesh->fdbg,"\n");
     }
 #endif
-    */
-    //work in serial
+    
+    //work in serial 
+    /*
     for (int i = 0; i < 100; i++){
         printf(" Elements ref: %d\n", elements_ids.size());
         IdentifyTemplate(mesh, elements_ids);
@@ -2171,15 +2144,45 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
     }
     printf(" Elements ref: %d\n", elements_ids.size());
     IdentifyTemplate(mesh, elements_ids);
+    */
     
-    
-    /*
-    for (int i = 0; i < 10; i++){
-            //printf("numero %d, in proc:%d\n",i,mesh->mpi_rank);
-            //printf(" Elements ref: %d\n", elements_ids.size());
-            Edge_comunication(mesh, elements_ids, hash_edge_ref);
-            Edge_propagation (mesh, elements_ids, hash_edge_ref);
+    fprintf(mesh->fdbg ,"edges id: ");
+    for(int j=0; j < hash_edge_ref->a.elem_count; j++){
+        octant_edge_t *hh = (octant_edge_t*) sc_array_index(&hash_edge_ref->a, j);
+        fprintf(mesh->fdbg ,"%lld ",hh->id);
     }
+    fprintf(mesh->fdbg ,"\n");
+        
+
+
+    for (int i = 0; i < 30; i++){
+        
+        fprintf(mesh->fdbg ,"passo: %d\n",i);
+        fprintf(mesh->fdbg ,"edges id: ");
+        for(int j=0; j < hash_edge_ref->a.elem_count; j++){
+            octant_edge_t *hh = (octant_edge_t*) sc_array_index(&hash_edge_ref->a, j);
+            fprintf(mesh->fdbg ,"%lld ",hh->id);
+        }
+        fprintf(mesh->fdbg ,"\n");
+        IdentifyTemplate(mesh, elements_ids);
+        Edge_identification( mesh, elements_ids, hash_edge_ref);
+        Edge_propagation (mesh, elements_ids, hash_edge_ref);
+        Edge_comunication(mesh, elements_ids, hash_edge_ref); 
+ 
+
+    }
+
+    /*
+    for (int iel = 0; iel < elements_ids.size(); ++iel) {
+        size_t position;
+        octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+        for(int ied=0; ied<12; ied++){
+            bool out = sc_hash_array_lookup(hash_edge_ref, &elem->edge[ied].id, &position);
+            elem->edge[ied].ref = out;
+        }
+    }
+    */
+    
     printf(" Elements ref: %d\n", elements_ids.size());
     //IdentifyTemplate(mesh, elements_ids);
     //Edge_identification( mesh, elements_ids, hash_edge_ref);
@@ -2200,6 +2203,6 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
     }
 #endif
    
-   //sc_hash_array_rip(hash_edge_ref,&mesh->edges_ref);
-*/
+   sc_hash_array_rip(hash_edge_ref,&mesh->edges_ref);
+
 }
