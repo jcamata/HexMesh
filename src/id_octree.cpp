@@ -1873,7 +1873,7 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
 	}
 
 #ifdef HEXA_DEBUG_
-	if(false){
+	if(0){
 		fprintf(mesh->fdbg ,"shared edges status\n");
 		fprintf(mesh->fdbg ,"shared edges number:%d\n",mesh->shared_edges.elem_count);
 		for (int iedge = 0; iedge< mesh->shared_edges.elem_count; iedge++){
@@ -1951,12 +1951,6 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 		for(int j = 0; j < m->idxs.elem_count; ++j){
 			if(recvbuf[2*j+offset+1]){
 				edge_add(recvbuf[2*j+offset], hash_edge_ref );
-				if(recvbuf[2*j+offset]==2360530062 || recvbuf[2*j+offset]== 2388042950 || recvbuf[2*j+offset]==2388043030
-						|| recvbuf[2*j+offset]==2387371742 || recvbuf[2*j+offset]==3135294152 || recvbuf[2*j+offset]==3135974216
-						|| recvbuf[2*j+offset]==3163863728 || recvbuf[2*j+offset]==3163183336 || recvbuf[2*j+offset]==3135976510
-						|| recvbuf[2*j+offset]==3163865942 || recvbuf[2*j+offset]==3163866022 || recvbuf[2*j+offset]==3163185550 ){
-					printf("FUI EUUUUU\n");
-				}
 			}
 		}
 		offset += 2*m->idxs.elem_count;
@@ -2018,12 +2012,6 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 		for(int j = 0; j < m->idxs.elem_count; ++j){
 			if(recvbuf[2*j+offset+1]){
 				edge_add(recvbuf[2*j+offset], hash_edge_ref );
-				if(recvbuf[2*j+offset]==2360530062 || recvbuf[2*j+offset]== 2388042950 || recvbuf[2*j+offset]==2388043030
-						|| recvbuf[2*j+offset]==2387371742 || recvbuf[2*j+offset]==3135294152 || recvbuf[2*j+offset]==3135974216
-						|| recvbuf[2*j+offset]==3163863728 || recvbuf[2*j+offset]==3163183336 || recvbuf[2*j+offset]==3135976510
-						|| recvbuf[2*j+offset]==3163865942 || recvbuf[2*j+offset]==3163866022 || recvbuf[2*j+offset]==3163185550 ){
-					printf("FUI EUUUUU\n");
-				}
 			}
 		}
 		offset += 2*m->idxs.elem_count;
@@ -2051,15 +2039,6 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 				elem->edge[edge].ref=true;
 				elem->pad = -1;
 				elements_ids.push_back(iel);
-
-				if(elem->edge[edge].id==2360530062 || elem->edge[edge].id== 2388042950 || elem->edge[edge].id==2388043030
-						|| elem->edge[edge].id==2387371742 || elem->edge[edge].id==3135294152 || elem->edge[edge].id==3135974216
-						|| elem->edge[edge].id==3163863728 || elem->edge[edge].id==3163183336 || elem->edge[edge].id==3135976510
-						|| elem->edge[edge].id==3163865942 || elem->edge[edge].id==3163866022 || elem->edge[edge].id==3163185550 ){
-					printf("FUI EUUUUU\n");
-				}
-
-
 			}
 		}
 	}
@@ -2130,7 +2109,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 	}
 
 #ifdef HEXA_DEBUG_
-	if(1){
+	if(0){
 
 		fprintf(mesh->fdbg,"\nInitial state\n");
 		for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
@@ -2182,7 +2161,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, s
 
 
 #ifdef HEXA_DEBUG_
-	if(1){
+	if(0){
 		fprintf(mesh->fdbg ,"Final state\n");
 		for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
