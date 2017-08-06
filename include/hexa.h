@@ -117,6 +117,10 @@ typedef struct {
     int32_t x_end;
     int32_t y_start;
     int32_t y_end;
+    double x_startc;
+    double x_endc;
+    double y_startc;
+    double y_endc;
     int neighbors[9];
     comm_map_t comm_map;
     comm_map_t  comm_map_edge;
@@ -154,6 +158,8 @@ int  hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<d
 void hexa_mesh_write_unv(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 
 void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
+
+void hexa_mesh_write_h5(hexa_tree_t* mesh, const char* root_name, std::vector<double> coords);
 
 void hexa_debug_face_hanging(hexa_tree_t* mesh);
 
