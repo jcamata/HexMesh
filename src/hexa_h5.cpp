@@ -5,6 +5,7 @@ using std::endl;
 
 #include <string>
 #include "H5Cpp.h"
+#include "hdf5.h"
 using namespace H5;
 
 #include <vector>
@@ -42,26 +43,14 @@ void hexa_mesh_write_h5(hexa_tree_t* mesh, const char* root_name, std::vector<do
 	dims[1] = 3;
 	DataSpace *dataspace1 = new DataSpace (RANK, dims);
 
-	double data1[dims[0]][dims[1]];
-	for (int i = 0; i < dims[0]; i++){
-		for (int j = 0; j < dims[1]; j++){
-
-			//double d = reinterpret_cast<double &>(coords[3*i+j]);
-			//double d;
-			//assert(sizeof d == sizeof coords[3*i+j]); // <- a static assert would be even better
-			//memcpy(&d, &coords[3*i+j], sizeof d);
-
-			//double d = *((double*)coords[3*i+j]) ;
-			data1[i][j] = coords[3*i+j];
-		}
-	}
-
 	// Create the dataset.
 	DataSet *dataset1 = new DataSet (file.createDataSet(DATASET_NAME1,
 			PredType::IEEE_F64LE, *dataspace1));
 
+	DataSpace mspace1( RANK, dims );
+
 	// Write the data to the dataset
-	dataset1->write(data1, PredType::NATIVE_DOUBLE);
+	dataset1->write(&coords[0], PredType::NATIVE_DOUBLE, mspace1,mspace1);
 
 	// Close the current dataset and data space.
 	delete dataset1;
