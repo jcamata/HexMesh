@@ -28,7 +28,7 @@ unsigned edge_hash_fn(const void *v, const void *u) {
 	b = (uint32_t) q->coord[1];
 	c = (uint32_t) 0;
 	sc_hash_mix(a, b, c);
-	a += (uint32_t) q->coord[3];
+	a += (uint32_t) q->coord[2];
 	sc_hash_final(a, b, c);
 	return (unsigned) c;
 }
@@ -40,7 +40,6 @@ int edge_equal_fn(const void *v, const void *u, const void *w) {
 	return (unsigned) ((e1->coord[0] == e2->coord[0]) &&
 			(e1->coord[1] == e2->coord[1]) &&
 			(e1->coord[2] == e2->coord[2]));
-
 }
 
 int AddPoint(double* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords) {
@@ -717,7 +716,7 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -745,7 +744,7 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -757,7 +756,7 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -983,7 +982,7 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -1011,7 +1010,7 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -1023,7 +1022,7 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -1427,7 +1426,7 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -1455,7 +1454,7 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -1467,7 +1466,7 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -1904,7 +1903,7 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -1932,7 +1931,7 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -1944,7 +1943,7 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -2548,7 +2547,7 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			////fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -2576,7 +2575,7 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -2588,7 +2587,7 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -3191,7 +3190,7 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -3219,7 +3218,7 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -3231,7 +3230,7 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -3668,7 +3667,7 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -3696,7 +3695,7 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -3708,7 +3707,7 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -4131,7 +4130,7 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -4159,7 +4158,7 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -4171,7 +4170,7 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -5368,7 +5367,7 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -5396,7 +5395,7 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -5408,7 +5407,7 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -6241,7 +6240,7 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 			cord_in_x[ii]=coords[3*id_node[ii]] ;
 			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
 			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
 		}
 
 		//add the new nodes in the
@@ -6269,7 +6268,7 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
 					conn_p[ii] = id_node[7];
 				}
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
 			}else{
 				cord_in_ref[0] = local_ref[i][ii][0];
 				cord_in_ref[1] = local_ref[i][ii][1];
@@ -6281,7 +6280,7 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
 				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
-				fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
+				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
 		}
@@ -6340,7 +6339,7 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 		cord_in_x[i]=coords[3*elem->nodes[i].id] ;
 		cord_in_y[i]=coords[3*elem->nodes[i].id+1] ;
 		cord_in_z[i]=coords[3*elem->nodes[i].id+2] ;
-		fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],i);
+		//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],i);
 	}
 
 	for (int i = 0; i < 4; ++i) {
@@ -6349,7 +6348,7 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 			cord_in_ref[2] = -1;
 			for (int iii = 0; iii < 4; ++iii) {
 
-				fprintf(mesh->fdbg,"coord ref: %f, %f, %f\n",cord_in_ref[0],cord_in_ref[1],cord_in_ref[2]);
+				//fprintf(mesh->fdbg,"coord ref: %f, %f, %f\n",cord_in_ref[0],cord_in_ref[1],cord_in_ref[2]);
 
 				if((i==0 || i==3) && (ii==0 || ii==3) && (iii==0 || iii==3) ){
 					if(i==0 && ii==0 && iii==0){
@@ -6378,11 +6377,11 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 					conn_p[i*16+ii*4+iii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[i*16+ii*4+iii] , coords);
 				}
 
-				fprintf(mesh->fdbg,"id do no: %d\n",conn_p[i*16+ii*4+iii]);
+				//fprintf(mesh->fdbg,"id do no: %d\n",conn_p[i*16+ii*4+iii]);
 				double xxx = coords[3*conn_p[i*16+ii*4+iii]];
 				double yyy = coords[3*conn_p[i*16+ii*4+iii]+1];
 				double zzz = coords[3*conn_p[i*16+ii*4+iii]+2];
-				fprintf(mesh->fdbg,"no vetor Coords x: %f, y:%f, z:%f\n", xxx, yyy, zzz );
+				//fprintf(mesh->fdbg,"no vetor Coords x: %f, y:%f, z:%f\n", xxx, yyy, zzz );
 				cord_in_ref[2] = cord_in_ref[2] + step;
 			}
 			cord_in_ref[1] = cord_in_ref[1] + step;
@@ -6433,6 +6432,21 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
 
 	bool clamped = true;
+	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+
+	for(int n = 0;n<mesh->nodes.elem_count;n++){
+		size_t position;
+		node_t *r;
+		node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
+
+		key.coord[0] = coords[node->id];
+		key.coord[1] = coords[node->id+1];
+		key.coord[2] = coords[node->id+2];
+		key.node_id = node->id;
+
+		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+	}
 
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
@@ -6440,9 +6454,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
 		int id = elements_ids[iel];
-		sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
 
-		fprintf(mesh->fdbg,"Element: %d\n", elements_ids[iel]);
+		//fprintf(mesh->fdbg,"Element: %d\n", elements_ids[iel]);
 
 		//printf("Element: %d, pad: %d, temp: %d, level: %d\n",elements_ids[iel],elem->pad,elem->tem,elem->level);
 
