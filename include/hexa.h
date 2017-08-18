@@ -167,6 +167,11 @@ unsigned processors_hash_fn (const void *v, const void *u);
 
 int processors_equal_fn (const void *v1, const void *v2, const void *u);
 
+void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* node, int processor);
+
+unsigned node_hash_fn (const void *v, const void *u);
+
+int node_equal_fn (const void *v1, const void *v2, const void *u);
 
 #endif	/* HEXA_H */
 
