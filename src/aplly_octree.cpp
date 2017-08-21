@@ -26,9 +26,9 @@ unsigned edge_hash_fn(const void *v, const void *u) {
 
 	a = (uint32_t) q->coord[0];
 	b = (uint32_t) q->coord[1];
-	c = (uint32_t) 0;
+	c = (uint32_t) q->coord[2];
 	sc_hash_mix(a, b, c);
-	a += (uint32_t) q->coord[2];
+	//a += (uint32_t) ;
 	sc_hash_final(a, b, c);
 	return (unsigned) c;
 }
@@ -42,7 +42,7 @@ int edge_equal_fn(const void *v, const void *u, const void *w) {
 			(e1->coord[2] == e2->coord[2]));
 }
 
-int AddPoint(double* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, std::vector<double> &coords) {
+int AddPoint(hexa_tree_t* mesh, double* nodes, sc_hash_array_t* hash, GtsPoint *p, std::vector<double> &coords) {
 	size_t position;
 	node_t *r;
 	node_t key;
@@ -55,8 +55,14 @@ int AddPoint(double* nodes, sc_hash_array_t* hash, int &npoints, GtsPoint *p, st
 		r->coord[0] = key.coord[0];
 		r->coord[1] = key.coord[1];
 		r->coord[2] = key.coord[2];
-		r->node_id = npoints;
-		npoints++;
+		r->node_id = mesh->nodes.elem_count;
+		octant_node_t* n = (octant_node_t*) sc_array_push(&mesh->nodes);
+		n->id = r->node_id;
+		n->x = -1;
+		n->y = -1;
+		n->z = -1;
+		n->color = -1;
+
 		coords.push_back(p->x);
 		coords.push_back(p->y);
 		coords.push_back(p->z);
@@ -314,10 +320,13 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
 		elem1->nodes[i].x = elem->nodes[i].x;
 		elem1->nodes[i].y = elem->nodes[i].y;
 		elem1->nodes[i].z = elem->nodes[i].z;
+
 	}
 	elem1->x=elem->x;
 	elem1->y=elem->y;
 	elem1->z=elem->z;
+
+
 }
 
 void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
@@ -755,7 +764,7 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -1021,7 +1030,7 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -1465,7 +1474,7 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -1942,7 +1951,7 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -2586,7 +2595,7 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -3229,7 +3238,7 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -3706,7 +3715,7 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -4169,7 +4178,7 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -5406,7 +5415,7 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -6279,7 +6288,7 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 				var[0] = point[ii]->x;
 				var[1] = point[ii]->y;
 				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[ii] , coords);
+				conn_p[ii] = AddPoint( mesh, var, hash_nodes, point[ii] , coords);
 				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
 
 			}
@@ -6374,13 +6383,13 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 					var[0] = point[i*16+ii*4+iii]->x;
 					var[1] = point[i*16+ii*4+iii]->y;
 					var[2] = point[i*16+ii*4+iii]->z;
-					conn_p[i*16+ii*4+iii] = AddPoint(var, hash_nodes, mesh->local_n_nodes, point[i*16+ii*4+iii] , coords);
+					conn_p[i*16+ii*4+iii] = AddPoint( mesh, var, hash_nodes, point[i*16+ii*4+iii] , coords);
 				}
 
 				//fprintf(mesh->fdbg,"id do no: %d\n",conn_p[i*16+ii*4+iii]);
-				double xxx = coords[3*conn_p[i*16+ii*4+iii]];
-				double yyy = coords[3*conn_p[i*16+ii*4+iii]+1];
-				double zzz = coords[3*conn_p[i*16+ii*4+iii]+2];
+				//double xxx = coords[3*conn_p[i*16+ii*4+iii]];
+				//double yyy = coords[3*conn_p[i*16+ii*4+iii]+1];
+				//double zzz = coords[3*conn_p[i*16+ii*4+iii]+2];
 				//fprintf(mesh->fdbg,"no vetor Coords x: %f, y:%f, z:%f\n", xxx, yyy, zzz );
 				cord_in_ref[2] = cord_in_ref[2] + step;
 			}
@@ -6429,6 +6438,7 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 		}
 	}
 }
+
 void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids) {
 
 	bool clamped = true;
@@ -6440,14 +6450,31 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		node_t key;
 		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
 
-		key.coord[0] = coords[node->id];
-		key.coord[1] = coords[node->id+1];
-		key.coord[2] = coords[node->id+2];
+		key.coord[0] = coords[3*node->id];
+		key.coord[1] = coords[3*node->id+1];
+		key.coord[2] = coords[3*node->id+2];
 		key.node_id = node->id;
 
 		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
 	}
+/*
+	double xs;
+	double xe;
+	double ys;
+	double ye;
 
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for(int i = 0; i < 8; i++){
+			if(elem->nodes[i].y == mesh->y_start){ys=coords[3*elem->nodes[i].id+1];}
+			if(elem->nodes[i].y == mesh->y_end) {ye=coords[3*elem->nodes[i].id+1];}
+			if(elem->nodes[i].x == mesh->x_start){xs=coords[3*elem->nodes[i].id];}
+			if(elem->nodes[i].x == mesh->x_end){xe=coords[3*elem->nodes[i].id];}
+		}
+	}
+
+	printf("xs:%f xe:%f ys:%f ye:%f rank:%d\n",xs,xe,ys,ye,mesh->mpi_rank);
+*/
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
 		double step = double(2)/double(3);
@@ -6518,9 +6545,10 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 
 	//update the vectors
 	mesh->local_n_elements = mesh->elements.elem_count;
+	mesh->local_n_nodes = mesh->nodes.elem_count;
 	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-	mesh->nodes.elem_count =  mesh->local_n_nodes;
+	//mesh->nodes.elem_count =  mesh->local_n_nodes;
 
 	if (mesh->mpi_rank == 0) {
 		printf("Total number of elements: %lld\n", mesh->local_n_elements);
@@ -6540,4 +6568,60 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			mesh->part_nodes[*id] = m->rank;
 		}
 	}
+
+/*
+	sc_hash_array_t* shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for(int i = 0; i < 8; i++){
+			if(ys==coords[3*elem->nodes[i].id+1]){
+				if(xs==coords[3*elem->nodes[i].id]){
+					hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[0]);
+				}
+				if(xe==coords[3*elem->nodes[i].id]){
+					hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[2]);
+				}
+				hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[1]);
+				//continue;
+			}
+			if(ye==coords[3*elem->nodes[i].id+1]){
+				if(xs==coords[3*elem->nodes[i].id]){
+					hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[6]);
+				}
+				if(xe==coords[3*elem->nodes[i].id]){
+					hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[8]);
+				}
+				hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[7]);
+				//continue;
+			}
+
+			if(xs==coords[3*elem->nodes[i].id]){
+				hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[3]);
+			}
+			if(xe==coords[3*elem->nodes[i].id]){
+				hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[5]);
+			}
+
+		}
+	}
+
+
+#ifdef HEXA_DEBUG_
+	if(1){
+		fprintf(mesh->fdbg, "Shared Nodes: \n");
+		fprintf(mesh->fdbg, "Total: %d\n",shared_nodes->a.elem_count);
+		for(int i = 0; i < shared_nodes->a.elem_count; ++i)
+		{
+			shared_node_t* sn = (shared_node_t*) sc_array_index(&shared_nodes->a,i);
+			fprintf(mesh->fdbg, "(%d): %d %d %d\n", sn->id, sn->x, sn->y, sn->z);
+			fprintf(mesh->fdbg, "     shared with processors: ");
+			for(int j = 0; j < sn->listSz; j++){
+				fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+			}
+			fprintf(mesh->fdbg, "\n");
+		}
+	}
+#endif
+*/
+
 }
