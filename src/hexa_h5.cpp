@@ -41,7 +41,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 		octant_t* h = (octant_t*) sc_array_index(&mesh->elements, i);
 		mat.push_back(h->n_mat);
 		for(int j=0;j<8;j++){
-			connect.push_back(h->nodes[j].id+1);
+			connect.push_back(h->nodes[j].id);
 		}
 	}
 	// Create a new file using default property lists.

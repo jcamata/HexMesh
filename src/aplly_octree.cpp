@@ -28,7 +28,6 @@ unsigned edge_hash_fn(const void *v, const void *u) {
 	b = (uint32_t) q->coord[1];
 	c = (uint32_t) q->coord[2];
 	sc_hash_mix(a, b, c);
-	//a += (uint32_t) ;
 	sc_hash_final(a, b, c);
 	return (unsigned) c;
 }
@@ -6457,7 +6456,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 
 		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
 	}
-/*
+
 	double xs;
 	double xe;
 	double ys;
@@ -6473,8 +6472,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		}
 	}
 
-	printf("xs:%f xe:%f ys:%f ye:%f rank:%d\n",xs,xe,ys,ye,mesh->mpi_rank);
-*/
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
 		double step = double(2)/double(3);
@@ -6548,7 +6545,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 	mesh->local_n_nodes = mesh->nodes.elem_count;
 	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-	//mesh->nodes.elem_count =  mesh->local_n_nodes;
 
 	if (mesh->mpi_rank == 0) {
 		printf("Total number of elements: %lld\n", mesh->local_n_elements);
@@ -6560,14 +6556,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
 	for(int i =0; i < mesh->local_n_nodes; i++)
 		mesh->part_nodes[i] = mesh->mpi_rank;
-
-	for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++){
-		message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-		for(int j =0; j < m->idxs.elem_count; j++){
-			int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-			mesh->part_nodes[*id] = m->rank;
-		}
-	}
 
 /*
 	sc_hash_array_t* shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
