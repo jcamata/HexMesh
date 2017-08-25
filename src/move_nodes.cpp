@@ -519,8 +519,8 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 
     int8_t* flag_nodes = (int8_t*) malloc(sizeof (int8_t) * mesh->local_n_nodes);
 
-    GtsSurface *bathymetry = SurfaceRead(surface);
-    GNode *bbt_bathymetry = gts_bb_tree_surface(bathymetry);
+    GtsSurface *bathymetry     = SurfaceRead(surface);
+    GNode      *bbt_bathymetry = gts_bb_tree_surface(bathymetry);
 
 
     FindNodesBetweenMaterials(mesh, coords, nodes_b_mat, flag_nodes);
@@ -530,6 +530,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
         octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
         if (elem->n_mat == 1) {
+            
             GtsPoint * point;
             //getting the baricenter of the upper surface;
             //find the centroid of the upper surface
@@ -550,13 +551,16 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
             bool over = is_point_over_surface(point, bbt_bathymetry);
 
             if (!over) elem->n_mat = 0;
+            
+            gts_object_destroy(GTS_OBJECT(point));
 
         }
     }
 
     gts_bb_tree_destroy(bbt_bathymetry, TRUE);
-
-
+    
+    gts_object_destroy(GTS_OBJECT(bathymetry));
+    
     free(flag_nodes);
 
 }

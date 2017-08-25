@@ -173,5 +173,8 @@ unsigned node_hash_fn (const void *v, const void *u);
 
 int node_equal_fn (const void *v1, const void *v2, const void *u);
 
+void hexa_mesh_destroy(hexa_tree_t* mesh);
+
+
 #endif	/* HEXA_H */
 

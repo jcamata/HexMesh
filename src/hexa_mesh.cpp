@@ -1073,3 +1073,10 @@ void communicate_global_edge_ids(hexa_tree_t* mesh){
     free(requests);
     free(statuses);     
 }*/
+
+
+void hexa_mesh_destroy(hexa_tree_t* mesh)
+{
+ 
+    
+}

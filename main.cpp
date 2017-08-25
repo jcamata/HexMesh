@@ -46,8 +46,10 @@ int main(int argc, char** argv) {
 	std::vector<int> element_ids;
         std::vector<int> nodes_b_mat;
 
-	int l = atoi(argv[1]);
+	//int l = atoi(argv[1]);
 
+        int l = 4;
+        
 	hexa_init(argc, argv, &mesh);
 
 	hexa_tree_init(&mesh, l);
@@ -91,16 +93,16 @@ int main(int argc, char** argv) {
 		printf(" Elements intercepted: %lld\n\n", element_ids.size());
 
 		printf(" Check and propagate 27-tree templates\n\n");
-		CheckOctreeTemplate(&mesh, coords, element_ids, true);
+		//CheckOctreeTemplate(&mesh, coords, element_ids, true);
 
 		//printf(" Apply 27-tree templates\n\n");
-		//ApplyOctreeTemplate(&mesh, coords, element_ids);
+                //ApplyOctreeTemplate(&mesh, coords, element_ids);
 
 		//printf(" Applying material \n\n");
 		element_ids.clear();
 		Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 
-//		printf(" Project nodes to the bathymetry\n\n");
+        //	printf(" Project nodes to the bathymetry\n\n");
 	//	Move_nodes(&mesh,"./input/bathy_Pipo_small.gts", coords,element_ids);
 
                 MovingNodes(&mesh,coords, nodes_b_mat,"./input/bathy_Pipo_small.gts");
@@ -116,6 +118,7 @@ int main(int argc, char** argv) {
 
 	printf(" Cleaning variables \n\n");
 
+        //hexa_mesh_destroy(&mesh);
 	hexa_tree_destroy(&mesh);
 	hexa_finalize(&mesh);
 
