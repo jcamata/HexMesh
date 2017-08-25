@@ -32,6 +32,8 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
 
 void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std::vector<int>& elements_ids);
 
+void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface);
+
 /*
  * 
  */
@@ -42,6 +44,7 @@ int main(int argc, char** argv) {
 
 	std::vector<double> coords;
 	std::vector<int> element_ids;
+        std::vector<int>& nodes_b_mat;
 
 	int l = atoi(argv[1]);
 
@@ -90,36 +93,31 @@ int main(int argc, char** argv) {
 		printf(" Check and propagate 27-tree templates\n\n");
 		CheckOctreeTemplate(&mesh, coords, element_ids, true);
 
-		printf(" Apply 27-tree templates\n\n");
-		ApplyOctreeTemplate(&mesh, coords, element_ids);
+		//printf(" Apply 27-tree templates\n\n");
+		//ApplyOctreeTemplate(&mesh, coords, element_ids);
 
 		//printf(" Applying material \n\n");
-		//element_ids.clear();
-		//Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
+		element_ids.clear();
+		Apply_material(&mesh, coords, element_ids, "./input/bathy_Pipo_small.gts");
 
 //		printf(" Project nodes to the bathymetry\n\n");
 	//	Move_nodes(&mesh,"./input/bathy_Pipo_small.gts", coords,element_ids);
+
+                MovingNodes(mesh,coords, nodes_b_mat,"./input/bathy_Pipo_small.gts");
+                        
 
 	}
 
 	printf(" Writing output files \n\n");
 	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
+        
 	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
-	hexa_mesh_write_h5(&mesh,"mesh", coords);
-
-	//hexa_mesh_write_vtk(&mesh,"template", NULL);
-	//hexa_mesh_write_msh(&mesh,"teste", NULL);
-
-	//hexa_mesh_write_unv(&mesh, "mesh", &coords);
-	//hexa_mesh_write_unv(&mesh,"teste", NULL);
+	//hexa_mesh_write_h5(&mesh,"mesh", coords);
 
 	printf(" Cleaning variables \n\n");
 
 	hexa_tree_destroy(&mesh);
 	hexa_finalize(&mesh);
-
-
-
 
 	return 0;
 }
