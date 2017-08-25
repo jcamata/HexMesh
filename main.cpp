@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 
 	std::vector<double> coords;
 	std::vector<int> element_ids;
-        std::vector<int>& nodes_b_mat;
+        std::vector<int> nodes_b_mat;
 
 	int l = atoi(argv[1]);
 
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
 //		printf(" Project nodes to the bathymetry\n\n");
 	//	Move_nodes(&mesh,"./input/bathy_Pipo_small.gts", coords,element_ids);
 
-                MovingNodes(mesh,coords, nodes_b_mat,"./input/bathy_Pipo_small.gts");
+                MovingNodes(&mesh,coords, nodes_b_mat,"./input/bathy_Pipo_small.gts");
                         
 
 	}
