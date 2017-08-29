@@ -507,7 +507,7 @@ void ProjectNodes(hexa_tree_t* mesh, vector<double>& coords, std::vector<int>& n
     nodes_b_mat.clear();
 
     for (int i = 0; i < mesh->local_n_nodes; i++) {
-        mesh->part_nodes[i] = flag_nodes[i];
+        //mesh->part_nodes[i] = flag_nodes[i];
         if (flag_nodes[i] == 2)
             nodes_b_mat.push_back(i);
     }

@@ -34,6 +34,7 @@ void IdentifyTemplate(hexa_tree_t* mesh, const std::vector<double>& coords, std:
 
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface);
 
+void MeshOpt(hexa_tree_t* mesh, std::vector<double> coords, std::vector<int> material_fixed_nodes);
 /*
  * 
  */
@@ -46,9 +47,9 @@ int main(int argc, char** argv) {
 	std::vector<int> element_ids;
         std::vector<int> nodes_b_mat;
 
-	//int l = atoi(argv[1]);
+	int l = atoi(argv[1]);
 
-        int l = 4;
+        //int l = 5;
         
 	hexa_init(argc, argv, &mesh);
 
@@ -70,10 +71,10 @@ int main(int argc, char** argv) {
 		printf(" Elements intercepted: %lld\n\n", element_ids.size());
 
 		//printf(" Check and propagate 27-tree templates\n\n");
-		CheckOctreeTemplate(&mesh, coords, element_ids, true);
+		//CheckOctreeTemplate(&mesh, coords, element_ids, true);
 
 		//printf(" Apply 27-tree templates\n\n");
-		ApplyOctreeTemplate(&mesh, coords, element_ids);
+		//ApplyOctreeTemplate(&mesh, coords, element_ids);
 
 		printf(" Applying material \n\n");
 		element_ids.clear();
@@ -107,11 +108,12 @@ int main(int argc, char** argv) {
 
                 MovingNodes(&mesh,coords, nodes_b_mat,"./input/bathy_Pipo_small.gts");
                         
-
+                MeshOpt(&mesh,coords,nodes_b_mat);
+                
 	}
 
-	printf(" Writing output files \n\n");
-	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
+	//printf(" Writing output files \n\n");
+	//hexa_mesh_write_vtk(&mesh, "mesh", &coords);
         
 	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
 	//hexa_mesh_write_h5(&mesh,"mesh", coords);
