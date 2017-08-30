@@ -59,6 +59,13 @@ typedef struct shared_edge{
   int32_t      rankList[4];
 } shared_edge_t;
 
+typedef struct shared_element{
+  uint32_t     id;
+  int32_t       x, y, z;
+  int32_t      listSz;
+  int32_t      rankList[4];
+} shared_element_t;
+
 typedef struct 
 {
     int rank;
