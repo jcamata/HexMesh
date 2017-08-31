@@ -92,7 +92,9 @@ if ~ok
         mkdir(tmp)
         warning('no correct!!!')
         ftmp = sprintf('%s/%s%3.3d%s%2.2d.zip',tmp,ew,abs(x),ns,abs(y));
-        [s,w] = system(sprintf('/opt/local/bin/wget -O %s %s%s',ftmp,url,file));
+        warning('wget here')
+        [~,aa]=system('which wget');
+        [s,w] = system(sprintf([aa,' --no-check-certificate -O %s %s%s'],ftmp,url,file));
            if s
               disp(w)
            end

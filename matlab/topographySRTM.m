@@ -263,7 +263,10 @@ else
 						tmp = tempname;
 						mkdir(tmp)
 						ftmp = sprintf('%s/%s%s.hgt.zip',tmp,slat,slon);
-						[s,w] = system(sprintf('/opt/local/bin/wget -O %s %s%s',ftmp,url,ff));
+                        warning('wget here')
+                        [~,aa]=system('which wget');
+                        [s,w] = system(sprintf([aa,' --no-check-certificate -O %s %s%s'],ftmp,url,ff));
+% 						[s,w] = system(sprintf('/usr/bin/wget --no-check-certificate -O %s %s%s',ftmp,url,ff));
 						if s
 							disp(w)
 						end
