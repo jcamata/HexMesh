@@ -377,7 +377,7 @@ else
 						ftmp = sprintf('%s/%s%s.hgt.zip',tmp,slat,slon);
                         warning('wget here')
                         [~,aa]=system('which wget');
-                        [s,w] = system(sprintf([aa(2:end-1),' --no-check-certificate -O %s %s%s'],ftmp,url,ff));
+                        [s,w] = system(sprintf([aa(1:end-1),' --no-check-certificate -O %s %s%s'],ftmp,url,ff));
                         % 						[s,w] = system(sprintf('/usr/bin/wget --no-check-certificate -O %s %s%s',ftmp,url,ff));
 						if s
 							disp(w)
