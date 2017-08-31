@@ -40,9 +40,10 @@ typedef struct {
     int        n_mat;
     unsigned int edge_id[12];
     bool edge_ref[12];
+    bool ghost;
     octant_node_t nodes[8];
     octant_edge_t edge[12];
-    int32_t    id;
+    int64_t    id;
 } octant_t;
 
 typedef struct shared_node
@@ -60,7 +61,7 @@ typedef struct shared_edge{
 } shared_edge_t;
 
 typedef struct shared_element{
-  uint32_t     id;
+  uint64_t     id;
   int32_t       x, y, z;
   int32_t      listSz;
   int32_t      rankList[4];

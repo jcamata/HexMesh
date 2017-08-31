@@ -206,23 +206,23 @@ void hexa_insert_shared_edge(sc_hash_array_t *shared_edges, shared_edge_t* edge,
 		}
 	}
 }
-/*
+
 unsigned element_hash_fn(const void *v, const void *u) {
-	const octant_t *q = (const octant_t*) v;
+	const shared_element_t *q = (const shared_element_t*) v;
 	uint32_t a, b, c;
 
 	a = (uint32_t) q->x;
 	b = (uint32_t) q->y;
 	c = (uint32_t) q->z;
 	sc_hash_mix(a, b, c);
-	c+=q->id;
+	//c+=q->id;
 	sc_hash_final(a, b, c);
 	return (unsigned) c;
 }
 
 int element_equal_fn(const void *v, const void *u, const void *w) {
-	const octant_t *e1 = (const octant_t*) v;
-	const octant_t *e2 = (const octant_t*) u;
+	const shared_element_t *e1 = (const shared_element_t*) v;
+	const shared_element_t *e2 = (const shared_element_t*) u;
 
 	return (unsigned) ((e1->x==e2->x)&&(e1->y==e2->y)&&(e1->z==e2->z));//(e1->id == e2->id)&&
 }
@@ -235,7 +235,15 @@ void hexa_insert_shared_element(sc_hash_array_t *shared_elements, octant_t* elem
 
 	if( processor < 0) return;
 
-	se = (shared_element_t*) sc_hash_array_insert_unique (shared_elements, elem, &position);
+	shared_element_t key;
+
+	key.id = elem->id;
+	key.x = elem->x;
+	key.y = elem->y;
+	key.z = elem->z;
+
+
+	se = (shared_element_t*) sc_hash_array_insert_unique (shared_elements, &key, &position);
 	if(se != NULL){
 		se->id = elem->id;
 		se->x = elem->x;
@@ -253,7 +261,7 @@ void hexa_insert_shared_element(sc_hash_array_t *shared_elements, octant_t* elem
 		}
 	}
 }
-*/
+
 void hexa_mesh(hexa_tree_t* mesh){
 
 	bool                clamped = true;
@@ -340,49 +348,31 @@ void hexa_mesh(hexa_tree_t* mesh){
 			hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[5]);
 	}
 
-/*
+
 	////////////////////////////////////
 	//create shared elements
 	sc_hash_array_t * shared_elements    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_element_t), element_hash_fn, element_equal_fn, &clamped);
 	for(int i = 0; i < mesh->elements.elem_count; i++){
 		octant_t* elem = (octant_t*) sc_array_index (&mesh->elements, i);
 		elem->id = i;
+		elem->ghost=false;
 		bool out = false;
 		size_t position;
-		fprintf(mesh->fdbg,"El:%d\n",elem->id );
+		fprintf(mesh->fdbg,"El:%lld\n",elem->id );
 		fprintf(mesh->fdbg,"x:%d y:%d z:%d\n",elem->x,elem->y,elem->z );
 
+		for (int n = 0; n < 8; ++n) {
 
-		for(int j = 0; j<8; j++){
-			octant_node_t* node = &elem->nodes[j];
-			out =  sc_hash_array_lookup(shared_nodes, node, &position);
+			octant_node_t* node = &elem->nodes[n];
+
+			out = sc_hash_array_lookup(shared_nodes, node,&position);
+
 			if(out){
+				elem->ghost=true;
+				fprintf(mesh->fdbg,"Ghost El:%d\n",elem->id);
 				shared_node_t* sn = (shared_node_t*) sc_array_index(&shared_nodes->a, position);
-				fprintf(mesh->fdbg,"node:%d shared node:%d n_times:%d\n",node->id,sn->id,sn->listSz );
-
-				for(int k = 0; k < sn->listSz; k++){
-
-					shared_element_t* se = (shared_element_t*) sc_hash_array_insert_unique (shared_elements, elem, &position);
-					if(se != NULL){
-						se->id = elem->id;
-						se->x = elem->x;
-						se->y = elem->y;
-						se->z = elem->z;
-						fprintf(mesh->fdbg,"id:%d, x:%d y:%d z:%d\n",se->id,se->x,se->y,se->z );
-
-						se->listSz = 1;
-						se->rankList[0] = se->rankList[k];
-					} else{
-						se = (shared_element_t*) sc_array_index(&shared_elements->a, position);
-						for(i=0; i < se->listSz; ++i)
-							if(se->rankList[i] == se->rankList[k]) break;
-						if(i == se->listSz){
-							se->rankList[se->listSz] = se->rankList[k];
-							se->listSz++;
-						}
-					}
-
-					//hexa_insert_shared_element(shared_elements, elem,se->rankList[k]);
+				for(int k = 0 ; k<sn->listSz;k++){
+					hexa_insert_shared_element(shared_elements,elem,sn->rankList[k]);
 				}
 			}
 		}
@@ -402,7 +392,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 		}
 	}
 #endif
-*/
+
 	////////////////
 	//extract the share nodes from shared_nodes
 	sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
@@ -586,10 +576,10 @@ void hexa_mesh(hexa_tree_t* mesh){
 	///////////////////////////////
 	///////////////////////////////
 	//update the local node_id to global node_id
-	for(int i = 0; i < mesh->nodes.elem_count; ++i){
-		octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
-		n->id=mesh->global_id[i];
-	}
+	//for(int i = 0; i < mesh->nodes.elem_count; ++i){
+	//	octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,i);
+	//	n->id=mesh->global_id[i];
+	//}
 
 	/*
     //update the local node_id to global node_id in the element structure
