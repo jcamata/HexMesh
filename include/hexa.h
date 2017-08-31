@@ -183,6 +183,11 @@ int node_equal_fn (const void *v1, const void *v2, const void *u);
 
 void hexa_mesh_destroy(hexa_tree_t* mesh);
 
+int node_comp (const void *v, const void *u);
+
+void communicate_global_ids(hexa_tree_t* mesh);
+
+
 
 #endif	/* HEXA_H */
 

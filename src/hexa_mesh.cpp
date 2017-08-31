@@ -98,11 +98,18 @@ void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* no
 {
 	size_t position;
 	shared_node_t *sn;
+	shared_node_t key;
 	int i;
+
+	key.id = node->id;
+	key.x = node->x;
+	key.y = node->y;
+	key.z = node->z;
+
 
 	if( processor < 0) return;
 
-	sn = (shared_node_t*) sc_hash_array_insert_unique (shared_nodes, node, &position);
+	sn = (shared_node_t*) sc_hash_array_insert_unique (shared_nodes, &key, &position);
 	if(sn != NULL)
 	{
 		sn->x  = node->x;
@@ -378,10 +385,8 @@ void hexa_mesh(hexa_tree_t* mesh){
 		}
 	}
 
-	printf("shared element size:%d, rank:%d\n",shared_elements->a.elem_count,mesh->mpi_rank);
-
 #ifdef HEXA_DEBUG_
-	if(1){
+	if(0){
 		for (int iel = 0; iel < shared_elements->a.elem_count; ++iel) {
 			shared_element_t *elem = (shared_element_t*) sc_array_index(&shared_elements->a, iel);
 			fprintf(mesh->fdbg,"id:%lld lista:%lld \n",elem->id, elem->listSz);
