@@ -6628,7 +6628,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 						hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[2]);
 					}
 					hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[1]);
-					continue;
+					//continue;
 				}
 				if(ye<=coords[3*elem->nodes[i].id+1]){
 					if(xs>=coords[3*elem->nodes[i].id]){
@@ -6638,7 +6638,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 						hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[8]);
 					}
 					hexa_insert_shared_node(shared_nodes,&elem->nodes[i],mesh->neighbors[7]);
-					continue;
+					//continue;
 				}
 
 				if(xs>=coords[3*elem->nodes[i].id]){
@@ -6673,6 +6673,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 	//extract the share nodes from shared_nodes
 	sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
 	sc_array_sort(&mesh->shared_nodes,node_comp);
+
 
 	int local[3];
 	size_t              position;
@@ -6801,6 +6802,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 	/*communicate_global_ids(mesh);
 	 *
 	 */
+
 	int          n_requests;
 
 	MPI_Request *requests;
@@ -6821,7 +6823,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 	// post all non-blocking receives
 	for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
 		message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-//		MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+		MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
 		offset += m->idxs.elem_count;
 		c++;
 	}
@@ -6836,7 +6838,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
 			sendbuf[offset+j] = (long long) mesh->global_id[*id];
 		}
-	//	MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+		MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
 		offset += m->idxs.elem_count;
 		c++;
 	}
@@ -6844,7 +6846,7 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 
 	assert(c == n_requests);
 
-	//MPI_Waitall(n_requests,requests,statuses);
+	MPI_Waitall(n_requests,requests,statuses);
 
 	offset = 0;
 	for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
@@ -6857,12 +6859,10 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 		offset += m->idxs.elem_count;
 	}
 
-
 	free(recvbuf);
 	free(sendbuf);
 	free(requests);
 	free(statuses);
-	/*
 
 	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
 	for(int i =0; i < mesh->local_n_nodes; i++)
@@ -6876,6 +6876,6 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords, std::ve
 			int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
 			mesh->part_nodes[*id] = m->rank;
 		}
-	}*/
+	}
 
 }

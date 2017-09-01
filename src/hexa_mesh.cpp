@@ -336,7 +336,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 				hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[2]);
 
 			hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[1]);
-			continue;
+			//continue;
 		}
 
 		if(node->y == mesh->y_end) {
@@ -346,7 +346,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 				hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[8]);
 
 			hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[7]);
-			continue;
+			//continue;
 		}
 
 		if(node->x == mesh->x_start)
@@ -408,7 +408,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 
 
 #ifdef HEXA_DEBUG_
-	if(0){
+	if(1){
 		fprintf(mesh->fdbg, "Nodes: \n");
 		for(int i = 0; i < mesh->nodes.elem_count; ++i)
 		{
