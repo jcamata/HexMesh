@@ -110,6 +110,7 @@ typedef struct {
     sc_array_t      nodes;
     sc_array_t      shared_nodes; 
     sc_array_t      shared_edges;
+    sc_array_t      shared_elements;
     sc_array_t      edges_ref;
     int64_t *global_id;
     //uint64_t *global_edge_id;

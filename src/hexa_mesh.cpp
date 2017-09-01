@@ -406,6 +406,8 @@ void hexa_mesh(hexa_tree_t* mesh){
 	local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
 	local[1] = mesh->local_n_elements = mesh->elements.elem_count;
 
+	sc_hash_array_rip (shared_elements, &mesh->shared_elements);
+
 
 #ifdef HEXA_DEBUG_
 	if(1){
