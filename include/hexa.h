@@ -19,19 +19,28 @@
 
 #define HEXA_DEBUG_
 
-typedef struct {
+typedef struct
+{
     int32_t id;
     int32_t x,y,z;
     int color;
 } octant_node_t;
 
-typedef struct {
+typedef struct
+{
     uint64_t id;
     bool ref;
     bitmask_t coord[2];
 } octant_edge_t;
 
-typedef struct {
+typedef struct
+{
+    uint64_t id;
+    int nodes[4];
+} octant_face_t;
+
+typedef struct
+{
     int32_t    x,y,z;
     int8_t     level;
     int     pad;
@@ -43,6 +52,7 @@ typedef struct {
     bool ghost;
     octant_node_t nodes[8];
     octant_edge_t edge[12];
+    octant_face_t face[6];
     int64_t    id;
 } octant_t;
 
@@ -54,13 +64,23 @@ typedef struct shared_node
   int32_t      rankList[8];
 } shared_node_t;
 
-typedef struct shared_edge{
+typedef struct shared_edge
+{
   uint64_t     id;
   int32_t      listSz;
   int32_t      rankList[4];
 } shared_edge_t;
 
-typedef struct shared_element{
+typedef struct
+{
+    uint64_t     id;
+    int32_t      nodes[4];
+    int32_t      listSz;
+    int32_t      rankList;
+} shared_face_t;
+
+typedef struct shared_element
+{
   uint64_t     id;
   int32_t       x, y, z;
   int32_t      listSz;
@@ -108,9 +128,15 @@ typedef struct {
     sc_array_t      elements;
     sc_array_t      edges;
     sc_array_t      nodes;
+    sc_array_t      faces;
+    sc_array_t      vertex;
+
     sc_array_t      shared_nodes; 
     sc_array_t      shared_edges;
     sc_array_t      shared_elements;
+    sc_array_t      shared_faces;
+    sc_array_t      shared_vertex;
+
     sc_array_t      edges_ref;
     int64_t *global_id;
     //uint64_t *global_edge_id;
@@ -186,7 +212,7 @@ void hexa_mesh_destroy(hexa_tree_t* mesh);
 
 int node_comp (const void *v, const void *u);
 
-void communicate_global_ids(hexa_tree_t* mesh);
+//void communicate_global_ids(hexa_tree_t* mesh);
 
 
 

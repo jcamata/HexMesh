@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <sc.h>
+#include <vector>
+#include <algorithm>
 
 #include "hexa.h"
 #include "refinement.h"
@@ -222,7 +224,6 @@ unsigned element_hash_fn(const void *v, const void *u) {
 	b = (uint32_t) q->y;
 	c = (uint32_t) q->z;
 	sc_hash_mix(a, b, c);
-	//c+=q->id;
 	sc_hash_final(a, b, c);
 	return (unsigned) c;
 }
@@ -231,10 +232,65 @@ int element_equal_fn(const void *v, const void *u, const void *w) {
 	const shared_element_t *e1 = (const shared_element_t*) v;
 	const shared_element_t *e2 = (const shared_element_t*) u;
 
-	return (unsigned) ((e1->x==e2->x)&&(e1->y==e2->y)&&(e1->z==e2->z));//(e1->id == e2->id)&&
+	return (unsigned) ((e1->x==e2->x)&&(e1->y==e2->y)&&(e1->z==e2->z));
 }
 
 void hexa_insert_shared_element(sc_hash_array_t *shared_elements, octant_t* elem, int processor){
+
+	size_t position;
+	shared_element_t *se;
+	int i;
+
+	if( processor < 0) return;
+
+	shared_element_t key;
+
+	key.id = elem->id;
+	key.x = elem->x;
+	key.y = elem->y;
+	key.z = elem->z;
+
+
+	se = (shared_element_t*) sc_hash_array_insert_unique (shared_elements, &key, &position);
+	if(se != NULL){
+		se->id = elem->id;
+		se->x = elem->x;
+		se->y = elem->y;
+		se->z = elem->z;
+		se->listSz = 1;
+		se->rankList[0] = processor;
+	} else{
+		se = (shared_element_t*) sc_array_index(&shared_elements->a, position);
+		for(i=0; i < se->listSz; ++i)
+			if(se->rankList[i] == processor) break;
+		if(i == se->listSz){
+			se->rankList[se->listSz] = processor;
+			se->listSz++;
+		}
+	}
+}
+
+unsigned face_hash_id(const void *v, const void *u) {
+	const shared_face_t *q = (const shared_face_t*) v;
+	uint32_t a, b, c;
+
+	a = (uint32_t) q->nodes[0];
+	b = (uint32_t) q->nodes[1];
+	c = (uint32_t) q->nodes[2];
+	sc_hash_mix(a, b, c);
+	c = c+ q->nodes[3];
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int face_equal_id(const void *v, const void *u, const void *w) {
+	const shared_face_t *e1 = (const shared_face_t*) v;
+	const shared_face_t *e2 = (const shared_face_t*) u;
+
+	return (unsigned) ((e1->nodes[0]==e2->nodes[0])&&(e1->nodes[1]==e2->nodes[1])&&(e1->nodes[2]==e2->nodes[2])&&(e1->nodes[3]==e2->nodes[3]));
+}
+
+void hexa_insert_shared_face(sc_hash_array_t *shared_elements, octant_t* elem, int processor){
 
 	size_t position;
 	shared_element_t *se;
@@ -274,6 +330,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 	bool                clamped = true;
 	sc_hash_array_t    *indep_nodes;
 	sc_hash_array_t    *indep_edges;
+	sc_hash_array_t    *indep_faces;
 	sc_hash_array_t    *shared_nodes;
 	sc_hash_array_t    *shared_edges;
 	sc_hash_array_t    *SendTo;
@@ -285,6 +342,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 
 	indep_nodes     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
 	indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_edge_t), edge_hash_id, edge_equal_id, &clamped);
+	indep_faces     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_face_t), face_hash_id, face_equal_id, &clamped);
 	shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
 	shared_edges    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_id, edge_equal_id, &clamped);
 
@@ -1032,6 +1090,49 @@ void hexa_mesh(hexa_tree_t* mesh){
 	}
 #endif
 
+	//fprintf(mesh->fdbg,"Faces\n");
+	/////////////////
+	// create the face structure
+	int face_number = 0;
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		std::vector<int> fac;
+		for(int ifa = 0; ifa<6; ifa++){
+			for(int ino = 0; ino<4; ino++){
+				fac.push_back(elem->nodes[FaceNodesMap[ifa][ino]].id);
+			}
+
+			std::sort(fac.begin(), fac.end());
+			octant_face_t key;
+			key.nodes[0] = fac[0];
+			key.nodes[1] = fac[1];
+			key.nodes[2] = fac[2];
+			key.nodes[3] = fac[3];
+
+			octant_face_t* r = (octant_face_t*) sc_hash_array_insert_unique (indep_faces, &key, &position);
+			if(r != NULL){
+				r->id = face_number;
+				r->nodes[0] = fac[0];
+				r->nodes[1] = fac[1];
+				r->nodes[2] = fac[2];
+				r->nodes[3] = fac[3];
+				face_number++;
+			}else{
+				r = (octant_face_t*) sc_array_index(&indep_faces->a, position);
+			}
+
+			//fprintf(mesh->fdbg,"face %d, nos: %d %d %d %d\n",r->id,r->nodes[0],r->nodes[1],r->nodes[2],r->nodes[3]);
+
+			fac.clear();
+		}
+
+	}
+
+	/////////////////
+
+
 	local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
 	local[1] = mesh->local_n_elements = mesh->elements.elem_count;
 
@@ -1042,15 +1143,16 @@ void hexa_mesh(hexa_tree_t* mesh){
 	mesh->total_n_elements = global[1];
 	mesh->total_n_edges = global[2];
 
-	//TODO finf the problem in the total edge number
+	//TODO find the problem in the total edge number
 	if(mesh->mpi_rank == 0)
 	{
 		printf("Total number of elements: %lld\n", mesh->total_n_elements);
 		printf("Total number of edges: %lld\n", mesh->total_n_edges);
 		printf("Total number of nodes: %lld\n", mesh->total_n_nodes);
 	}
-
 }
+
+
 
 
 void communicate_global_ids(hexa_tree_t* mesh){
