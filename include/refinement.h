@@ -22,16 +22,16 @@ gdouble distance(GtsPoint *p, gpointer bounded);
  int const EdgeVerticesMap[12][2] = {
 		{0, 1}, // Edge 0
 		{1, 2}, // Edge 1
-		{2, 3}, //      2
-		{3, 0},
-		{0, 4},
-		{1, 5},
-		{2, 6},
-		{3, 7},
-		{4, 5},
-		{5, 6},
-		{6, 7},
-		{7, 4}
+		{2, 3}, // Edge 2
+		{3, 0}, // Edge 3
+		{0, 4}, // Edge 4
+		{1, 5}, // Edge 5
+		{2, 6}, // Edge 6
+		{3, 7}, // Edge 7
+ 		{4, 5}, // Edge 8
+		{5, 6}, // Edge 9
+		{6, 7}, // Edge 10
+		{7, 4}  // Edge 11
 };
 
  int const EdgeVerticesMap_surf_diagonal[12][2] = {
@@ -72,6 +72,17 @@ gdouble distance(GtsPoint *p, gpointer bounded);
 		{2,6,7,3},
 		{4,5,6,7},
 		{0,1,2,3}
+};
+
+ int const VertexEdgeMap[8][3] = {
+		{0,3,4}, //Vertex 0
+		{0,1,5}, //Vertex 1
+		{1,2,6}, //Vertex 2
+		{2,3,7}, //Vertex 3
+		{4,8,11}, //Vertex 4
+		{5,8,9}, //Vertex 5
+		{6,9,10}, //Vertex 6
+		{7,10,11}  //Vertex 7
 };
 
  int const EdgeEdgeMap[12][4] = {

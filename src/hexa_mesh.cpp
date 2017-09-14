@@ -290,6 +290,25 @@ int face_equal_id(const void *v, const void *u, const void *w) {
 	return (unsigned) ((e1->nodes[0]==e2->nodes[0])&&(e1->nodes[1]==e2->nodes[1])&&(e1->nodes[2]==e2->nodes[2])&&(e1->nodes[3]==e2->nodes[3]));
 }
 
+unsigned vertex_hash_id(const void *v, const void *u) {
+	const octant_vertex_t *q = (const octant_vertex_t*) v;
+	uint32_t a, b, c;
+
+	a = (uint32_t) q->id;
+	b = (uint32_t) 0;
+	c = (uint32_t) 1;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int vertex_equal_id(const void *v, const void *u, const void *w) {
+	const octant_vertex_t *e1 = (const octant_vertex_t*) v;
+	const octant_vertex_t *e2 = (const octant_vertex_t*) u;
+
+	return (unsigned) (e1->id==e2->id);
+}
+
 void hexa_insert_shared_face(sc_hash_array_t *shared_elements, octant_t* elem, int processor){
 
 	size_t position;
@@ -331,8 +350,12 @@ void hexa_mesh(hexa_tree_t* mesh){
 	sc_hash_array_t    *indep_nodes;
 	sc_hash_array_t    *indep_edges;
 	sc_hash_array_t    *indep_faces;
+	sc_hash_array_t    *indep_vertex;
+
 	sc_hash_array_t    *shared_nodes;
 	sc_hash_array_t    *shared_edges;
+	//sc_hash_array_t    *shared_faces;
+	//sc_hash_array_t    *shared_vertex;
 	sc_hash_array_t    *SendTo;
 	sc_hash_array_t    *RecvFrom;
 	size_t              position;
@@ -343,8 +366,14 @@ void hexa_mesh(hexa_tree_t* mesh){
 	indep_nodes     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
 	indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_edge_t), edge_hash_id, edge_equal_id, &clamped);
 	indep_faces     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_face_t), face_hash_id, face_equal_id, &clamped);
+	indep_vertex    = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
+
 	shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
 	shared_edges    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_id, edge_equal_id, &clamped);
+
+	//TODO
+	//shared_faces     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_face_t), face_hash_id, face_equal_id, &clamped);
+	//shared_vertex     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_face_t), face_hash_id, face_equal_id, &clamped);
 
 	//insert internal nodes in the hash_array
 	for(int i = 0; i < mesh->elements.elem_count; i++)
@@ -455,6 +484,70 @@ void hexa_mesh(hexa_tree_t* mesh){
 		}
 	}
 #endif
+
+	//fprintf(mesh->fdbg,"Faces\n");
+	/////////////////
+	// create the face structure
+	int face_number = 0;
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		std::vector<int> fac;
+		for(int ifa = 0; ifa<6; ifa++){
+			for(int ino = 0; ino<4; ino++){
+				fac.push_back(elem->nodes[FaceNodesMap[ifa][ino]].id);
+			}
+
+			std::sort(fac.begin(), fac.end());
+			octant_face_t key;
+			key.nodes[0] = fac[0];
+			key.nodes[1] = fac[1];
+			key.nodes[2] = fac[2];
+			key.nodes[3] = fac[3];
+
+			octant_face_t* r = (octant_face_t*) sc_hash_array_insert_unique (indep_faces, &key, &position);
+			if(r != NULL){
+				r->id = face_number;
+				r->nodes[0] = fac[0];
+				r->nodes[1] = fac[1];
+				r->nodes[2] = fac[2];
+				r->nodes[3] = fac[3];
+				face_number++;
+			}else{
+				r = (octant_face_t*) sc_array_index(&indep_faces->a, position);
+			}
+
+			//fprintf(mesh->fdbg,"face %d, nos: %d %d %d %d\n",r->id,r->nodes[0],r->nodes[1],r->nodes[2],r->nodes[3]);
+
+			fac.clear();
+
+			elem->face[ifa].id = r->id;
+			elem->face[ifa].nodes[0] = r->nodes[0];
+			elem->face[ifa].nodes[1] = r->nodes[1];
+			elem->face[ifa].nodes[2] = r->nodes[2];
+			elem->face[ifa].nodes[3] = r->nodes[3];
+		}
+
+	}
+
+	/////////////////
+	// create the shared face structure
+	/*
+		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+
+			bool out = sc_hash_array_lookup(shared_nodes, &elem->face[0].nodes[0] ,&position);
+			if (out){
+				fprintf(mesh->fdbg,"face %d, nos: %d %d %d %d\n",elem->face[0].nodes[0],elem->face[0].nodes[0],elem->face[0].nodes[0],elem->face[0].nodes[0]);
+
+			}
+
+		}
+	 */
+	/////////////////
 
 	////////////////
 	//extract the share nodes from shared_nodes
@@ -1090,45 +1183,109 @@ void hexa_mesh(hexa_tree_t* mesh){
 	}
 #endif
 
-	//fprintf(mesh->fdbg,"Faces\n");
 	/////////////////
-	// create the face structure
-	int face_number = 0;
+	// create the vertex structure
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-		std::vector<int> fac;
-		for(int ifa = 0; ifa<6; ifa++){
-			for(int ino = 0; ino<4; ino++){
-				fac.push_back(elem->nodes[FaceNodesMap[ifa][ino]].id);
-			}
+		for (int j = 0; j < 8; j++){
 
-			std::sort(fac.begin(), fac.end());
-			octant_face_t key;
-			key.nodes[0] = fac[0];
-			key.nodes[1] = fac[1];
-			key.nodes[2] = fac[2];
-			key.nodes[3] = fac[3];
+			octant_vertex_t key;
+			key.id = elem->nodes[j].id;
 
-			octant_face_t* r = (octant_face_t*) sc_hash_array_insert_unique (indep_faces, &key, &position);
+			octant_vertex_t* r = (octant_vertex_t*) sc_hash_array_insert_unique (indep_vertex, &key, &position);
 			if(r != NULL){
-				r->id = face_number;
-				r->nodes[0] = fac[0];
-				r->nodes[1] = fac[1];
-				r->nodes[2] = fac[2];
-				r->nodes[3] = fac[3];
-				face_number++;
+				r->id = elem->nodes[j].id;
+				r->list_elem = 1;
+				r->list_edges = 3;
+				r->elem[0] = iel;
+				r->edges[0] = elem->edge[VertexEdgeMap[j][0]].id;
+				r->edges[1] = elem->edge[VertexEdgeMap[j][1]].id;
+				r->edges[2] = elem->edge[VertexEdgeMap[j][2]].id;
 			}else{
-				r = (octant_face_t*) sc_array_index(&indep_faces->a, position);
+				r = (octant_vertex_t*) sc_array_index(&indep_vertex->a, position);
+				r->list_elem ++;
+				r->elem[r->list_elem] = iel;
+
+				r->edges[r->list_edges    ] = elem->edge[VertexEdgeMap[j][0]].id;
+				r->edges[r->list_edges + 1] = elem->edge[VertexEdgeMap[j][1]].id;
+				r->edges[r->list_edges + 2] = elem->edge[VertexEdgeMap[j][2]].id;
+				r->list_edges = r->list_edges + 3;
+
 			}
-
-			//fprintf(mesh->fdbg,"face %d, nos: %d %d %d %d\n",r->id,r->nodes[0],r->nodes[1],r->nodes[2],r->nodes[3]);
-
-			fac.clear();
 		}
+	}
+
+
+#ifdef HEXA_DEBUG_
+	if(1){
+		fprintf(mesh->fdbg,"Vertex\n");
+		for(int ver = 0; ver < indep_vertex->a.elem_count; ver++){
+			octant_vertex_t* r = (octant_vertex_t*) sc_array_index(&indep_vertex->a, ver);
+
+			fprintf(mesh->fdbg,"Id:%d list_el:%d list_edges\n",r->id,r->list_elem, r->list_edges);
+			for(int iel = 0;iel <r->list_elem;iel++){
+				fprintf(mesh->fdbg,"El:%d ",r->elem[iel]);
+			}
+			fprintf(mesh->fdbg,"\n");
+			for(int iel = 0;iel <r->list_edges;iel++){
+				fprintf(mesh->fdbg,"Edge:%d ",r->edges[iel]);
+			}
+			fprintf(mesh->fdbg,"\n");
+		}
+	}
+#endif
+
+
+
+
+
+
+	////////////////
+	/*
+
+	fprintf(mesh->fdbg,"vertex\n");
+	/////////////////
+	// create the face structure
+	//int face_number = 0;
+	for (int ied = 0; ied < mesh->edges.elem_count; ++ied) {
+
+		octant_t *edge = (octant_t*) sc_array_index(&mesh->edges, ied);
+
+		/*
+			std::vector<int> fac;
+			for(int ifa = 0; ifa<6; ifa++){
+				for(int ino = 0; ino<4; ino++){
+					fac.push_back(elem->nodes[FaceNodesMap[ifa][ino]].id);
+				}
+
+				std::sort(fac.begin(), fac.end());
+				octant_face_t key;
+				key.nodes[0] = fac[0];
+				key.nodes[1] = fac[1];
+				key.nodes[2] = fac[2];
+				key.nodes[3] = fac[3];
+
+				octant_face_t* r = (octant_face_t*) sc_hash_array_insert_unique (indep_faces, &key, &position);
+				if(r != NULL){
+					r->id = face_number;
+					r->nodes[0] = fac[0];
+					r->nodes[1] = fac[1];
+					r->nodes[2] = fac[2];
+					r->nodes[3] = fac[3];
+					face_number++;
+				}else{
+					r = (octant_face_t*) sc_array_index(&indep_faces->a, position);
+				}
+
+				//fprintf(mesh->fdbg,"face %d, nos: %d %d %d %d\n",r->id,r->nodes[0],r->nodes[1],r->nodes[2],r->nodes[3]);
+
+				fac.clear();
+			}
 
 	}
+*/
 
 	/////////////////
 
