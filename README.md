@@ -21,10 +21,12 @@ If you use the library, please cite the following paper:
 Before using the software, the following libraries need to be installed and available:
 1. gts (http://gts.sourceforge.net/)
 1. libsc (https://github.com/cburstedde/libsc)
+1. hdf5 (https://portal.hdfgroup.org/display/support/Downloads)
+1. mesquite (https://software.sandia.gov/mesquite/)
 
 ## COMPILATION
 
-Depending on the OS you are using, modify the paths for GTS_LIB, SC_LIB and GLIB_INCLUDE in Make.Linux or Make.mac
+Depending on the OS you are using, modify the paths for GTS_LIB, SC_LIB, HDF5_DIR, MESQUITE_DIR and GLIB_INCLUDE in Make.Linux, Make.mac or Makefile
 
 Compile with (replace OS by Linux or mac)
 >> make -f Make.OS

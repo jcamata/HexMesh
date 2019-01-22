@@ -22,7 +22,7 @@ objects		:= $(patsubst %.cpp, %.o, $(srcfiles))
 
 GTS_DIR :=/Users/LAC/Codes/local/gts/gts_lib
 SC_DIR :=/Users/LAC/Codes/local/libsc-master/local
-MESQUITE_DIR := /Users/LAC/Codes/local/include
+MESQUITE_DIR := /Users/LAC/Codes/local
 HDF5_DIR := /opt/local
 
 GLIB_INCLUDE = -I/opt/local/include/glib-2.0 -I/opt/local/lib/glib-2.0/include

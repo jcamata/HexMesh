@@ -19,10 +19,18 @@ srcfiles 	:= $(wildcard src/*.cpp) main.cpp
 # object files
 objects		:= $(patsubst %.cpp, %.o, $(srcfiles))
 ###############################################################################
-CXX       = mpicxx -O2
-LDFLAGS   =  -lsc  -lm -L/opt/local/lib -lgts -lglib-2.0 
-CXX_FLAGS = -I/opt/local/include -I/opt/local/include/glib-2.0 -I/opt/local/lib/glib-2.0/include -Iinclude
 
+GTS_DIR :=/Users/LAC/Codes/local/gts/gts_lib
+SC_DIR :=/Users/LAC/Codes/local/libsc-master/local
+MESQUITE_DIR := /Users/LAC/Codes/local
+HDF5_DIR := /opt/local
+ 
+GLIB_INCLUDE = -I/opt/local/include/glib-2.0 -I/opt/local/lib/glib-2.0/include
+ 
+CXX       = mpicxx -lstdc++ -g
+LDFLAGS   = -L$(GTS_DIR)/lib -lgts -L$(SC_DIR)/lib -L$(HDF5_DIR)/lib -lsc -lm -lglib-2.0 -lhdf5_cpp -lhdf5 -L$(MESQUITE_DIR)/lib -lmesquite
+CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -I./include -I$(HDF5_DIR)/include -I$(MESQUITE_DIR)/include
+  
 
 ## Target: all
 all: hexmesh
