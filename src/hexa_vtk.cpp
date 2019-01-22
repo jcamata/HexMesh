@@ -338,7 +338,8 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
   fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"ElemType\" format=\"%s\">\n", VTK_LOCIDX, VTK_FORMAT_STRING);
   for (il = 0, sk = 1; il < Ncells; ++il, ++sk) {
         octant_t *h     = (octant_t*) sc_array_index(&mesh->elements, il);
-        fprintf (vtufile, " %d", h->pad);
+        //fprintf (vtufile, " %d", h->pad);
+        fprintf (vtufile, " %d", h->n_mat);
         if (!(sk % 20) && il != (Ncells - 1))
             fprintf (vtufile, "\n         ");
   }

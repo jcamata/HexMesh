@@ -111,8 +111,8 @@ int main(int argc, char** argv) {
 	//printf(" Optimization of the mesh\n\n");
 	//MeshOpt(&mesh,coords,nodes_b_mat);
 
-	//printf(" Extrude elements\n\n");
-	//ExtrudePMLElements(&mesh,coords);
+	printf(" Extrude elements\n\n");
+	ExtrudePMLElements(&mesh,coords);
 
 	//clean vectors
 	std::vector<int>().swap(element_ids);
