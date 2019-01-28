@@ -205,27 +205,14 @@ void hexa_tree_destroy(hexa_tree_t* mesh)
 
 	if(mesh->global_id!=NULL) free(mesh->global_id);
 	if(mesh->part_nodes!=NULL) free(mesh->part_nodes);
-	sc_array_reset(&mesh->edges);
 	sc_array_reset(&mesh->elements);
 	sc_array_reset(&mesh->comm_map.RecvFrom);
 	sc_array_reset(&mesh->comm_map.SendTo);
-	sc_array_reset(&mesh->comm_map_edge.RecvFrom);
-	sc_array_reset(&mesh->comm_map_edge.SendTo);
 	sc_array_reset(&mesh->nodes);
-
-	sc_array_reset(&mesh->faces);
 	sc_array_reset(&mesh->vertex);
-
 	sc_array_reset(&mesh->oct);
-
 	sc_array_reset(&mesh->shared_nodes);
-	sc_array_reset(&mesh->shared_edges);
-	sc_array_reset(&mesh->shared_elements);
-	sc_array_reset(&mesh->shared_faces);
-	sc_array_reset(&mesh->shared_vertex);
 
-	//if(mesh->gdata.s!=NULL){
-	  //  gts_bb_tree_destroy(mesh->gdata.s, TRUE);}
 	if(mesh->gdata.bbt!=NULL)
 		gts_bb_tree_destroy(mesh->gdata.bbt, TRUE);
 
