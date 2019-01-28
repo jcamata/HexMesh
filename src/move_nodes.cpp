@@ -27,6 +27,25 @@ static void InsertPoint(GtsPoint * p, ListOfPoints * lp) {
 
 bool is_point_over_surface(GtsPoint * p, GNode * tree);
 
+unsigned vertex_hash_id(const void *v, const void *u) {
+	const octant_vertex_t *q = (const octant_vertex_t*) v;
+	uint32_t a, b, c;
+
+	a = (uint32_t) q->id;
+	b = (uint32_t) 0;
+	c = (uint32_t) 1;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int vertex_equal_id(const void *v, const void *u, const void *w) {
+	const octant_vertex_t *e1 = (const octant_vertex_t*) v;
+	const octant_vertex_t *e2 = (const octant_vertex_t*) u;
+
+	return (unsigned) (e1->id==e2->id);
+}
+
 unsigned el_hash_id(const void *v, const void *u) {
 	const octant_t *q = (const octant_t*) v;
 	uint64_t a, b, c;
@@ -3277,213 +3296,7 @@ void DoOctree(hexa_tree_t* mesh){
 				oc->mat[i] = -1;
 			}
 		}
-
 	}
-
-
-
-
-
-	////////////////////////////////////////////
-	/*
-    int z_min = 0;
-	for(int iel = 0; iel < mesh->elements.elem_count; iel++){
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		if(elem->pad == -1){
-			z_min = max(elem->z,z_min);
-		}
-	}
-
-	printf("z maximo foi de %d\n",z_min+1);
-	////////////////////////////////////////////
-	//add elements to create the octree structure
-	//bool clamped= true;
-	sc_hash_array_t * hash = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_t), el_hash_id, el_equal_id, &clamped);
-	octant_t* r;
-
-
-	if(false){
-		//it should contain 8 or 4 or 2 elements
-		for(int ie=0; ie<mesh->elements.elem_count; ie++){
-
-			octant_t* cut = (octant_t*) sc_array_index(&mesh->elements, ie);
-
-			bool cut_lookup= true;
-			bool elem_lookup = true;
-			if(cut->z<=(z_min+1)){
-
-				size_t position1;
-				octant_t key1;
-				key1.id = cut->id;
-
-				cut_lookup = sc_hash_array_lookup(hash, &key1, &position1);
-
-				int temp_id[8];
-				bool temp_cut = false;;
-
-				for(int ii = 0; ii<8 ; ii++){
-					temp_id[ii] = -1;
-				}
-
-				if(cut_lookup){
-
-				}else{
-					//iniciando a busca pelos vizinhos
-					for(int iel = 0; iel < mesh->elements.elem_count; iel++){
-
-						octant_t key;
-						size_t position;
-
-						octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-						key.id = elem->id;
-
-						if(elem->z<=(z_min+3)){
-
-							elem_lookup = sc_hash_array_lookup(hash, &key, &position);
-
-							if(!elem_lookup){
-								//ele mesmo
-								if(cut->id==elem->id){
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									temp_id[0] = elem->id;
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}//x+
-
-								if(cut->nodes[1].id == elem->nodes[0].id && cut->nodes[2].id == elem->nodes[3].id &&
-										cut->nodes[5].id==elem->nodes[4].id && cut->nodes[6].id==elem->nodes[7].id){
-									temp_id[1] = elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}//x+y+
-
-								if(cut->nodes[2].id==elem->nodes[0].id && cut->nodes[6].id==elem->nodes[4].id){
-									temp_id[2]= elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}//y+
-
-								if(cut->nodes[3].id==elem->nodes[0].id && cut->nodes[2].id==elem->nodes[1].id &&
-										cut->nodes[6].id==elem->nodes[5].id && cut->nodes[7].id==elem->nodes[4].id){
-									temp_id[3]= elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}//z-
-
-								if(cut->nodes[4].id==elem->nodes[0].id && cut->nodes[5].id==elem->nodes[1].id &&
-										cut->nodes[6].id==elem->nodes[2].id && cut->nodes[7].id==elem->nodes[3].id){
-									temp_id[4]= elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}//z- x+
-
-								if(cut->nodes[5].id==elem->nodes[0].id && cut->nodes[6].id==elem->nodes[3].id){
-									temp_id[5]= elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}//z- x+ y+
-
-								if(cut->nodes[6].id==elem->nodes[0].id){
-									temp_id[6]= elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								} //z- y+
-
-								if(cut->nodes[6].id==elem->nodes[1].id && cut->nodes[7].id==elem->nodes[0].id){
-									temp_id[7]= elem->id;
-									r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
-									if(r!=NULL){
-										r->id= elem->id;
-									}else{
-										r =  (octant_t*) sc_array_index(&hash->a,position);
-									}
-									if(elem->pad==-1 || cut->pad == -1){
-										temp_cut = true;
-									}
-								}
-							}
-						}
-					}
-				}
-
-				if(temp_cut){
-					//printf("Octree: ");
-					//create the octree
-					octree_t * oc = (octree_t*) sc_array_push(&mesh->oct);
-					// fill with -1
-					for(int i = 0; i<8; i++){
-						oc->id[i] = temp_id[i];
-						//printf("El: %d\n", temp_id[i]);
-						oc->mat[i] = -1;
-					}
-				}
-			}
-
-		}
-		////////
-		//sc_hash_array_truncate(hash);
-		sc_hash_array_destroy (hash);
-	}
-	 */
-
-	/*
-	//auxiliar para limpar mesh->oct
-	std::vector<int> ids;
-	std::vector<bool> faces;
-	std::vector<bool> edges;
-	std::vector<bool> cortado;
-	 */
-
-	//printf("Presenca de %d octrees ao total\n",mesh->oct.elem_count);
-	//std::vector<int> to_del;
 
 	if(true){
 		int count = 0;
@@ -3568,25 +3381,26 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	memset(flag_nodes, 0, sizeof (int8_t) * mesh->local_n_nodes);
 
 	tstart = time(0);
-	printf("Building the octree structure...\n");
+	printf(" Building the octree structure...\n");
 	DoOctree(mesh);
 	tend = time(0);
-	cout << "Time in DoOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
+//	cout << "Time in DoOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
+
 
 	tstart = time(0);
-	printf("Identifying the movable nodes...\n");
+	printf(" Identifying the movable nodes...\n");
 	IdentifyMovableNodes(mesh);
 	tend = time(0);
 	//cout << "Time in IdentifyMovableNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 	tstart = time(0);
-	printf("Free the movable nodes...\n");
+	printf(" Free the movable nodes...\n");
 	FreeMovableNodes(mesh);
 	tend = time(0);
 	//cout << "Time in FreeMovableNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 	tstart = time(0);
-	printf("Make the projection of the nodes into the surface...\n");
+	printf(" Make the projection of the nodes into the surface...\n");
 	nodes_b_mat.clear();
 	ProjectFreeNodes(mesh,coords,nodes_b_mat);
 	tend = time(0);
@@ -3597,7 +3411,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	}
 
 	//verifica a criacao os nos livres e fixos na criacao dos octrees
-	if(false){
+	if(true){
 		//std::cout <<  mesh->elements.elem_count << " coisinhas para mover" << std::endl;
 		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
