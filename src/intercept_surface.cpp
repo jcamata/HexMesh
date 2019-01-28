@@ -46,65 +46,65 @@ gdouble distance(GtsPoint *p, gpointer bounded) {
 }
 
 // Change the node positions to fit the surface.
-void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, vector<double>& coords) {
+void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<double>& coords) {
 
 	GtsPoint *p;
 	double dx, dy, dz;
 	double d;
 	double zmax;
 
-	sc_array_t *nodes = &tree->nodes;
+	sc_array_t *nodes = &mesh->nodes;
 
-	tree->gdata.s = SurfaceRead(surface_topo);
+	mesh->gdata.s = SurfaceRead(surface_topo);
 
 	FILE *fout = fopen("surface.dat", "w");
-	gts_surface_print_stats(tree->gdata.s, fout);
+	gts_surface_print_stats(mesh->gdata.s, fout);
 	fclose(fout);
 
 	// Get the surface bounding box
-	tree->gdata.bbox = gts_bbox_surface(gts_bbox_class(), tree->gdata.s);
-	if (tree->mpi_rank == 0) {
+	mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+	if (mesh->mpi_rank == 0) {
 		printf("Bounding box: \n");
-		printf(" x ranges from %f to %f\n", tree->gdata.bbox->x1, tree->gdata.bbox->x2);
-		printf(" y ranges from %f to %f\n", tree->gdata.bbox->y1, tree->gdata.bbox->y2);
-		printf(" z ranges from %f to %f\n", tree->gdata.bbox->z1, tree->gdata.bbox->z2);
+		printf(" x ranges from %f to %f\n", mesh->gdata.bbox->x1, mesh->gdata.bbox->x2);
+		printf(" y ranges from %f to %f\n", mesh->gdata.bbox->y1, mesh->gdata.bbox->y2);
+		printf(" z ranges from %f to %f\n", mesh->gdata.bbox->z1, mesh->gdata.bbox->z2);
 	}
 
 	// Change the box size to cut the external elements
 	double factor = 0.05;
-	double x_factor = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1)*factor;
-	double y_factor = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1)*factor;
+	double x_factor = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1)*factor;
+	double y_factor = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1)*factor;
 
-	tree->gdata.bbox->x1 += x_factor;
-	tree->gdata.bbox->y1 += y_factor;
+	mesh->gdata.bbox->x1 += x_factor;
+	mesh->gdata.bbox->y1 += y_factor;
 
-	tree->gdata.bbox->x2 -= x_factor;
-	tree->gdata.bbox->y2 -= y_factor;
+	mesh->gdata.bbox->x2 -= x_factor;
+	mesh->gdata.bbox->y2 -= y_factor;
 
-	double Lx = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1);
-	double Ly = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1);
+	double Lx = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1);
+	double Ly = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1);
 	double zmin = ((Lx < Ly) ? -Lx : -Ly);
 
 	// Get grid-spacing at x and y direction
-	dx = (tree->gdata.bbox->x2 - tree->gdata.bbox->x1) / (double) tree->ncellx;
-	dy = (tree->gdata.bbox->y2 - tree->gdata.bbox->y1) / (double) tree->ncelly;
+	dx = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1) / (double) mesh->ncellx;
+	dy = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1) / (double) mesh->ncelly;
 
 	coords.resize(nodes->elem_count * 3);
 
 	// Build the bounding box tree
-	tree->gdata.bbt = gts_bb_tree_surface(tree->gdata.s);
+	mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
 
-	p = gts_point_new(gts_point_class(), 0.0, 0.0, tree->gdata.bbox->z2);
+	p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->gdata.bbox->z2);
 
 	for (int i = 0; i < nodes->elem_count; ++i) {
 		octant_node_t* n = (octant_node_t*) sc_array_index(nodes, i);
-		p->x = tree->gdata.bbox->x1 + n->x*dx;
-		p->y = tree->gdata.bbox->y1 + n->y*dy;
+		p->x = mesh->gdata.bbox->x1 + n->x*dx;
+		p->y = mesh->gdata.bbox->y1 + n->y*dy;
 
-		d = gts_bb_tree_point_distance(tree->gdata.bbt, p, distance, NULL);
-		zmax = tree->gdata.bbox->z2 - d;
+		d = gts_bb_tree_point_distance(mesh->gdata.bbt, p, distance, NULL);
+		zmax = mesh->gdata.bbox->z2 - d;
 
-		dz = (zmax - zmin) / (double) tree->ncellz;
+		dz = (zmax - zmin) / (double) mesh->ncellz;
 		double z = zmax - (n->z) * dz;
 
 		coords[i * 3 + 0] = p->x;
@@ -129,8 +129,6 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		elem->pad = 0;
 		elem->tem = 0;
-		elem->inipad = -10;
-		elem->initem = -10;
 
 		box->x1 = box->y1 = box->z1 = 1.0E10;
 		box->x2 = box->y2 = box->z2 = -1.0E10;
@@ -152,7 +150,6 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 		if (gts_bb_tree_is_overlapping(mesh->gdata.bbt, box)) {
 			elements_ids.push_back(iel);
 			elem->pad = -1;
-			elem->inipad = -1;
 		}
 
 		///////////
