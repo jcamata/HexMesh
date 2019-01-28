@@ -818,8 +818,3 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 
     
 }
-
-void hexa_debug_face_hanging(hexa_tree_t* mesh)
-{
-    hexa_transition_element(mesh,0,0,0,1,0);
-}

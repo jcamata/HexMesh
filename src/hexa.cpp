@@ -18,7 +18,6 @@ inline int get_hexa_id(int nx, int ny, int i, int j, int k)
 	return (k*((nx)*(ny))+j*(nx)+i+1);
 }
 
-void AddPMLElements(hexa_tree_t* mesh);
 
 void copy_octant(octant_t *orig, octant_t* dest)
 {
