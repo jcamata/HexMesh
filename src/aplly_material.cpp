@@ -1,11 +1,8 @@
 
 #include <gts.h>
 #include <glib.h>
-#//include <vector>
-//#include <iostream>
+
 using namespace std;
-//#include <set>
-//#include <algorithm>
 #include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
@@ -13,14 +10,6 @@ using namespace std;
 #include "hexa.h"
 #include "refinement.h"
 
-/**
- * bbox_is_stabbed:
- * @bb: a #GtsBBox.
- * @p: a #GtsPoint.
- *
- * Returns: %TRUE if the ray starting at @p and ending at (@p->x
- * @p->y, +infty) intersects with @bb, %FALSE otherwise.
- */
 int bbox_is_stabbed_zinfty(GtsBBox * bb, GtsPoint * p) {
 
 	g_return_val_if_fail((bb != NULL), 0);
@@ -33,14 +22,6 @@ int bbox_is_stabbed_zinfty(GtsBBox * bb, GtsPoint * p) {
 	return 1;
 }
 
-/**
- * bb_tree_stabbed_zinfty:
- * @tree: a bounding box tree.
- * @p: a #GtsPoint.
- *
- * Returns: a list of bounding boxes, leaves of @tree which are
- * stabbed by the ray defined by @p (see gts_bbox_is_stabbed()).
- */
 GSList * bb_tree_stabbed_zinfty(GNode * tree, GtsPoint * p) {
 	GSList * list = NULL;
 	GtsBBox * bb;
@@ -69,32 +50,9 @@ bool is_point_over_surface(GtsPoint * p, GNode * tree) {
 	g_return_val_if_fail((tree != NULL), false);
 
 	GSList* list = bb_tree_stabbed_zinfty(tree, p);
-	//double * orientation;
 	return (list != NULL);
 
-	/*
-    while(list)
-    {
-            GtsBBox     * b = (GtsBBox*)(list->data);
-            GtsTriangle * t = (GtsTriangle*)(((GtsBBox*)(list->data))->bounded);
-            // return one of the vertices of t, one of the edges of t or t if any
-            // of these are stabbed by the ray starting at p (included) and
-            // ending at (p->x, p->y, +infty), NULL otherwise. If the ray is contained
-            // in the plane of the triangle NULL is also returned
-            if(gts_triangle_is_stabbed(t,p, orientation));
-            return 1;
-
-            list = list->next;
-
-    }
-	 * */
-
-	//return 0;
-
 }
-
-
-//Aplly the material properties to the elements
 
 void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& element_ids, const char* surface_bathy) {
 
@@ -150,9 +108,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 		over1 = is_point_over_surface(point, bbt_bathymetry);
 
 		if(over && over1){
-		//if (over) {
 			elem->n_mat = 1;
-			//element_ids.push_back(iel);
 			mat2++;
 		} else {
 			elem->n_mat = 0;
@@ -161,19 +117,19 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 		gts_object_destroy(GTS_OBJECT(point));
 	}
 
-	//now we check the elements in the interface region
-	if(false){
+	//now we check only the elements in the interface region
+	if(true){
 		for (int ioc = 0; ioc <  mesh->oct.elem_count; ++ioc) {
 			octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 			GtsPoint * point[2]={NULL};
 			GtsSegment * segments={0};
 
 			for(int i = 0; i<8; i++){
-				if((oct->cut==true) && (oct->id[i]!=-1) ){
+				if(oct->id[i]!=-1){
 					octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[i]);
-					elem->n_mat = -1;
+					elem->n_mat = -2;
 
-					GtsPoint * pp[2];
+					GtsPoint * pp[5];
 					//getting the baricenter of the upper surface;
 					//find the centroid of the upper surface
 					double cord_in_x[8], cord_in_y[8], cord_in_z[8];
@@ -185,17 +141,32 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 					}
 					//superficie superior
 					double cord_in_ref[3];
-					cord_in_ref[0] = 0;
-					cord_in_ref[1] = 0;
-					cord_in_ref[2] = -0.9;
+					cord_in_ref[0] = 1;
+					cord_in_ref[1] = 1;
+					cord_in_ref[2] = 0;
 					pp[0] = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
 
-					cord_in_ref[0] = 0;
-					cord_in_ref[1] = 0;
+					cord_in_ref[0] = 1;
+					cord_in_ref[1] = -1;
 					cord_in_ref[2] = 0;
 					pp[1] = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
 
-					for(int ip = 0; ip<2;ip++){
+					cord_in_ref[0] = -1;
+					cord_in_ref[1] = 1;
+					cord_in_ref[2] = 0;
+					pp[2] = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
+
+					cord_in_ref[0] = -1;
+					cord_in_ref[1] = -1;
+					cord_in_ref[2] = 0;
+					pp[3] = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
+
+					cord_in_ref[0] = 0;
+					cord_in_ref[1] = 0;
+					cord_in_ref[2] = -0.9;
+					pp[4] = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
+
+					for(int ip = 0; ip<5;ip++){
 						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(),pp[ip]->x ,pp[ip]->y ,pp[ip]->z);
 						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(),pp[ip]->x ,pp[ip]->y ,2*bbox->z2);
 						segments = gts_segment_new(gts_segment_class(), v1, v2);
@@ -207,25 +178,23 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 							GtsBBox *b = GTS_BBOX(list->data);
 							point[ip] = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
 							if (point[ip]) {
-								//printf("Edge: %d , node: %d coords: %f %f %f\n",edge,ii,point[edge]->x,point[edge]->y,point[edge]->z);
 								break;
 							}
 							list = list->next;
 						}
 					}
 
-					if(point[0] && point[1]){
+					if((point[0] || point[1] || point[2] || point[3]) && point[4]){
 						elem->n_mat = 0;
 					}else{
 						elem->n_mat = 1;
 					}
+
 				}
 			}
 		}
 	}
 
 	gts_object_destroy(GTS_OBJECT(bathymetry));
-
-	printf("Apply material has found: \n MAT1: %d elements\n MAT2: %d elements\n", mat1, mat2);
 
 }

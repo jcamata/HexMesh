@@ -101,7 +101,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 	GtsPoint * point_s[12]={NULL};
 	bool clamped = true;
 	std::vector<double> aux;
-	//int count = 0;
 
 	//moving the nodes in the surface...
 	if(true){
@@ -1224,7 +1223,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			//TODO
 			if(oc_count==2){
-				printf("Trabalha o vagabundo\n");
+				printf("Oc_count = 2 not implemented yet...\n");
 			}
 
 		}
@@ -1272,15 +1271,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						}
 					}
 
-					//debug
-					if(false){
-						if(ioc == 0 && (iel==0 || iel ==4)){
-							for(int ide = 0; ide <12; ide++){
-								printf("Aresta %d cortada? %d\n",ide,point[ide]);
-								printf("Aresta do octree %d\n", oct->edge[ide]);
-							}
-						}
-					}
 
 					if(true){
 						//teoricamente move os pontos na arestas da face z-...
@@ -2293,7 +2283,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			//TODO
 			if(oc_count==2){
-				printf("Trabalha o vagabundo\n");
+				printf("Oc_count = 2 not implemented yet...\n");
 			}
 		}
 	}
@@ -2479,7 +2469,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 							aux.push_back(zz);
 
 						}else{
-							printf("Tu é mais burro que um tijolo 6 furos\n");
+							printf("Error in move_node.cpp\n some error in the central node \n");
 						}
 					}
 				}
@@ -2578,7 +2568,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(zz);
 
 					}else{
-						printf("Tu é mais burro que um tijolo 6 furos\n");
+						printf("Error in move_node.cpp\n some error in the central node \n");
 					}
 				}
 
@@ -2664,46 +2654,14 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(zz);
 
 					}else{
-						printf("Tu é mais burro que um tijolo 6 furos\n");
+						printf("Error in move_node.cpp\n some error in the central node \n");
 					}
 				}
-
 			}
 
 			if(oc_count==2){
-				printf("Trabalha o vagabundo\n");
+				printf("Oc_count = 2 not implemented yet...\n");
 			}
-			/*
-			point_v = NULL;
-			int node1 = elem0->nodes[2].id;
-			int node2 = elem4->nodes[6].id;
-
-			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]+0.05*coords[node1 * 3 + 2]);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]-0.05*coords[node2 * 3 + 2]);
-
-			segments_v = gts_segment_new(gts_segment_class(), v1, v2);
-			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments_v);
-			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-			//if (list == NULL) continue;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				point_v = SegmentTriangleIntersection(segments_v, GTS_TRIANGLE(b->bounded));
-				if (point_v) {
-					break;
-				}
-				list = list->next;
-			}
-
-			if(point_v!=NULL){
-				int cnode = elem0->nodes[6].id;
-				nodes_b_mat.push_back(cnode);
-				coords[3*cnode+0] = point_v->x;
-				coords[3*cnode+1] = point_v->y;
-				coords[3*cnode+2] = point_v->z;
-			}else{
-				printf("Sou um incompetente que não sei como tratar um problema basico\n");
-			}
-			 */
 		}
 	}
 
@@ -2713,7 +2671,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 		coords[3*node+0] = aux[4*iel+1];
 		coords[3*node+1] = aux[4*iel+2];
 		coords[3*node+2] = aux[4*iel+3];
-		//count++;
 	}
 
 	//creating a hash to remove duplicated nodes
@@ -2738,7 +2695,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 			r->coord[2] = key.coord[2];
 			r->node_id = nodes_b_mat[ii];
 		} else {
-			//printf("Ta me achando com cara de palhaco?");
+
 		}
 	}
 
@@ -2746,7 +2703,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 	for(int ii = 0;ii < hash_FixedNodes->a.elem_count ;ii++){
 		node_t* node = (node_t*) sc_array_index (&hash_FixedNodes->a, ii);
 		nodes_b_mat.push_back(node->node_id);
-		//printf("nos que estao na hash:%d\n",nodes_b_mat[ii] );
 	}
 	printf("Total de %d nos fixos...\n",nodes_b_mat.size());
 
