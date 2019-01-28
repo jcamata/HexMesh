@@ -117,8 +117,6 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 	}
 	int mat1 = 0;
 	int mat2 = 0;
-	//GtsPoint * p = gts_point_new(gts_point_class(),coords[n_id], coords[n_id + 1],coords[n_id + 2]);
-	//GtsPoint * p = gts_point_new(gts_point_class(), 0, 0, 0);
 
 	//for all the mesh
 	for (int iel = 0; iel < elements->elem_count; ++iel) {
@@ -173,8 +171,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 			for(int i = 0; i<8; i++){
 				if((oct->cut==true) && (oct->id[i]!=-1) ){
 					octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[i]);
-					elem->n_mat = 30;//oct->mat[i];
-					//printf("Elemento: %d \n",oct->id[i]);
+					elem->n_mat = -1;
 
 					GtsPoint * pp[2];
 					//getting the baricenter of the upper surface;
