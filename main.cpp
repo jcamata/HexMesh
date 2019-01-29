@@ -14,7 +14,7 @@
 #include <sc_containers.h>
 #include "hexa.h"
 #include "hilbert.h"
-#include "refinement.h"
+//#include "refinement.h"
 
 
 /*
@@ -56,11 +56,11 @@ int main(int argc, char** argv) {
 	element_ids.clear();
 	Apply_material(&mesh, coords, element_ids, bathy);
 
-	printf(" Untangle meshes\n\n");
-	UntagleMesh(&mesh, coords, nodes_b_mat);
+	//printf(" Untangle meshes\n\n");
+	//UntagleMesh(&mesh, coords, nodes_b_mat);
 
-	printf(" Optimization of the mesh\n\n");
-	MeshOpt(&mesh,coords,nodes_b_mat);
+	//printf(" Optimization of the mesh\n\n");
+	//MeshOpt(&mesh,coords,nodes_b_mat);
 
 	printf(" Extrude elements\n\n");
 	ExtrudePMLElements(&mesh,coords);

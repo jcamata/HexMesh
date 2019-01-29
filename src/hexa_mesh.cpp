@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #include "hexa.h"
-#include "refinement.h"
+
 void communicate_global_ids(hexa_tree_t* mesh);
 void communicate_global_edge_ids(hexa_tree_t* mesh);
 
