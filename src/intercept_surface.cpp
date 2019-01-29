@@ -12,7 +12,6 @@ using namespace std;
 
 #include "hexa.h"
 #include "hilbert.h"
-#include "refinement.h"
 
 // Read the gts file format and create a gts surface.
 GtsSurface* SurfaceRead(const char* fname) {

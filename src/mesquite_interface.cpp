@@ -13,7 +13,6 @@
 #include "Mesquite_all_headers.hpp"
 
 #include "hexa.h"
-#include "refinement.h"
 
 using namespace Mesquite;
 

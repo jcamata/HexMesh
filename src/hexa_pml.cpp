@@ -10,7 +10,6 @@ using namespace std;
 #include <sc_containers.h>
 
 #include "hexa.h"
-#include "refinement.h"
 #include "pml.h"
 #include "hilbert.h"
 

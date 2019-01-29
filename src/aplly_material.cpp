@@ -8,7 +8,6 @@ using namespace std;
 #include <sc_containers.h>
 
 #include "hexa.h"
-#include "refinement.h"
 
 int bbox_is_stabbed_zinfty(GtsBBox * bb, GtsPoint * p) {
 

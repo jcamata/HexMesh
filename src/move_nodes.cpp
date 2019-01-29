@@ -12,7 +12,6 @@ using namespace std;
 
 #include "hexa.h"
 #include "hilbert.h"
-#include "refinement.h"
 
 #include <ctime>
 
