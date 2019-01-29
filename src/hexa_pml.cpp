@@ -160,6 +160,95 @@ inline void SetPMLMask_face(int8_t* mask, int8_t pml_id) {
 	mask[PML_FACE_Z1] = isZ1(pml_id);
 }
 
+unsigned edge_hash_fn(const void *v, const void *u) {
+	const node_t *q = (const node_t*) v;
+	uint64_t a, b, c;
+
+	a = (double_t) q->coord[0];
+	b = (double_t) q->coord[1];
+	c = (double_t) q->coord[2];
+
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int edge_equal_fn(const void *v, const void *u, const void *w) {
+	const node_t *e1 = (const node_t*) v;
+	const node_t *e2 = (const node_t*) u;
+
+	return (unsigned) ((e1->coord[0] == e2->coord[0]) &&
+			(e1->coord[1] == e2->coord[1]) &&
+			(e1->coord[2] == e2->coord[2]) &&
+			(e1->node_id == e2->node_id));
+}
+
+
+int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<double> &coords) {
+	size_t position;
+	node_t *r;
+	node_t key;
+	key.coord[0] = p->x;
+	key.coord[1] = p->y;
+	key.coord[2] = p->z;
+
+	r = (node_t*) sc_hash_array_insert_unique(hash, &key, &position);
+
+	if (r != NULL) {
+		r->coord[0] = key.coord[0];
+		r->coord[1] = key.coord[1];
+		r->coord[2] = key.coord[2];
+		r->node_id = mesh->nodes.elem_count;
+		octant_node_t* n = (octant_node_t*) sc_array_push(&mesh->nodes);
+		n->id = r->node_id;
+		n->x = -1;
+		n->y = -1;
+		n->z = -1;
+		n->color = -1;
+		n->fixed = 0;
+
+		coords.push_back(p->x);
+		coords.push_back(p->y);
+		coords.push_back(p->z);
+		return r->node_id;
+	} else {
+		r = (node_t*) sc_array_index(&hash->a, position);
+		return r->node_id;
+	}
+}
+
+GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z){
+
+	double N[8];
+	GtsPoint* point;
+	double out[3];
+
+
+	N[0] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[1] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[2] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[3] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+
+	N[4] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[5] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[6] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[7] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+
+	out[0] = 0;
+	out[1] = 0;
+	out[2] = 0;
+
+	for(int i=0;i<8;i++){
+		out[0] = N[i]*cord_in_x[i] + out[0] ;
+		out[1] = N[i]*cord_in_y[i] + out[1];
+		out[2] = N[i]*cord_in_z[i] + out[2];
+	}
+
+	point = gts_point_new(gts_point_class(),out[0],out[1],out[2]);
+
+	return point;
+}
+
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 
 	double X_pml = 30000;
