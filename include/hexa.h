@@ -292,6 +292,7 @@ void Apply_material(hexa_tree_t* mesh, std::vector<double>& coords,std::vector<i
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface);
 void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
+void Adjust_material(hexa_tree_t *mesh);
 void UntagleMesh(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 void hexa_mesh_write_h5(hexa_tree_t* mesh, const char* root_name, std::vector<double> coords);
