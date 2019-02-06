@@ -65,9 +65,6 @@ int main(int argc, char** argv) {
 	printf(" Extrude elements\n\n");
 	ExtrudePMLElements(&mesh,coords);
 
-	printf(" Ajust material properties\n\n");
-	Adjust_material(&mesh);
-
 	//clean vectors
 	std::vector<int>().swap(element_ids);
 	std::vector<int>().swap(nodes_b_mat);

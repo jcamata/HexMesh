@@ -23,7 +23,6 @@ typedef struct
 {
 	int32_t id;
 	int32_t x,y,z;
-	int color;
 	int fixed;
 } octant_node_t;
 
@@ -34,13 +33,6 @@ typedef struct
 	bitmask_t coord[2];
 } octant_edge_t;
 
-typedef struct
-{
-	uint64_t id;
-	int nodes[4];
-	bool ref;
-} octant_face_t;
-
 typedef struct {
 	double coord[3];
 	int node_id;
@@ -50,9 +42,7 @@ typedef struct
 {
 	uint64_t id;
 	int32_t  list_elem;
-	//int32_t  list_edges;
-	int32_t  elem[16]; // we must check this values
-	//int32_t  edges[3*16]; // we must check this values
+	int32_t  elem[8]; // we must check this values
 } octant_vertex_t;
 
 typedef struct
@@ -60,19 +50,10 @@ typedef struct
 	int32_t    x,y,z;
 	int8_t     level;
 	int     pad;
-	int     cut;
-	int     tem;
-	int     inipad;
-	int     initem;
 	int8_t     pml_id;
 	int        n_mat;
-	unsigned int edge_id[12];
-	unsigned int father;
-	bool edge_ref[12];
-	bool ghost;
 	octant_node_t nodes[8];
 	octant_edge_t edge[12];
-	octant_face_t face[6];
 	int64_t    id;
 } octant_t;
 
@@ -82,7 +63,6 @@ typedef struct
 	bool    cut;
 	bool    face[6];
 	bool    edge[12];
-	int     mat[8];
 } octree_t;
 
 typedef struct shared_node
@@ -93,34 +73,10 @@ typedef struct shared_node
 	int32_t      rankList[8];
 } shared_node_t;
 
-typedef struct shared_edge
-{
-	uint64_t     id;
-	int32_t      listSz;
-	int32_t      rankList[4];
-} shared_edge_t;
-
-typedef struct
-{
-	uint64_t     id;
-	int32_t      nodes[4];
-	int32_t      listSz;
-	int32_t      rankList;
-} shared_face_t;
-
-typedef struct shared_element
-{
-	uint64_t     id;
-	int32_t       x, y, z;
-	int32_t      listSz;
-	int32_t      rankList[4];
-} shared_element_t;
-
 typedef struct 
 {
 	int rank;
 	sc_array_t idxs;
-	//sc_array_t message;
 } message_t;
 
 typedef struct
@@ -155,19 +111,12 @@ typedef struct {
 	int32_t max_step;
 
 	sc_array_t      elements;
-	sc_array_t      edges;
 	sc_array_t      nodes;
-	sc_array_t      faces;
 	sc_array_t      vertex;
 	sc_array_t		oct;
 
 	sc_array_t      shared_nodes;
-	sc_array_t      shared_edges;
-	sc_array_t      shared_elements;
-	sc_array_t      shared_faces;
-	sc_array_t      shared_vertex;
 
-	sc_array_t      edges_ref;
 	int64_t *global_id;
 
 	int32_t *part_nodes;
@@ -314,8 +263,6 @@ GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const
 GtsSurface* SurfaceRead(const char* fname);
 gdouble distance(GtsPoint *p, gpointer bounded);
 //void communicate_global_ids(hexa_tree_t* mesh);
-
-
 
 #endif	/* HEXA_H */
 

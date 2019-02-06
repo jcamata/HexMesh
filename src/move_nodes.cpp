@@ -3122,7 +3122,6 @@ void DoOctree(hexa_tree_t* mesh){
 			if(vert_lookup){
 				octant_vertex_t* vert = (octant_vertex_t*) sc_array_index(&indep_vertex->a, position1);
 
-				//printf("entrei caraio\n");
 				for(int iele = 0; iele < vert->list_elem; iele++){
 
 					int test = vert->elem[iele];
@@ -3248,7 +3247,7 @@ void DoOctree(hexa_tree_t* mesh){
 			for(int i = 0; i<8; i++){
 				oc->id[i] = temp_id[i];
 				//printf("El: %d\n", temp_id[i]);
-				oc->mat[i] = -1;
+				//oc->mat[i] = -1;
 			}
 		}
 	}

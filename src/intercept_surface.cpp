@@ -127,7 +127,6 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		elem->pad = 0;
-		elem->tem = 0;
 
 		box->x1 = box->y1 = box->z1 = 1.0E10;
 		box->x2 = box->y2 = box->z2 = -1.0E10;

@@ -203,7 +203,7 @@ int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<
 		n->x = -1;
 		n->y = -1;
 		n->z = -1;
-		n->color = -1;
+		//n->color = -1;
 		n->fixed = 0;
 
 		coords.push_back(p->x);
@@ -253,9 +253,10 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 	double X_pml = 30000;
 	double Y_pml = 30000;
 	double Z_pml = 30000;
-	int layers_x = 3;
-	int layers_y = 3;
-	int layers_z = 3;
+	//BUG here, if the number of layers is bigger than X the memory of elem cannot be read.
+	int layers_x = 1;
+	int layers_y = 1;
+	int layers_z = 12;
 	int mat_count = 25;
 	int n_layers = 2;
 	int8_t mask[NPML];
@@ -1310,4 +1311,8 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 	mesh->local_n_nodes = mesh->nodes.elem_count;
 	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+
+	printf(" Ajust material properties\n\n");
+	Adjust_material(mesh);
+
 }

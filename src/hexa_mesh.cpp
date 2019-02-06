@@ -34,8 +34,6 @@ int node_comp (const void *v, const void *u){
 	}else{
 		return -1;
 	}
-
-
 }
 
 
@@ -136,7 +134,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 		for(int j = 0; j < 8; j++) {
 			octant_node_t* node = &h->nodes[j];
 			//initialization for the node color
-			node->color = -1;
+			//node->color = -1;
 			node->fixed=0;
 			r = (octant_node_t*) sc_hash_array_insert_unique (indep_nodes, node, &position);
 			if(r != NULL)
@@ -521,10 +519,3 @@ void communicate_global_edge_ids(hexa_tree_t* mesh){
     free(requests);
     free(statuses);     
 }*/
-
-
-void hexa_mesh_destroy(hexa_tree_t* mesh)
-{
-
-
-}
