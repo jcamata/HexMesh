@@ -252,8 +252,17 @@ else
 			end
 			if isempty(ff)
 				f{n} = '';
-			else
-				f(n) = unzip([url,ff],out);
+            else
+                
+                [cout,cpath] = system('which wget');
+                if cout ==1
+                    error('problem with wget path')
+                end
+                system([cpath(1:end-1),' ',url,ff]);
+                f(n) = unzip(['./',name,'.hgt.zip'],out);
+                system(['rm ','./',name,'.hgt.zip']);
+                
+				%f(n) = unzip([url,ff],out);
 				fprintf('File "%s" downloaded from %s%s\n',f{n},url,ff)
 			end
 		end

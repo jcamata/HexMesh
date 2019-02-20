@@ -7,22 +7,33 @@ clear all
 % l = [40 00 52 00   -5 00    8 00]; % France
 % l = [43 48 44 05    5 30    6 00]; % Cadarache, France
 % l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
-% l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
 % l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 % l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
-l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
+% l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
 
+%choose output name
+output_name = 'Arg_full';
+
 % characteristic length over which details of the coastline are removed
 % put H<=0 if you want no smoothing (this is very expensive because many
 % small elements will be created)
-H = .1; % in units of lon/lat
+H = .05; % in units of lon/lat
 
 % minimum water depth
 minwater = -10;
+
+% set the path for wget function
+wget_path = '/opt/local/bin';
+% set the path for dos2unix function
+dos2unix_path = '/opt/local/bin';
+% set the path for stl2gts function
+stl2gts_path = '/opt/local/bin';
+setenv('PATH', [getenv('PATH') ':',wget_path,':',dos2unix_path,':',stl2gts_path]);
 
 % after the STL files are generated, you should run in Terminal
 % >> dos2unix bathy.stl
@@ -96,29 +107,33 @@ z = bathy.Points(:,3);
 % replace positive values in water by default negative value
 ind = dist<0 & z>=0;
 z(ind) = minwater;
+ind = dist>0;
+z(ind) = 2000;
 
 % remove elements on land (depending on value at center of element)
 ind = distc>0;
 X = [ bathy.Points(:,1:2) z ];
-T = cleanFlatT( bathy.ConnectivityList(~ind,:), X, 1e-10 );
+T = cleanFlatT( bathy.ConnectivityList(:,:), X, 1e-10 );
+% T = cleanFlatT( bathy.ConnectivityList(~ind,:), X, 1e-10 );
 bathy = triangulation( T, X(:,1), X(:,2), X(:,3) );
 
 % add vertical elements to make sure the STL crosses the z=0 surface
-altz = 1000;
-ind = abs(bathy.Points(:,3))<1e-8;
-bnd = freeBoundary(bathy);
-bnd = bnd(all(ind(bnd),2),:);
-[bndnodes,~,indnodes] = unique(bnd);
-indnodes = reshape(indnodes, size(bnd)) + size(bathy.Points,1);
-newnodes = [bathy.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
-Nodes = [bathy.Points; newnodes];
-newelts = [ [bnd indnodes(:,1)]; 
-            [bnd(:,2) indnodes(:,2) indnodes(:,1)] ];
-newelts = cleanFlatT( newelts, Nodes, 1e-10 );
-Elts = [bathy.ConnectivityList; newelts];
-clear trib
-bathy = triangulation( Elts, Nodes );
+% altz = 2000;
+% ind = abs(bathy.Points(:,3))<1e-8;
+% bnd = freeBoundary(bathy);
+% bnd = bnd(all(ind(bnd),2),:);
+% [bndnodes,~,indnodes] = unique(bnd);
+% indnodes = reshape(indnodes, size(bnd)) + size(bathy.Points,1);
+% newnodes = [bathy.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
+% Nodes = [bathy.Points; newnodes];
+% newelts = [ [bnd indnodes(:,1)]; 
+%             [bnd(:,2) indnodes(:,2) indnodes(:,1)] ];
+% newelts = cleanFlatT( newelts, Nodes, 1e-10 );
+% Elts = [bathy.ConnectivityList; newelts];
+% %clear trib
+% bathy = triangulation( Elts, Nodes );
 figure; trisurf( bathy );
+
 
 % integrate topography with coastline
 topo = altimetryCoastline( topo, water );
@@ -142,14 +157,20 @@ topo = triangulation( T, X(:,1), X(:,2), X(:,3) );
 % write topography STL file
 if ~isempty(topo)
     [xtopo,ytopo] = lonlat2m(topo.Points(:,1),topo.Points(:,2));
-    write_stl( fullfile(outdir,'topo.stl'), ...
+    write_stl( fullfile(outdir,[output_name,'_topo.stl']), ...
         [xtopo ytopo topo.Points(:,3)], topo.ConnectivityList');
 end
 
 % write bathymetry STL file
 if ~isempty(bathy)
     [xbathy,ybathy] = lonlat2m(bathy.Points(:,1),bathy.Points(:,2));
-    write_stl( fullfile(outdir,'bathy.stl'), ...
+    write_stl( fullfile(outdir,[output_name,'_bathy.stl']), ...
                  [xbathy ybathy bathy.Points(:,3)], bathy.ConnectivityList');
-end            
-             
+end         
+
+system(['dos2unix ',output_name,'_topo.stl']);
+system(['dos2unix ',output_name,'_bathy.stl']);
+system(['stl2gts <',output_name,'_topo.stl > ../input/',output_name,'_topo.gts']);
+system(['stl2gts <',output_name,'_bathy.stl > ../input/',output_name,'_bathy.gts']);
+system(['mv ',output_name,'_topo.stl ../input/.']);
+system(['mv ',output_name,'_bathy.stl ../input/.']);

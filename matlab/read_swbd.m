@@ -6,13 +6,13 @@ function [d,fname] = read_swbd(file,outdir)
 %
 % [Struct,File] =  READ_SWBD( [ Lon Lat ] )
 %
-% The FileName is build like "*LON#LA$.ext", 
+% The FileName is build like "*LON#LA$.ext",
 %  where "*" is "e" or "w",
-%        "#" is "n" or "s", 
+%        "#" is "n" or "s",
 %        "$" is the ContinentCode
 %      "ext" is the Extension
 %
-% The Characters for Continent-Code are: 
+% The Characters for Continent-Code are:
 %
 %  "n"  NorthAmerica, "s" SouthAmerica, "e" Eurasia
 %  "a" Australia, "f" Africa, "l" or "i" for Islands
@@ -31,7 +31,7 @@ function [d,fname] = read_swbd(file,outdir)
 %
 % Multiple Segments are Islands,
 %
-% For Oceans in Struct.Land and 
+% For Oceans in Struct.Land and
 % for River and Lakes in Struct.Isle.
 %
 %--------------------------------------------------------
@@ -46,35 +46,35 @@ fsrtm = 'readhgt_swbd_index.txt';
 % Check Input
 
 if isnumeric(file) & ( prod(size(file)) == 2 )
-
-   ew = 'ew';
-   ns = 'ns';
-
-   x = file(1);
-   y = file(2);
-
-   ns = ns(1+(y<0));
-   ew = ew(1+(x<0));
-   
-   if exist(fsrtm,'file')
-       fid = fopen(fsrtm,'rt');
-       idx = textscan(fid,'%s');
-       fclose(fid);
-       k = find(~cellfun('isempty',strfind(idx{1},sprintf('%s%3.3d%s%2.2d',ew,abs(x),ns,abs(y)))),1);
-       if isempty(k)
-           %fprintf('READHGT: Warning! Cannot find %s tile in SRTM database. Consider it offshore...\n',ff);
-           file = '';
-       else
-           file = idx{1}{k(end)};
-       end
-   else
-       error('Cannot find "%s" index file to parse SRTM database. Please download HGT file manually.',fsrtm);
-   end
-
+    
+    ew = 'ew';
+    ns = 'ns';
+    
+    x = file(1);
+    y = file(2);
+    
+    ns = ns(1+(y<0));
+    ew = ew(1+(x<0));
+    
+    if exist(fsrtm,'file')
+        fid = fopen(fsrtm,'rt');
+        idx = textscan(fid,'%s');
+        fclose(fid);
+        k = find(~cellfun('isempty',strfind(idx{1},sprintf('%s%3.3d%s%2.2d',ew,abs(x),ns,abs(y)))),1);
+        if isempty(k)
+            %fprintf('READHGT: Warning! Cannot find %s tile in SRTM database. Consider it offshore...\n',ff);
+            file = '';
+        else
+            file = idx{1}{k(end)};
+        end
+    else
+        error('Cannot find "%s" index file to parse SRTM database. Please download HGT file manually.',fsrtm);
+    end
+    
 elseif ~chkstr(file,1)
-
-   error('File must be a String or [ Lat Lon ].');
-
+    
+    error('File must be a String or [ Lat Lon ].');
+    
 end
 
 %-------------------------------------------------------
@@ -84,18 +84,28 @@ end
 [ok,name,fname,zip] = checkfile(fullfile(outdir,fname),'');
 
 if ~ok
-    try
-        ff = unzip([url,file],'./');
+     try
+        %warning('check here the wget path');
+                
+        [cout,cpath] = system('which wget');
+        if cout ==1
+            error('problem with wget path')
+        end
+        system([cpath(1:end-1),' ',url,file]);
+%         system(['/opt/local/bin/wget ',url,file]);
+        ff = unzip(['./',name,'.zip'],'./');
+        
+        %ff = unzip([url,file],'./');
         if ~isempty(ff)
             fprintf('File "%s" downloaded from %s\n',file,url);
         end
-    catch
+     catch
         disp(['no file ' sprintf('%s%3.3d%s%2.2d',ew,abs(x),ns,abs(y)) '.zip on http server'])
-    end
-%     for c = 'einsalf'
-%         [ok,name,fname,zip] = checkfile(file,c);
-%         if ok, break, end
-%     end
+     end
+    %     for c = 'einsalf'
+    %         [ok,name,fname,zip] = checkfile(file,c);
+    %         if ok, break, end
+    %     end
 else
     disp(['found file SWBD:' name ' on local disk'])
 end
@@ -108,50 +118,50 @@ end
 %     end
 %     error(sprintf('%s ShapeFile: "%s".',m,file));
 % end
-% 
+%
 %-------------------------------------------------------
 % Check for ZIP-File, unzip
 
 % pfd = '';  % TempDir
-% 
+%
 % if ~isempty(zip)
-% 
+%
 %     [pfd,tmp] = fileparts(tempname);
 %     pfd = fullfile(pfd,sprintf('swbd_%s',tmp));
 %     while exist(pfd,'dir') == 7
 %          pfd = sprintf('%s0',pfd);
 %     end
-% 
+%
 %     ok = mkdir(pfd);
 %     if ~ok
 %         error(sprintf('Cann''t create TempDir "%s" for UNZIP.',pfd));
 %     end
-% 
+%
 %     cmd = sprintf('unzip -d "%s" "%s"',pfd,zip);
-% 
+%
 %     [s,w] = unix(cmd);
-% 
+%
 %     if ~( s == 0 )
-% 
+%
 %         m = sprintf('Error call UNZIP for UNIX: %s',cmd);
 %         if ~isempty(w)
 %             m = sprintf('%s\n%s',m,w);
 %         end
-% 
+%
 %         [s,w] = unix(sprintf('rm -r "%s"',pfd));
 %         if exist(pfd,'dir') == 7
 %            m = sprintf('%s\nCann''t remove TempDir: "%s".',m,pfd);
 %            if ~isempty(w)
 %                m = sprintf('%s\n%s',m,w);
 %            end
-%         end     
-% 
+%         end
+%
 %         error(m)
-% 
+%
 %     end
-% 
+%
 %     fname = fullfile(pfd,name);
-% 
+%
 % end
 
 %-------------------------------------------------------
@@ -160,29 +170,29 @@ end
 m = cell(0,1);
 
 try
-  shp = shp_read(fname);
-
+    shp = shp_read(fname);
+    
 catch
-
-   m = cat(1,m,{sprintf('Error call SHP_READ( %s ).\n%s',fname,lasterr)});
-
+    
+    m = cat(1,m,{sprintf('Error call SHP_READ( %s ).\n%s',fname,lasterr)});
+    
 end
 
 %-------------------------------------------------------
 % Remove TempDir if ZIP
 
 % if ~isempty(zip) & ( exist(pfd,'dir') == 7 )
-% 
+%
 %     [s,w] = unix(sprintf('rm -r "%s"',pfd));
 %     if exist(pfd,'dir') == 7
 %        m = cat(1,m,{sprintf('Cann''t remove TempDir: "%s".',pfd)});
 %        if ~isempty(w)
 %            m = cat(1,m,{sprintf('%s',w)});
 %        end
-%     end     
-% 
+%     end
+%
 % end
-%  
+%
 % if ~isempty(m)
 %     error(sprintf('%s\n',m{:}))
 % end
@@ -192,17 +202,17 @@ end
 
 ok = isstruct(shp);
 if ok
-   fld = fieldnames(shp);
-   upp = upper(fld);
-   for f = { 'X' 'Y' 'FACC_CODE' }; % 'BoundingBox' }
-       k = strcmp(upp,f{1});
-       kk = any(k);
-       ok = ( ok & kk );
-       if kk & ~any(strcmp(fld,f{1}))
-          kk = find(k);
-          shp = rnfield(shp,fld{kk},f{1});
-       end
-   end
+    fld = fieldnames(shp);
+    upp = upper(fld);
+    for f = { 'X' 'Y' 'FACC_CODE' }; % 'BoundingBox' }
+        k = strcmp(upp,f{1});
+        kk = any(k);
+        ok = ( ok & kk );
+        if kk & ~any(strcmp(fld,f{1}))
+            kk = find(k);
+            shp = rnfield(shp,fld{kk},f{1});
+        end
+    end
 end
 
 if ~ok
@@ -210,8 +220,8 @@ if ~ok
 end
 
 ini = { 'Ocean' 'BA040'
-        'River' 'BH140'
-        'Lake'  'BH080' };
+    'River' 'BH140'
+    'Lake'  'BH080' };
 
 d = cat( 1 , ini(:,1) , {'Land'} , {'Isle'} );
 
@@ -220,17 +230,17 @@ d = d(:,[1 1]);
 d(:,2) = { {cell(0,1)} };
 
 for ii = 1 : size(ini,1)
-
+    
     [xy,isl] = get_coord(shp,ini{ii,2});
-
+    
     d{ii,2} = {xy};
-
+    
     if strcmp(ini{ii,1},'Ocean')
-       d{end-1,2}{1} = cat(1,d{end-1,2}{1},isl);  % Land
+        d{end-1,2}{1} = cat(1,d{end-1,2}{1},isl);  % Land
     else
-       d{end,2}{1} = cat(1,d{end,2}{1},isl);      % Isle
+        d{end,2}{1} = cat(1,d{end,2}{1},isl);      % Isle
     end
-
+    
 end
 
 d = permute(d,[2 1]);
@@ -264,12 +274,12 @@ for e = ext
 end
 
 if ok
-   f = which(sprintf('%s.%s',file,ext{1}));
-   if ~isempty(f)
-       [p,f] = fileparts(f);
-       file = fullfile(p,f);
-   end
-   return
+    f = which(sprintf('%s.%s',file,ext{1}));
+    if ~isempty(f)
+        [p,f] = fileparts(f);
+        file = fullfile(p,f);
+    end
+    return
 end
 
 zip = sprintf('%s.%s',file,'zip');
@@ -288,9 +298,9 @@ end
 
 ok = ( s == 0 );
 if ok
-   for e = ext
-       ok = ( ok & ~isempty(findstr(w,sprintf('%s.%s',name,e{1}))) );
-   end
+    for e = ext
+        ok = ( ok & ~isempty(findstr(w,sprintf('%s.%s',name,e{1}))) );
+    end
 end
 
 %************************************************************
@@ -318,44 +328,44 @@ isl(:) = { cell(0,1) };
 ok  = zeros(n,1);
 
 for ii = 1 : n
-
+    
     zz = cat( 1 , d(ic(ii)).X , d(ic(ii)).Y );
-
+    
     jj = isnan(zz(1,:));   % Seperator for Islands
-
+    
     if any(jj)
-
-       kk = cumsum(jj,2);  % Following Islands start with 1
-
-       jj = find(jj);
-       kk(jj) = NaN;       % Don't read NaN-Seperator
-
-       m = max(kk);        % Number of Islands (following Segments)
-
-       isl{ii} = cell(m,1);
-
-       for il = 1 : m
-           ll = find( kk == il );
-           isl{ii}{il} = zz(:,ll);
-           kk(ll) = NaN;
-       end
-
-       kk = ~isnan(kk);
-
-       if ~any(kk)
-           zz = [];
-       else
-           kk = find(kk);
-           zz = zz(:,kk);
-       end
-
+        
+        kk = cumsum(jj,2);  % Following Islands start with 1
+        
+        jj = find(jj);
+        kk(jj) = NaN;       % Don't read NaN-Seperator
+        
+        m = max(kk);        % Number of Islands (following Segments)
+        
+        isl{ii} = cell(m,1);
+        
+        for il = 1 : m
+            ll = find( kk == il );
+            isl{ii}{il} = zz(:,ll);
+            kk(ll) = NaN;
+        end
+        
+        kk = ~isnan(kk);
+        
+        if ~any(kk)
+            zz = [];
+        else
+            kk = find(kk);
+            zz = zz(:,kk);
+        end
+        
     end
-
+    
     ok(ii) = ~isempty(zz);
     if ok(ii)
-       xy{ii} = zz;
+        xy{ii} = zz;
     end
-
+    
 end
 
 if ~all(ok)
@@ -380,14 +390,14 @@ function ok = chkstr(str,opt)
 %   default:   Option == 0  (true for empty Strings)
 %
 
- 
+
 if nargin < 2
-   opt = 0;
+    opt = 0;
 end
 
 ok = ( strcmp( class(str) , 'char' )      & ...
-       ( prod(size(str)) == size(str,2) ) & ...
-       ( isequal(opt,0) | ~isempty(str) )         );
+    ( prod(size(str)) == size(str,2) ) & ...
+    ( isequal(opt,0) | ~isempty(str) )         );
 
 
 %*********************************************************************
@@ -403,34 +413,34 @@ function [ok,str] = chkcstr(str,opt)
 %
 %   default: Option == 0   ==>  CharacterArrays --> CellString
 %
- 
+
 if nargin < 2
-   opt = 0;
+    opt = 0;
 end
 
 if strcmp(class(str),'char') & isequal(opt,0)
-   n = size(str,1);
-   if n == 1
-      str = strrep(str,char(32),char(1));
-   end
-   str = cellstr(str);
-   if n == 1
-      str = strrep(str,char(1),char(32));
-   end
+    n = size(str,1);
+    if n == 1
+        str = strrep(str,char(32),char(1));
+    end
+    str = cellstr(str);
+    if n == 1
+        str = strrep(str,char(1),char(32));
+    end
 end
 
 ok = iscellstr(str);
 if ~ok
-   return
+    return
 end
 
 try
-  s = cat(2,str{:});
+    s = cat(2,str{:});
 catch
-  ok = 0;
-  return
+    ok = 0;
+    return
 end
- 
+
 ok = ( strcmp(class(s),'char')  &  ( prod(size(s)) == size(s,2) ) );
 
 
@@ -445,7 +455,7 @@ function varargout = shp_read(varargin)
 %
 %   S = SHP_READ(FILENAME) returns an N-by-1 version 2 geographic data
 %   structure (geostruct2) array, S, containing an element for each
-%   non-null spatial feature in the shapefile. 
+%   non-null spatial feature in the shapefile.
 %
 %   S combines feature coordinates/geometry and attribute values.
 %
@@ -568,24 +578,24 @@ function varargout = shp_read(varargin)
 %   which features to read.  Use the 4th parameter (Attributes) to control
 %   which attributes to keep.  Use the 5th (UseGeoCoords) to control the
 %   output field names.
-% 
+%
 %   Name            Description of Value        Purpose
 %   ----            --------------------        -------
-%   
+%
 %   RecordNumbers   Integer-valued vector,      Screen out features whose
 %                   class double                record numbers are not
 %                                               listed.
-% 
+%
 %   BoundingBox     2-by-(2,3, or 4) array,     Screen out features whose
 %                   class double                bounding boxes fail to
 %                                               intersect the selected box.
-%                                             
+%
 %   Selector        Cell array containing       Screen out features for
 %                   a function handle and       which the function, when
 %                   one or more attribute       applied to the the
 %                   names.  Function must       corresponding attribute
 %                   return a logical scalar.    values, returns false.
-%                   
+%
 %   Attributes      Cell array of attribute     Omit attributes that are
 %                   names                       not listed. Use {} to omit
 %                                               all attributes. Also sets
@@ -623,7 +633,7 @@ function varargout = shp_read(varargin)
 %
 %   See also SHP_INFO, UPDATEGEOSTRUCT.
 
-%   Copyright 1996-2004 The MathWorks, Inc.  
+%   Copyright 1996-2004 The MathWorks, Inc.
 %   $Revision: 1.1.10.7 $  $Date: 2004/12/18 07:46:34 $
 
 %   Reference
@@ -640,15 +650,15 @@ end
 
 % Parse function inputs.
 try
-[filename, recordNumbers, boundingBox, selector, attributes, useGeoCoords] ...
-    = parseInputs(varargin{:});
+    [filename, recordNumbers, boundingBox, selector, attributes, useGeoCoords] ...
+        = parseInputs(varargin{:});
 catch
-  filename = varargin{1};
-  recordNumbers = [];
-  boundingBox   = [];
-  selector      = [];
-  attributes    = [];
-  useGeoCoords  = []; 
+    filename = varargin{1};
+    recordNumbers = [];
+    boundingBox   = [];
+    selector      = [];
+    attributes    = [];
+    useGeoCoords  = [];
 end
 
 % Try to open the SHP, SHX, and DBF files corresponding to  the filename
@@ -665,12 +675,12 @@ end
 
 % Select which records to read.
 records2read = selectRecords(shpFileId, dbfFileId, headerTypeCode,...
-                   contentOffsets, recordNumbers, boundingBox, selector);
-                   
+    contentOffsets, recordNumbers, boundingBox, selector);
+
 % Read the shape coordinates from the SHP file into a cell array.
 [shapeData, shapeDataFieldNames] ...
     = shpread(shpFileId, headerTypeCode, contentOffsets(records2read));
- 
+
 % Read the attribute data from the DBF file into a cell array.
 [attributeData, attributeFieldNames] ...
     = dbfread(dbfFileId,records2read,attributes);
@@ -683,14 +693,14 @@ end
 
 % Concatenate the cell arrays, if necessary and convert to struct(s).
 varargout = constructOutput(shapeData, attributeData,...
-              shapeDataFieldNames, attributeFieldNames, separateAttributes);
+    shapeDataFieldNames, attributeFieldNames, separateAttributes);
 
 % Clean up.
 closeFiles([shpFileId, shxFileId, dbfFileId]);
 
 %--------------------------------------------------------------------------
 function outputs = constructOutput(shapeData, attributeData,...
-              shapeDataFieldNames, attributeFieldNames, separateAttributes)
+    shapeDataFieldNames, attributeFieldNames, separateAttributes)
 
 if separateAttributes
     if ~isempty(attributeData)
@@ -707,9 +717,9 @@ else
         % Ensure value, non-duplicate structure field names.
         %%% featureFieldNames = [shapeDataFieldNames,...
         %%%   genvarname(attributeFieldNames,feval(mapgate('geoReservedNames')))];
-
+        
         featureFieldNames = chkname([shapeDataFieldNames,attributeFieldNames]);
-
+        
         S = cell2struct([shapeData, attributeData],featureFieldNames,2);
     else
         S = cell2struct(shapeData,shapeDataFieldNames,2);
@@ -719,7 +729,7 @@ end
 
 %--------------------------------------------------------------------------
 function records2read = selectRecords(shpFileId, dbfFileId, headerTypeCode, ...
-                          contentOffsets, recordNumbers, boundingBox, selector)
+    contentOffsets, recordNumbers, boundingBox, selector)
 % Select record numbers to read as constrained by shapefile record types,
 % user-specified record numbers, user-specified bounding box, and
 % user-specified attribute-based selector function.
@@ -756,9 +766,9 @@ function recs = recordsMatchingHeaderType(shpFileId,contentOffsets,headerTypeCod
 totalNumRecords = length(contentOffsets);
 recordMatchesHeaderType = false(1,totalNumRecords);
 for n = 1:totalNumRecords
-	fseek(shpFileId,contentOffsets(n),'bof');
-	recordTypeCode = fread(shpFileId,1,'uint32','ieee-le');
-	recordMatchesHeaderType(n) = (recordTypeCode == headerTypeCode);
+    fseek(shpFileId,contentOffsets(n),'bof');
+    recordTypeCode = fread(shpFileId,1,'uint32','ieee-le');
+    recordMatchesHeaderType(n) = (recordTypeCode == headerTypeCode);
 end
 recs = find(recordMatchesHeaderType);
 
@@ -776,7 +786,7 @@ currentNumberOfRecs = numel(recs);
 intersectsBox = false(1,currentNumberOfRecs);
 for k = 1:currentNumberOfRecs
     n = recs(k);
-	fseek(shpFileId,contentOffsets(n) + 4,'bof');
+    fseek(shpFileId,contentOffsets(n) + 4,'bof');
     bbox = fread(shpFileId,8,'double','ieee-le');
     intersectsBox(k) = boxesIntersect(box,bbox(bbSubscripts));
 end
@@ -796,7 +806,7 @@ currentNumberOfRecs = numel(recs);
 insideBox = false(1,currentNumberOfRecs);
 for k = 1:currentNumberOfRecs
     n = recs(k);
-	fseek(shpFileId,contentOffsets(n) + 4,'bof');
+    fseek(shpFileId,contentOffsets(n) + 4,'bof');
     point = fread(shpFileId,[1 2],'double','ieee-le');
     insideBox(k) = all(box(1,:) <= point(1,:)) && all(point(1,:) <= box(2,:));
 end
@@ -814,7 +824,7 @@ info = dbfinfo(fid);
 selectfcn  = selector{1};
 fieldnames = selector(2:end);
 
-% Determine the position, offset, and format string for each field 
+% Determine the position, offset, and format string for each field
 % specified by the selector.  If any fieldnames fail to get a match,
 % return without altering the list of records, and issue a warning.
 allFieldNames = {info.FieldInfo.Name};
@@ -823,15 +833,15 @@ for l = 1:numel(fieldnames)
     if isempty(m)
         wid = sprintf('%s:%s:badSelectorFieldName',getcomp,mfilename);
         wrn = sprintf('Selector field name ''%s'' %s\n%s',...
-                 fieldnames{l},'doesn''t match a shapefile attribute name.',...
-                 '         Ignoring selector.');
+            fieldnames{l},'doesn''t match a shapefile attribute name.',...
+            '         Ignoring selector.');
         warning(wid,wrn)
         return;
     end
     position(l)  = m;
     offset(l)    = sum([info.FieldInfo(1:(m-1)).Length]) ...
-                   + lengthOfDeletionIndicator;
-   formatstr{l} = sprintf('%d*uint8=>char',info.FieldInfo(m).Length);
+        + lengthOfDeletionIndicator;
+    formatstr{l} = sprintf('%d*uint8=>char',info.FieldInfo(m).Length);
 end
 
 % Check each record in the current list to see if it satisifies the
@@ -884,7 +894,7 @@ while recordOffset < fileLength,
     recordOffset = recordOffset + recordHeaderLength + contentLength;
 end
 contentOffsets = fileHeaderLength ...
-                 + cumsum([0;lengthArray(1:end-1)] + recordHeaderLength);
+    + cumsum([0;lengthArray(1:end-1)] + recordHeaderLength);
 
 %--------------------------------------------------------------------------
 function [shpdata, fieldnames] = ...
@@ -926,8 +936,8 @@ attributeData = cell(numel(records2read),numel(fields2read));
 for k = 1:numel(fields2read),
     n = fields2read(k);
     fieldOffset = info.HeaderLength ...
-                  + sum([info.FieldInfo(1:(n-1)).Length]) ...
-                  + lengthOfDeletionIndicator;
+        + sum([info.FieldInfo(1:(n-1)).Length]) ...
+        + lengthOfDeletionIndicator;
     fseek(fid,fieldOffset,'bof');
     formatString = sprintf('%d*uint8=>char',info.FieldInfo(n).Length);
     skip = info.RecordLength - info.FieldInfo(n).Length;
@@ -956,8 +966,8 @@ else
         if isempty(index)
             wid = sprintf('%s:%s:nonexistentAttibuteName',getcomp,mfilename);
             wrn = sprintf('Attribute name ''%s'' %s\n%s',requestedFieldNames{k},...
-                     'doesn''t match a shapefile attribute name.',...
-                     '         It will be ignored.');
+                'doesn''t match a shapefile attribute name.',...
+                '         It will be ignored.');
             warning(wid,wrn)
         end
         for l = 1:numel(index)
@@ -991,45 +1001,45 @@ for k = 2:2:nargin
     parName = checkstrs(varargin{k}, validParameterNames, mfilename, ...
         sprintf('PARAM%d',k/2), k);
     switch parName
-      case 'RecordNumbers'
-        checkExistence(k, nargin, mfilename, 'vector of record numbers', parName);
-        recordNumbers = checkRecordNumbers(varargin{k+1},k+1);
-
-      case 'BoundingBox'
-        checkExistence(k, nargin, mfilename, 'bounding box', parName);
-        checkboundingbox(varargin{k+1},mfilename,'BOUNDINGBOX',k+1);
-        boundingBox = varargin{k+1};
-        
-      case 'Selector'
-        checkExistence(k, nargin, mfilename, 'selector', parName);
-        selector = checkSelector(varargin{k+1},k+1);
-        
-      case 'Attributes'
-        checkExistence(k, nargin, mfilename,'attribute field names', parName);
-        attributes = checkAttributes(varargin{k+1},k+1);
-      
-      case 'UseGeoCoords'
-        checkExistence(k, nargin, mfilename, 'geo-coordinates flag (T/F)', parName);
-        checkinput(varargin{k+1}, {'logical'}, {'scalar'}, mfilename, 'USEGEOCOORDS', k+1);
-        useGeoCoords = varargin{k+1};
-        
-      otherwise
-        eid = sprintf('%s:%s:internalProblem',getcomp,mfilename);
-        error(eid,'Internal problem: unrecognized parameter name: %s',parName);
+        case 'RecordNumbers'
+            checkExistence(k, nargin, mfilename, 'vector of record numbers', parName);
+            recordNumbers = checkRecordNumbers(varargin{k+1},k+1);
+            
+        case 'BoundingBox'
+            checkExistence(k, nargin, mfilename, 'bounding box', parName);
+            checkboundingbox(varargin{k+1},mfilename,'BOUNDINGBOX',k+1);
+            boundingBox = varargin{k+1};
+            
+        case 'Selector'
+            checkExistence(k, nargin, mfilename, 'selector', parName);
+            selector = checkSelector(varargin{k+1},k+1);
+            
+        case 'Attributes'
+            checkExistence(k, nargin, mfilename,'attribute field names', parName);
+            attributes = checkAttributes(varargin{k+1},k+1);
+            
+        case 'UseGeoCoords'
+            checkExistence(k, nargin, mfilename, 'geo-coordinates flag (T/F)', parName);
+            checkinput(varargin{k+1}, {'logical'}, {'scalar'}, mfilename, 'USEGEOCOORDS', k+1);
+            useGeoCoords = varargin{k+1};
+            
+        otherwise
+            eid = sprintf('%s:%s:internalProblem',getcomp,mfilename);
+            error(eid,'Internal problem: unrecognized parameter name: %s',parName);
     end
 end
 
 %--------------------------------------------------------------------------
 
 function checkExistence(position, nargs, fcnName, ...
-                        propertyDescription, propertyName)
+    propertyDescription, propertyName)
 % Error if missing the property value following a property name.
 
 if (position + 1 > nargs)
     eid = sprintf('%s:%s:missingParameterValue',getcomp,fcnName);
     error(eid,...
-          'Expected %s to follow parameter name ''%s''.',...
-          propertyDescription, propertyName);
+        'Expected %s to follow parameter name ''%s''.',...
+        propertyDescription, propertyName);
 end
 
 %--------------------------------------------------------------------------
@@ -1037,8 +1047,8 @@ end
 function recordNumbers = checkRecordNumbers(recordNumbers, position)
 
 checkinput(recordNumbers, {'numeric'},...
-              {'nonempty','real','nonnan','finite','positive','vector'},...
-              mfilename, 'recordNumbers', position);
+    {'nonempty','real','nonnan','finite','positive','vector'},...
+    mfilename, 'recordNumbers', position);
 
 %--------------------------------------------------------------------------
 
@@ -1064,7 +1074,7 @@ for k = 2:numel(selector)
     if ~ischar(selector{k})
         eid = sprintf('%s:%s:selectorHasNonStrAttrs',getcomp,mfilename);
         error(eid,'Expected the %s element of SELECTOR to be a string.',...
-              num2ordinal(k));
+            num2ordinal(k));
     end
 end
 
@@ -1095,42 +1105,42 @@ end
 n = prod(size(v));
 
 if nargin < 2
-   mode = 0;    % Both
+    mode = 0;    % Both
 end
 
 %---------------------------------------------------------
 if ~( mode == 2 )
-%---------------------------------------------------------
-
-% Replace invalid Characters by "_"
-
-for ii = 1 : n
-    w  = v{ii};
-    jj = ~( ( ( '0' <= w ) & ( w <= '9' ) ) | ...
+    %---------------------------------------------------------
+    
+    % Replace invalid Characters by "_"
+    
+    for ii = 1 : n
+        w  = v{ii};
+        jj = ~( ( ( '0' <= w ) & ( w <= '9' ) ) | ...
             ( ( 'A' <= w ) & ( w <= 'Z' ) ) | ...
             ( ( 'a' <= w ) & ( w <= 'z' ) )       );
-    w(jj) = '_';
-    v{ii} = w;
-end
-
-%---------------------------------------------------------
+        w(jj) = '_';
+        v{ii} = w;
+    end
+    
+    %---------------------------------------------------------
 end
 %---------------------------------------------------------
 
 %---------------------------------------------------------
 if ~( mode == 1 )
-%---------------------------------------------------------
-
-% Append duplicate Names with '_'
-
-for ii = n : -1 : 1
-    jj = cat(2,(1:(ii-1)),((ii+1):n));
-    while any(strcmp(v{ii},v(jj)))
-          v{ii} = cat(2,v{ii},'_');
+    %---------------------------------------------------------
+    
+    % Append duplicate Names with '_'
+    
+    for ii = n : -1 : 1
+        jj = cat(2,(1:(ii-1)),((ii+1):n));
+        while any(strcmp(v{ii},v(jj)))
+            v{ii} = cat(2,v{ii},'_');
+        end
     end
-end
-
-%---------------------------------------------------------
+    
+    %---------------------------------------------------------
 end
 %---------------------------------------------------------
 
@@ -1145,7 +1155,7 @@ end
 %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 function checkboundingbox(...
-               bbox, function_name, variable_name, argument_position)
+    bbox, function_name, variable_name, argument_position)
 %CHECKBOUNDINGBOX Check validity of bounding box array.
 %   CHECKBOUNDINGBOX(...
 %              BBOX, FUNCTION_NAME, VARIABLE_NAME, ARGUMENT_POSITION)
@@ -1158,7 +1168,7 @@ function checkboundingbox(...
 
 try
     do_checkboundingbox(getcomp, bbox,...
-                    function_name, variable_name, argument_position);
+        function_name, variable_name, argument_position);
 catch
     rethrow(lasterror);
 end
@@ -1169,13 +1179,13 @@ function do_checkboundingbox(component, bbox,...
     function_name, variable_name, argument_position)
 
 checkinput(bbox, {'double'},{'real','nonnan'},...
-           function_name,variable_name,argument_position);
-        
+    function_name,variable_name,argument_position);
+
 if size(bbox,1) ~= 2 || size(bbox,2) ~= 2 || ndims(bbox) ~= 2
     eid = sprintf('%s:%s:invalidBBoxSize',component,function_name);
     msg1 = sprintf('Function %s expected its %s input argument, %s,', ...
-                   upper(function_name), num2ordinal(argument_position), ...
-                   variable_name);
+        upper(function_name), num2ordinal(argument_position), ...
+        variable_name);
     msg2 = sprintf('to be a 2-by-2 array.');
     throwerr(eid, '%s\n%s', msg1, msg2);
 end
@@ -1183,8 +1193,8 @@ end
 if ~all(bbox(1,:) <= bbox(2,:))
     eid = sprintf('%s:%s:invalidBBoxOrder',component,function_name);
     msg1 = sprintf('Function %s expected its %s input argument, %s,', ...
-                   upper(function_name), num2ordinal(argument_position), ...
-                   variable_name);
+        upper(function_name), num2ordinal(argument_position), ...
+        variable_name);
     msg2 = sprintf('to have element (2,k) greater than or equal to element (1,k).');
     throwerr(eid, '%s\n%s', msg1, msg2);
 end
@@ -1193,7 +1203,7 @@ end
 %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 function checkinput(a, classes, attributes, function_name, variable_name, ...
-                    argument_position)
+    argument_position)
 %CHECKINPUT Check validity of array.
 %
 %   CHECKINPUT(A,CLASSES,ATTRIBUTES,FUNCTION_NAME,VARIABLE_NAME,
@@ -1210,7 +1220,7 @@ function checkinput(a, classes, attributes, function_name, variable_name, ...
 %   that A must satisfy.  For example, if ATTRIBUTES is {'real' 'nonempty'
 %   'finite'}, then A must be real and nonempty, and it must contain only
 %   finite values.  The supported list of attributes includes:
-%   
+%
 %       real             vector              row            column
 %       scalar           twod                2d             nonsparse
 %       nonempty         integer             nonnegative    positive
@@ -1230,21 +1240,21 @@ function checkinput(a, classes, attributes, function_name, variable_name, ...
 %   $Revision: 1.1.6.2 $  $Date: 2004/02/01 21:58:02 $
 
 if ~iscell(classes)
-  classes = {classes};
+    classes = {classes};
 end
 if ~iscell(attributes)
-  attributes = {attributes};
+    attributes = {attributes};
 end
 checkinput_mex(a, classes, attributes, function_name, variable_name, ...
-               argument_position);
+    argument_position);
 
 %*********************************************************************
 %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 function varargout = checknargin(varargin)
 %CHECKNARGIN Check number of input arguments.
-%   CHECKNARGIN(LOW,HIGH,NUM_INPUTS,FUNCTION_NAME) checks whether 
-%   NUM_INPUTS is in the range indicated by LOW and HIGH.  If not, CHECKNARGIN 
+%   CHECKNARGIN(LOW,HIGH,NUM_INPUTS,FUNCTION_NAME) checks whether
+%   NUM_INPUTS is in the range indicated by LOW and HIGH.  If not, CHECKNARGIN
 %   issues a formatted error message using the string in FUNCTION_NAME.
 %
 %   LOW should be a scalar nonnegative integer.
@@ -1253,8 +1263,8 @@ function varargout = checknargin(varargin)
 %
 %   FUNCTION_NAME should be a string.
 %
-%   ERR = CHECKNARGIN(...) returns any error structure encounterd 
-%   during the validation without rethrowing the error. 
+%   ERR = CHECKNARGIN(...) returns any error structure encounterd
+%   during the validation without rethrowing the error.
 %
 %   [MSG, ID] = CHECKNARGIN(...) returns any error message in MSG
 %   and error identifier in ID.  MSG and ID will be [] if no error
@@ -1271,60 +1281,60 @@ fcn = @do_checknargin;
     checkfunction(fcn, nargout, varargin{:});
 
 if needRethrow
-   rethrow(lasterror);    
+    rethrow(lasterror);
 end
-        
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function do_checknargin(component, low, high, numInputs, function_name)
 % Main function for checknargin.
-% COMPONENT is the name for the error ID's first component. 
+% COMPONENT is the name for the error ID's first component.
 
 if numInputs < low
-  msgId = sprintf('%s:%s:tooFewInputs', component, function_name);
-  if low == 1
-    msg1 = sprintf('Function %s expected at least 1 input argument', ...
-                   upper(function_name));
-  else
-    msg1 = sprintf('Function %s expected at least %d input arguments', ...
-                   upper(function_name), low);
-  end
-  
-  if numInputs == 1
-    msg2 = 'but was called instead with 1 input argument.';
-  else
-    msg2 = sprintf('but was called instead with %d input arguments.', ...
-                   numInputs);
-  end
-  
-  throwerr(msgId, '%s\n%s', msg1, msg2);
-  
+    msgId = sprintf('%s:%s:tooFewInputs', component, function_name);
+    if low == 1
+        msg1 = sprintf('Function %s expected at least 1 input argument', ...
+            upper(function_name));
+    else
+        msg1 = sprintf('Function %s expected at least %d input arguments', ...
+            upper(function_name), low);
+    end
+    
+    if numInputs == 1
+        msg2 = 'but was called instead with 1 input argument.';
+    else
+        msg2 = sprintf('but was called instead with %d input arguments.', ...
+            numInputs);
+    end
+    
+    throwerr(msgId, '%s\n%s', msg1, msg2);
+    
 elseif numInputs > high
-  msgId = sprintf('%s:%s:tooManyInputs', component, function_name);
-
-  if high == 1
-    msg1 = sprintf('Function %s expected at most 1 input argument', ...
-                   upper(function_name));
-  else
-    msg1 = sprintf('Function %s expected at most %d input arguments', ...
-                   upper(function_name), high);
-  end
-  
-  if numInputs == 1
-    msg2 = 'but was called instead with 1 input argument.';
-  else
-    msg2 = sprintf('but was called instead with %d input arguments.', ...
-                   numInputs);
-  end
-  
-  throwerr(msgId, '%s\n%s', msg1, msg2);
+    msgId = sprintf('%s:%s:tooManyInputs', component, function_name);
+    
+    if high == 1
+        msg1 = sprintf('Function %s expected at most 1 input argument', ...
+            upper(function_name));
+    else
+        msg1 = sprintf('Function %s expected at most %d input arguments', ...
+            upper(function_name), high);
+    end
+    
+    if numInputs == 1
+        msg2 = 'but was called instead with 1 input argument.';
+    else
+        msg2 = sprintf('but was called instead with %d input arguments.', ...
+            numInputs);
+    end
+    
+    throwerr(msgId, '%s\n%s', msg1, msg2);
 end
 
-  
+
 %*********************************************************************
 %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 function out = checkstrs(in, valid_strings, function_name, ...
-                         variable_name, argument_position)
+    variable_name, argument_position)
 %CHECKSTRS Check validity of option string.
 %   OUT = CHECKSTRS(IN,VALID_STRINGS,FUNCTION_NAME,VARIABLE_NAME, ...
 %   ARGUMENT_POSITION) checks the validity of the option string IN.  It
@@ -1352,10 +1362,10 @@ try
     if ~ischar(in) || ndims(in) > 2 || size(in,1) > 1
         id = sprintf('%s:%s:nonStrInput', getcomp, function_name);
         throwerr(id,...
-          'Function %s expected its %s argument, %s,\nto be a character string.',...
-          upper(function_name), num2ordinal(argument_position), variable_name);
+            'Function %s expected its %s argument, %s,\nto be a character string.',...
+            upper(function_name), num2ordinal(argument_position), variable_name);
     end
-
+    
     matches = strncmpi(in,valid_strings,numel(in));
     if sum(matches) == 1
         out = valid_strings{matches};
@@ -1363,7 +1373,7 @@ try
         out = substringMatch(valid_strings(matches));
         if isempty(out)
             failedToMatch(valid_strings, sum(matches), function_name,...
-                          argument_position,variable_name,in);
+                argument_position,variable_name,in);
         end
     end
 catch
@@ -1394,7 +1404,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function failedToMatch(valid_strings, num_matches, function_name,...
-                       argument_position, variable_name, in)
+    argument_position, variable_name, in)
 % Convert valid_strings to a single string containing a space-separated list
 % of valid strings.
 
@@ -1405,14 +1415,14 @@ end
 list(1:2) = [];
 
 msg1 = sprintf('Function %s expected its %s input argument, %s,', ...
-               upper(function_name), num2ordinal(argument_position), ...
-               variable_name);
+    upper(function_name), num2ordinal(argument_position), ...
+    variable_name);
 msg2 = 'to match one of these strings:';
 
 if num_matches == 0
     msg3 = sprintf('The input, ''%s'', did not match any of the valid strings.', in);
     id = sprintf('%s:%s:unrecognizedStringChoice', getcomp, function_name);
-
+    
 else
     msg3 = sprintf('The input, ''%s'', matched more than one valid string.', in);
     id = sprintf('%s:%s:ambiguousStringChoice', getcomp, function_name);
@@ -1427,7 +1437,7 @@ function closeFiles(fileIds)
 %CLOSEFILES Close multiple files.
 %   Close any files in the list of file IDs that are actually open.
 
-%   Copyright 1996-2003  The MathWorks, Inc.  
+%   Copyright 1996-2003  The MathWorks, Inc.
 %   $Revision: 1.1.10.2 $ $Date: 2003/08/01 18:23:30 $
 
 for k = 1:length(fileIds)
@@ -1449,7 +1459,7 @@ function fieldInfo = dbffieldinfo(S)
 %   point and modify it before calling SHAPEWRITE.  If S has no attribute
 %   fields, then FIELDINFO will be empty.
 
-%   Copyright 2003-2004 The MathWorks, Inc.  
+%   Copyright 2003-2004 The MathWorks, Inc.
 %   $Revision: 1.1.8.1 $  $Date: 2004/12/18 07:46:21 $
 
 % Determine what types of fields to write for each attribute.
@@ -1490,7 +1500,7 @@ for k = 1:numel(attributeNames)
             else
                 fmt = sprintf('%s%d.%df','%',fieldLength,numRightOfDecimal);
             end
-                
+            
         case 'char'
             fieldType = 'C';
             v = char({S.(attributeNames{k})});
@@ -1527,14 +1537,14 @@ function info = dbfinfo(fid)
 %      NumRecords     A number specifying the number of records in the table
 %      NumFields      A number specifying the number of fields in the table
 %      FieldInfo      A 1-by-numFields structure array with fields:
-%         Name        A string containing the field name 
-%         Type        A string containing the field type 
+%         Name        A string containing the field name
+%         Type        A string containing the field type
 %         ConvFunc    A function handle to convert from DBF to MATLAB type
 %         Length      A number of bytes in the field
 %      HeaderLength   A number specifying length of the file header in bytes
 %      RecordLength   A number specifying length of each record in bytes
 
-%   Copyright 1996-2003  The MathWorks, Inc.  
+%   Copyright 1996-2003  The MathWorks, Inc.
 %   $Revision: 1.1.10.2 $  $Date: 2003/08/01 18:23:31 $
 
 [version, date, numRecords, headerLength, recordLength] = readFileInfo(fid);
@@ -1574,8 +1584,8 @@ function fieldInfo = getFieldInfo(fid)
 % Form FieldInfo by reading Field Descriptor Array.
 %
 % FieldInfo is a 1-by-numFields structure array with the following fields:
-%       Name      A string containing the field name 
-%       Type      A string containing the field type 
+%       Name      A string containing the field name
+%       Type      A string containing the field type
 %       ConvFunc  A function handle to convert from DBF to MATLAB type
 %       Length    A number equal to the length of the field in bytes
 
@@ -1589,7 +1599,7 @@ fieldNameLength         = 11;
 fseek(fid,8,'bof');
 headerLength = fread(fid,1,'uint16');
 numFields = (headerLength - lengthOfLeadingBlock - lengthOfTerminator)...
-               / lengthOfDescriptorBlock;
+    / lengthOfDescriptorBlock;
 
 % Read field lengths.
 fseek(fid,lengthOfLeadingBlock + fieldNameOffset,'bof');
@@ -1598,8 +1608,8 @@ lengths = fread(fid,[1 numFields],'uint8',lengthOfDescriptorBlock - 1);
 % Read the field names.
 fseek(fid,lengthOfLeadingBlock,'bof');
 data = fread(fid,[fieldNameLength numFields],...
-             sprintf('%d*uint8=>char',fieldNameLength),...
-             lengthOfDescriptorBlock - fieldNameLength);
+    sprintf('%d*uint8=>char',fieldNameLength),...
+    lengthOfDescriptorBlock - fieldNameLength);
 data(data == 0) = ' '; % Replace nulls with blanks
 names = cellstr(data')';
 
@@ -1621,18 +1631,18 @@ function typeConv = dbftype2matlab(dbftypes)
 
 typeLUT = ...
     {'N', 'double', @str2double2cell;...   % DBF numeric
-     'F', 'double', @str2double2cell;...   % DBF float
-     'C', 'char',   @cellstr;...           % DBF character
-     'D', 'char',   @cellstr};             % DBF date
+    'F', 'double', @str2double2cell;...   % DBF float
+    'C', 'char',   @cellstr;...           % DBF character
+    'D', 'char',   @cellstr};             % DBF date
 
 unsupported = struct('MATLABType', 'unsupported', ...
-                     'ConvFunc',   @cellstr);
-                     
+    'ConvFunc',   @cellstr);
+
 % Unsupported types: Logical,Memo,N/ANameVariable,Binary,General,Picture
 
 numFields = length(dbftypes);
 if numFields ~= 0
-  typeConv(numFields) = struct('MATLABType',[],'ConvFunc',[]);
+    typeConv(numFields) = struct('MATLABType',[],'ConvFunc',[]);
 end
 for k = 1:numFields
     idx = strmatch(dbftypes(k),typeLUT(:,1));
@@ -1655,7 +1665,7 @@ out = num2cell(str2double(cellstr(in)));
 %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 function comp=getcomp()
-%GETCOMP Returns the error id component name. 
+%GETCOMP Returns the error id component name.
 %
 %   COMP  = GETCOMP Returns the component name for an error ID
 
@@ -1677,16 +1687,16 @@ function result = getshapetype(shapeTypeCode,requestOrQuery)
 %     'ShapeRecordReadFcn'     -- Return a function handle
 %     'ShapeDataFieldNames'    -- Return a cell array of string.
 
-%   Copyright 1996-2003  The MathWorks, Inc.  
+%   Copyright 1996-2003  The MathWorks, Inc.
 %   $Revision: 1.1.10.4 $  $Date: 2004/02/01 22:01:28 $
 
 lutFields = { 'TypeCode',...
-              'TypeString',...
-              'IsValid',...
-              'IsSupported',...
-              'BoundingBoxSubscripts',...
-              'ShapeRecordReadFcn',...
-              'ShapeDataFieldNames' };
+    'TypeString',...
+    'IsValid',...
+    'IsSupported',...
+    'BoundingBoxSubscripts',...
+    'ShapeRecordReadFcn',...
+    'ShapeDataFieldNames' };
 
 % Three kinds of bounding box subscripts
 bbs2D = [1 2; 3 4];
@@ -1698,22 +1708,22 @@ fldn  = {'Geometry','BoundingBox','Length','X','Y'}; % Multiple Points
 
 % Code  String      Valid  Supported  BBxSub Fcn  FieldNames
 typeLUT = {...
-   -1, 'Not Valid',   false, false, [],    [], {''};... 
-    0, 'Null Shape',  true,  true,  [],    [], {''};... 
+    -1, 'Not Valid',   false, false, [],    [], {''};...
+    0, 'Null Shape',  true,  true,  [],    [], {''};...
     1, 'Point',       true,  true,  bbs2D, @readPoint,      fld1 ; ...
     3, 'PolyLine',    true,  true,  bbs2D, @readPolyLine,   fldn ; ...
     5, 'Polygon',     true,  true,  bbs2D, @readPolygon,    fldn ; ...
     8, 'MultiPoint',  true,  true,  bbs2D, @readMultiPoint, fldn ; ...
-   11, 'PointZ',      true,  false, bbsZ,  [], {''};...
-   13, 'PolyLineZ',   true,  false, bbsZ,  [], {''};... 
-   15, 'PolygonZ',    true,  true,  bbs2D, @readPolygon,    fldn ; ... %%% false, bbsZ,  [], {''} ; ... 
-   18, 'MultiPointZ', true,  false, bbsZ,  [], {''};... 
-   21, 'PointM',      true,  false, bbsM,  [], {''};... 
-   23, 'PolyLineM',   true,  false, bbsM,  [], {''};... 
-   25, 'PolygonM',    true,  false, bbsM,  [], {''};... 
-   28, 'MultiPointM', true,  false, bbsM,  [], {''};... 
-   31, 'MultiPatch',  true,  false, bbsZ,  [], {''};... 
-  };
+    11, 'PointZ',      true,  false, bbsZ,  [], {''};...
+    13, 'PolyLineZ',   true,  false, bbsZ,  [], {''};...
+    15, 'PolygonZ',    true,  true,  bbs2D, @readPolygon,    fldn ; ... %%% false, bbsZ,  [], {''} ; ...
+    18, 'MultiPointZ', true,  false, bbsZ,  [], {''};...
+    21, 'PointM',      true,  false, bbsM,  [], {''};...
+    23, 'PolyLineM',   true,  false, bbsM,  [], {''};...
+    25, 'PolygonM',    true,  false, bbsM,  [], {''};...
+    28, 'MultiPointM', true,  false, bbsM,  [], {''};...
+    31, 'MultiPatch',  true,  false, bbsZ,  [], {''};...
+    };
 notValidRow = 1;
 types = [typeLUT{:,1}];
 
@@ -1800,9 +1810,9 @@ function [shpFileId, shxFileId, dbfFileId, headerTypeCode] = ...
 %   if successful, -1 if not. Check the header file type, shapefile
 %   version, and the shape type code found in the header.
 
-%   Copyright 1996-2005  The MathWorks, Inc.  
+%   Copyright 1996-2005  The MathWorks, Inc.
 %   $Revision: 1.1.10.3.14.1 $  $Date: 2005/01/14 21:54:16 $
-        
+
 % See if filename has an extension and extract basename.
 [basename, shapeExtensionProvided] = deconstruct(filename);
 
@@ -1855,7 +1865,7 @@ if (shpFileId == -1)
         if ~isempty(ext)
             eid = sprintf('%s:%s:invalidExtension', getcomp, mfilename);
             msg = sprintf('Filename %s has an invalid extension. %s', basename,...
-                  'If included must be .shp, .shx, or .dbf.');
+                'If included must be .shp, .shx, or .dbf.');
             error(eid,'%s',msg)
         else
             eid = sprintf('%s:%s:failedToOpenSHP1', getcomp, mfilename);
@@ -1916,7 +1926,7 @@ end
 if (shxFileId == -1)
     wid = sprintf('%s:%s:missingSHX', getcomp, mfilename);
     msg = sprintf('Failed to open file %s.shx or file %s.SHX. %s',...
-            basename, basename, msgForMissingSHX);
+        basename, basename, msgForMissingSHX);
     warning(wid,'%s',msg)
 end
 
@@ -1931,8 +1941,8 @@ end
 if (dbfFileId == -1)
     wid = sprintf('%s:%s:missingDBF', getcomp, mfilename);
     msg = sprintf('Failed to open file %s.dbf or file %s.DBF. %s',...
-            basename, basename,...
-            'Shape output structure will have no attribute fields.');
+        basename, basename,...
+        'Shape output structure will have no attribute fields.');
     warning(wid,'%s',msg)
 end
 
@@ -1958,7 +1968,7 @@ if ~getshapetype(headerTypeCode,'IsSupported')
     typeString = getshapetype(headerTypeCode,'TypeString');
     eid = sprintf('%s:%s:unsupportedShapeType', getcomp, mfilename);
     msg = sprintf('Unsupported shape type %s (type code = %g).',...
-                  typeString,headerTypeCode);
+        typeString,headerTypeCode);
     if strcmp(callingFcn,'shaperead')
         fclose(shpFileId);
         error(eid, msg);
