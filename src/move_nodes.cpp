@@ -2698,12 +2698,35 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 		}
 	}
 
+	//clean and fix the nodes in the element structure
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
+		octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
+		for(int iel = 0; iel<8; iel++){
+			if(oct->id[iel]!=-1){
+				octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
+				for(int ino = 0; ino<8; ino++){
+					elem->nodes[ino].fixed = 0;
+					int node = elem->nodes[ino].id;
+					key.coord[0] = coords[3*node+0];
+					key.coord[1] = coords[3*node+1];
+					key.coord[2] = coords[3*node+2];
+					key.node_id = node;
+					bool tre = sc_hash_array_lookup(hash_FixedNodes, &key, &position);
+					if(tre){
+						elem->nodes[ino].fixed = 1;
+					}
+				}
+			}
+		}
+	}
+
+
 	nodes_b_mat.clear();
 	for(int ii = 0;ii < hash_FixedNodes->a.elem_count ;ii++){
 		node_t* node = (node_t*) sc_array_index (&hash_FixedNodes->a, ii);
 		nodes_b_mat.push_back(node->node_id);
 	}
-	printf("Total de %d nos fixos...\n",nodes_b_mat.size());
+	printf(" Total de %d nos fixos...\n",nodes_b_mat.size());
 
 
 }
@@ -3301,6 +3324,8 @@ void DoOctree(hexa_tree_t* mesh){
 		}
 	}
 
+	//sc_hash_array_rip (indep_vertex,  &mesh->vertex);
+
 	if(false){
 		for(int iel = 0; iel< mesh->oct.elem_count; iel++){
 			octree_t *oc = (octree_t*) sc_array_index(&mesh->oct, iel);
@@ -3338,7 +3363,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	printf(" Building the octree structure...\n");
 	DoOctree(mesh);
 	tend = time(0);
-//	cout << "Time in DoOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
+	//	cout << "Time in DoOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 
 	tstart = time(0);
@@ -3385,7 +3410,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 
 	//verifica se os nos movidos estao fixos...
 	for(int i = 0; i<nodes_b_mat.size();i++){
-		mesh->part_nodes[nodes_b_mat[i]] = 1;
+	//	mesh->part_nodes[nodes_b_mat[i]] = 1;
 	}
 
 	//gts_bb_tree_destroy(bbt_bathymetry, TRUE);

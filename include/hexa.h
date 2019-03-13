@@ -47,6 +47,17 @@ typedef struct
 
 typedef struct
 {
+	uint64_t id;
+	int32_t  list_elem;
+	int32_t  list_face;
+	int32_t  elem[8]; // we must check this values
+	int8_t   face[24]; // we must check this values
+	double   n[24][3];
+	double   nm[3];
+} normal_t;
+
+typedef struct
+{
 	int32_t    x,y,z;
 	int8_t     level;
 	int     pad;
@@ -225,6 +236,7 @@ int const EdgeEdgeMap[12][4] = {
 		{9, 6, 11, 7}, //10
 		{10, 7, 8, 9}//11
 };
+
 void copy_octant(octant_t *orig, octant_t* dest);
 void hexa_init(int argc, char* argv[], hexa_tree_t* mesh);
 void hexa_finalize(hexa_tree_t* mesh);
@@ -241,6 +253,7 @@ void Apply_material(hexa_tree_t* mesh, std::vector<double>& coords,std::vector<i
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface);
 void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
+void PillowingInterface(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat);
 void Adjust_material(hexa_tree_t *mesh);
 void UntagleMesh(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
@@ -262,6 +275,7 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t);
 GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z);
 GtsSurface* SurfaceRead(const char* fname);
 gdouble distance(GtsPoint *p, gpointer bounded);
+int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<double> &coords);
 //void communicate_global_ids(hexa_tree_t* mesh);
 
 #endif	/* HEXA_H */
