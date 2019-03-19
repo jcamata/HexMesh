@@ -45,6 +45,7 @@ typedef struct
 	int32_t  elem[8]; // we must check this values
 } octant_vertex_t;
 
+/*
 typedef struct
 {
 	uint64_t id;
@@ -55,6 +56,14 @@ typedef struct
 	double   n[24][3];
 	double   nm[3];
 } normal_t;
+*/
+
+typedef struct
+{
+	uint64_t id;
+	uint64_t a;
+	uint64_t b;
+} pillow_t;
 
 typedef struct
 {
@@ -202,6 +211,7 @@ int const FaceEdgesMap[6][4] = {
 		{0, 1, 2, 3}
 };
 
+
 int const FaceNodesMap[6][4] = {
 		{0,4,7,3},
 		{1,5,6,2},
@@ -210,6 +220,24 @@ int const FaceNodesMap[6][4] = {
 		{4,5,6,7},
 		{0,1,2,3}
 };
+
+int const FaceNodesMap_inv[6][4] = {
+		{1,5,6,2},
+		{0,4,7,3},
+		{2,6,7,3},
+		{0,4,5,1},
+		{0,1,2,3},
+		{4,5,6,7}
+};
+
+/*
+int vert_ord_face[4][3]= {
+		{0, 1, 3},
+		{1, 2, 0},
+		{2, 3, 1},
+		{3, 0, 2}
+};
+*/
 
 int const VertexEdgeMap[8][3] = {
 		{0,3,4}, //Vertex 0
