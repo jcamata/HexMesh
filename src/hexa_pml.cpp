@@ -205,6 +205,7 @@ int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<
 		n->z = -1;
 		//n->color = -1;
 		n->fixed = 0;
+		mesh->part_nodes[n->id] = mesh->mpi_rank;
 
 		coords.push_back(p->x);
 		coords.push_back(p->y);
