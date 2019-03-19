@@ -1222,7 +1222,42 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			//TODO
 			if(oc_count==2){
-				printf("Oc_count = 2 not implemented yet...\n");
+				octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
+				octant_t* elem4 = (octant_t*)sc_array_index(&mesh->elements,oct->id[4]);
+
+				int node1 = elem0->nodes[2].id;
+				int node2 = elem4->nodes[6].id;
+
+				int edge = 0;
+				GtsBBox *sb;
+				GSList* list;
+				GtsBBox *b;
+
+				GtsVertex* v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+				GtsVertex* v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+				point[edge] = NULL;
+				segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+				sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+				list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+				//if (list == NULL) continue;
+				while (list) {
+					b = GTS_BBOX(list->data);
+					point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+					if (point[edge]) {
+						break;
+					}
+					list = list->next;
+				}
+
+				if(point[edge]!=NULL){
+					aux.push_back(elem0->nodes[6].id);
+					aux.push_back(point[edge]->x);
+					aux.push_back(point[edge]->y);
+					aux.push_back(point[edge]->z);
+				}
+
+				printf("Oc_count = 2 implemented, Maybe check...\n");
 			}
 
 		}
@@ -3410,7 +3445,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 
 	//verifica se os nos movidos estao fixos...
 	for(int i = 0; i<nodes_b_mat.size();i++){
-	//	mesh->part_nodes[nodes_b_mat[i]] = 1;
+		//	mesh->part_nodes[nodes_b_mat[i]] = 1;
 	}
 
 	//gts_bb_tree_destroy(bbt_bathymetry, TRUE);
