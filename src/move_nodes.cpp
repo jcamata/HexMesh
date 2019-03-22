@@ -1218,12 +1218,197 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					}
 
 				}
-			}
 
-			//TODO
-			if(oc_count==2){
+				if(oct->id[1]!=-1 && oct->id[2]!=-1){
+					//essa é para z...
+					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
+					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
+					octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[2]);
+					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
 
-				printf("Oc_count = 2 implemented, Maybe check...\n");
+					//face x-
+					if(true){
+						node1 = elem0->nodes[4].id;
+						node2 = elem3->nodes[7].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[7].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+
+					//face x+
+					if(true){
+						node1 = elem1->nodes[5].id;
+						node2 = elem2->nodes[6].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem1->nodes[6].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+
+					//face y-
+					if(true){
+						node1 = elem0->nodes[4].id;
+						node2 = elem1->nodes[7].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[7].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+
+					//face y+
+					if(true){
+
+						node1 = elem2->nodes[6].id;
+						node2 = elem3->nodes[7].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem2->nodes[7].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+
+					//face z-
+					if(false){
+						node1 = elem0->nodes[7].id;
+						node2 = elem0->nodes[6].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[6].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+
+					//face z+
+					if(false){
+						node1 = elem0->nodes[0].id;
+						node2 = elem1->nodes[0].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[6].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+
+				}
+
 			}
 
 		}
@@ -1576,14 +1761,14 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 							}
 							list = list->next;
 						}
-
+						/*
 						if(point[edge]!=NULL){
 							aux.push_back(elem0->nodes[0].id);
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
 						}
-
+						 */
 					}
 
 					//edge 2
@@ -2279,12 +2464,390 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
+				if(oct->id[0]!=-1 && oct->id[2]!=-1){
+					//esse e para o z
+					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
+					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
+					octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[4]);
+					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[5]);
+
+					//edge 0
+					if(true){
+						node1 = elem0->nodes[0].id;
+						node2 = elem1->nodes[1].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[1].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 1
+					if(true){
+						node1 = elem1->nodes[1].id;
+						node2 = elem2->nodes[2].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem2->nodes[1].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 2
+					if(true){
+						node1 = elem2->nodes[2].id;
+						node2 = elem3->nodes[3].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem2->nodes[3].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 3
+					if(true){
+						node1 = elem3->nodes[3].id;
+						node2 = elem0->nodes[0].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[3].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 4
+					if(true){
+						node1 = elem0->nodes[0].id;
+						node2 = elem0->nodes[4].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[4].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 5
+					if(true){
+						node1 = elem1->nodes[1].id;
+						node2 = elem1->nodes[5].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem1->nodes[5].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 6
+					if(true){
+						node1 = elem2->nodes[2].id;
+						node2 = elem2->nodes[6].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem2->nodes[6].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 7
+					if(true){
+						node1 = elem3->nodes[3].id;
+						node2 = elem3->nodes[7].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem3->nodes[7].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 8 nope
+					if(false){
+						node1 = elem0->nodes[4].id;
+						node2 = elem0->nodes[5].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[5].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 9 nope
+					if(false){
+						node1 = elem0->nodes[4].id;
+						node2 = elem0->nodes[6].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[5].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 10 nope
+					if(false){
+						node1 = elem0->nodes[2].id;
+						node2 = elem0->nodes[3].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[3].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+					//edge 11 nope
+					if(false){
+						node1 = elem0->nodes[4].id;
+						node2 = elem0->nodes[7].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[4].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+
+					}
+
+
+				}
 			}
 
-			//TODO
-			if(oc_count==2){
-				printf("Oc_count = 2 not implemented yet...\n");
-			}
+
 		}
 	}
 
@@ -2657,45 +3220,167 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						printf("Error in move_node.cpp\n some error in the central node \n");
 					}
 				}
+
+				if(oct->id[1]!=-1 && oct->id[2]!=-1){
+					//essa é para z...
+					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
+					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
+					octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[2]);
+					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
+
+					edge = 0; // 0 e 2
+					if(true){
+						node1 = elem0->nodes[4].id;
+						node2 = elem2->nodes[6].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+					}
+
+					edge = 1; // 1 e 3
+					if(true){
+						node1 = elem1->nodes[5].id;
+						node2 = elem3->nodes[7].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+					}
+
+					int np[2];
+					int count_p = 0;
+					for(int ip = 0; ip<2;ip++){
+						if(point[ip]!=NULL){
+							np[count_p] = ip;
+							count_p++;
+						}
+					}
+
+					if(count_p!=0){
+						double xx, yy,zz;
+						xx = 0;
+						yy = 0;
+						zz = 0;
+						for(int ip = 0; ip<count_p;ip++){
+							xx = point[np[ip]]->x+xx;
+							yy = point[np[ip]]->y+yy;
+							zz = point[np[ip]]->z+zz;
+						}
+						xx = xx/count_p;
+						yy = yy/count_p;
+						zz = zz/count_p;
+
+						aux.push_back(elem0->nodes[6].id);
+						aux.push_back(xx);
+						aux.push_back(yy);
+						aux.push_back(zz);
+
+					}else{
+						printf("Error in move_node.cpp\n some error in the central node \n");
+					}
+				}
 			}
 
 			if(oc_count==2){
 				octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 				octant_t* elem4 = (octant_t*)sc_array_index(&mesh->elements,oct->id[4]);
+				octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
 
-				int node1 = elem0->nodes[2].id;
-				int node2 = elem4->nodes[6].id;
+				if(oct->id[0]!=-1 && oct->id[4]!=-1){
+					int node1 = elem0->nodes[2].id;
+					int node2 = elem4->nodes[6].id;
 
-				int edge = 0;
-				GtsBBox *sb;
-				GSList* list;
-				GtsBBox *b;
+					int edge = 0;
+					GtsBBox *sb;
+					GSList* list;
+					GtsBBox *b;
 
-				GtsVertex* v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
-				GtsVertex* v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+					GtsVertex* v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex* v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
 
-				point[edge] = NULL;
-				segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
-				sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
-				list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-				//if (list == NULL) continue;
-				while (list) {
-					b = GTS_BBOX(list->data);
-					point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
-					if (point[edge]) {
-						break;
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
 					}
-					list = list->next;
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem0->nodes[6].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}
 				}
 
-				if(point[edge]!=NULL){
-					aux.push_back(elem0->nodes[6].id);
-					aux.push_back(point[edge]->x);
-					aux.push_back(point[edge]->y);
-					aux.push_back(point[edge]->z);
-				}
+				if(oct->id[0]!=-1 && oct->id[3]!=-1){
+					int node1 = elem0->nodes[5].id;
+					int node2 = elem3->nodes[6].id;
 
-				printf("Oc_count = 2 implemented, please check it...\n");
+					int edge = 0;
+					GtsBBox *sb;
+					GSList* list;
+					GtsBBox *b;
+
+					GtsVertex* v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex* v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem0->nodes[6].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}
+				}
+				//printf("Oc_count = 2 implemented, please check it...\n");
 			}
 		}
 	}
@@ -3054,7 +3739,7 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 				}
 				if(i==7 || i ==4){
 					if(elem->edge[11].ref){
-						oct->edge[12]=true;
+						oct->edge[11]=true;
 					}
 				}
 
