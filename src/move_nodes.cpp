@@ -238,39 +238,38 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 								aux.push_back(point[3]->z);
 								edge_cut = true;
 							}
+						}
 
-							if(!edge_cut){
-								if(point_s[4]!=NULL){
-									if(iel==0){
-										aux.push_back(elem->nodes[7].id);
-										aux.push_back(point_s[4]->x);
-										aux.push_back(point_s[4]->y);
-										aux.push_back(point_s[4]->z);
-									}
-									if(iel==7){
-										aux.push_back(elem->nodes[0].id);
-										aux.push_back(point_s[4]->x);
-										aux.push_back(point_s[4]->y);
-										aux.push_back(point_s[4]->z);
-									}
+						if(!edge_cut){
+							if(point_s[4]!=NULL){
+								if(iel==0){
+									aux.push_back(elem->nodes[7].id);
+									aux.push_back(point_s[4]->x);
+									aux.push_back(point_s[4]->y);
+									aux.push_back(point_s[4]->z);
 								}
-								if(point_s[5]!=NULL){
-									if(iel==3){
-										aux.push_back(elem->nodes[4].id);
-										aux.push_back(point_s[5]->x);
-										aux.push_back(point_s[5]->y);
-										aux.push_back(point_s[5]->z);
-									}
-									if(iel==4){
-										aux.push_back(elem->nodes[3].id);
-										aux.push_back(point_s[5]->x);
-										aux.push_back(point_s[5]->y);
-										aux.push_back(point_s[5]->z);
-									}
+								if(iel==7){
+									aux.push_back(elem->nodes[0].id);
+									aux.push_back(point_s[4]->x);
+									aux.push_back(point_s[4]->y);
+									aux.push_back(point_s[4]->z);
+								}
+							}
+							if(point_s[5]!=NULL){
+								if(iel==3){
+									aux.push_back(elem->nodes[4].id);
+									aux.push_back(point_s[5]->x);
+									aux.push_back(point_s[5]->y);
+									aux.push_back(point_s[5]->z);
+								}
+								if(iel==4){
+									aux.push_back(elem->nodes[3].id);
+									aux.push_back(point_s[5]->x);
+									aux.push_back(point_s[5]->y);
+									aux.push_back(point_s[5]->z);
 								}
 							}
 						}
-
 					}
 
 					//face x+
@@ -352,6 +351,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 							}
 						}
+
 						if(!edge_cut){
 							if(point_s[6]!=NULL){
 								if(iel==1){
