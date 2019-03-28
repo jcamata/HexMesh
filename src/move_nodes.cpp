@@ -1815,7 +1815,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						}
 
 						if(point[edge]!=NULL){
-							aux.push_back(elem0->nodes[7].id);
+							aux.push_back(elem3->nodes[4].id);
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
@@ -1855,7 +1855,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					//face y-
 					if(true){
 						node1 = elem0->nodes[4].id;
-						node2 = elem1->nodes[7].id;
+						node2 = elem1->nodes[5].id;
 
 						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -1875,7 +1875,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						}
 
 						if(point[edge]!=NULL){
-							aux.push_back(elem0->nodes[7].id);
+							aux.push_back(elem0->nodes[5].id);
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
@@ -2555,9 +2555,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					}
 
 					//edge 9 nope
-					if(false){
-						node1 = elem0->nodes[0].id;
-						node2 = elem0->nodes[1].id;
+					if(true){
+						node1 = elem4->nodes[5].id;
+						node2 = elem7->nodes[6].id;
 
 						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -2577,7 +2577,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						}
 
 						if(point[edge]!=NULL){
-							aux.push_back(elem0->nodes[0].id);
+							aux.push_back(elem4->nodes[6].id);
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
@@ -3412,7 +3412,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 			}
-
 
 		}
 	}
