@@ -28,7 +28,7 @@ void SurfaceOptmimizationMesquite(hexa_tree_t* mesh, std::vector<double>& coords
 	sc_hash_array_truncate(hash_FixedNodes);
 
 
-	// essa parte deve ser trocada por uma estrutura que tenha a malha da superficie externa
+	// TODO essa parte deve ser trocada por uma estrutura que tenha a malha da superficie externa
 	// que sera usada mais tarde para extrudar CC tipo PML ou similares...
 	bool clamped = true;
 	sc_hash_array_t* hash_SurfaceNodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
@@ -755,7 +755,8 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 
 				//**************Set stopping criterion****************
 				TerminationCriterion sc2;
-				sc2.add_iteration_limit( 30 );
+				sc2.add_iteration_limit( 50 );
+				sc2.add_relative_vertex_movement(1);
 				lapl1.set_outer_termination_criterion(&sc2);
 
 				// adds 1 pass of pass1 to mesh_set1
@@ -768,7 +769,14 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 				// launches optimization on mesh_set1
 				queue1.run_instructions(&mesh_and_domain0, err);
 			}
-
+			printf("LaplaceWrapper do not work...\n");
+			/*
+				LaplaceWrapper lp_wrapper0;
+				lp_wrapper0.set_vertex_movement_limit_factor(1.e-5);
+				lp_wrapper0.set_iteration_limit(10);
+				lp_wrapper0.enable_culling(false);
+				lp_wrapper0.run_instructions( &mesh_and_domain0, err );
+			 */
 
 			if(false){
 				// creates an intruction queue
@@ -832,29 +840,20 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 			un_wrapper0.set_outer_iteration_limit(10);
 			un_wrapper0.run_instructions( &mesh_and_domain0, err );
 
-
-/*
-	LaplaceWrapper lp_wrapper0;
-	lp_wrapper0.set_vertex_movement_limit_factor(1.e-5);
-	lp_wrapper0.set_iteration_limit(10);
-	lp_wrapper0.enable_culling(false);
-	lp_wrapper0.run_instructions( &mesh_and_domain0, err );
-*/
-
 			/*
-		ShapeImprover smoother;
-		IdealWeightInverseMeanRatio extra_metric;
-		smoother.quality_assessor().add_quality_assessment(&extra_metric);
-		smoother.set_cpu_time_limit(120);
-		smoother.run_instructions( &mesh_and_domain0, err );
-			 */
+		    ShapeImprover smoother;
+		    IdealWeightInverseMeanRatio extra_metric;
+		    smoother.quality_assessor().add_quality_assessment(&extra_metric);
+		    smoother.set_cpu_time_limit(120);
+		    smoother.run_instructions( &mesh_and_domain0, err );
 
-			/*
-			 * SizeAdaptShapeWrapper smoother(1e-2);
-	  MeshDomainAssoc mesh_and_domain = MeshDomainAssoc(&mesh, &geom);
-	  smoother.run_instructions( &mesh_and_domain, err);
-			 */
 
+
+	  	    SizeAdaptShapeWrapper smoother(1e-2);
+	  	    MeshDomainAssoc mesh_and_domain = MeshDomainAssoc(&mesh, &geom);
+	  	    smoother.run_instructions( &mesh_and_domain, err);
+
+			 */
 			std::vector<MeshImpl::VertexHandle> vertices;
 			mesh_and_domain0.get_mesh()->get_all_vertices(vertices,err);
 
@@ -1040,6 +1039,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> 
 void UntagleMesh(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
 
 	OptSurface(mesh, coords,material_fixed_nodes);
+	printf("Please check here later... Volumetric UntagleMesh\n");
 	//OptVolume(mesh, coords,material_fixed_nodes);
 
 }
@@ -1164,6 +1164,8 @@ void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> ma
 		coords[3*ino+2] = aux[2];
 	}
 
+
+	//TODO procurando os elementos invalidos
 	/*
 	//procurando os elementos invalidos...
 	for (int iel = 0; iel < elem_array.size() ; iel++){
