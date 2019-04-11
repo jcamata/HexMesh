@@ -1574,7 +1574,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				GSList* list;
 				GtsBBox *b;
 
-				if(oct->id[3]!=-1 && oct->id[7]!=-1){
+				if(oct->id[3]!=-1 && oct->id[7]!=-1 && oct->id[4]!=-1){
 					//essa é para x...
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
@@ -1793,7 +1793,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
-				if(oct->id[1]!=-1 && oct->id[5]!=-1){
+				if(oct->id[1]!=-1 && oct->id[5]!=-1 && oct->id[4]!=-1){
 					//essa é para y...
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -1985,7 +1985,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
-				if(oct->id[1]!=-1 && oct->id[2]!=-1){
+				if(oct->id[1]!=-1 && oct->id[2]!=-1 && oct->id[3]!=-1){
 					//essa é para z...
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -2468,7 +2468,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				GSList* list;
 				GtsBBox *b;
 
-				if(oct->id[3]!=-1 && oct->id[7]!=-1 && true){
+				if(oct->id[3]!=-1 && oct->id[7]!=-1 && oct->id[4]!=-1){
 					//esse e para o x
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
@@ -2849,7 +2849,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
-				if(oct->id[1]!=-1 && oct->id[5]!=-1 && true){
+				if(oct->id[1]!=-1 && oct->id[5]!=-1 && oct->id[4]!=-1){
 					//esse e para o y
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -3230,7 +3230,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
-				if(oct->id[0]!=-1 && oct->id[2]!=-1 && true){
+				if(oct->id[1]!=-1 && oct->id[2]!=-1 && oct->id[3]!=-1){
 					//esse e para o z
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -3814,7 +3814,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				GSList* list;
 				GtsBBox *b;
 
-				if(oct->id[3]!=-1 && oct->id[7]!=-1){
+				if(oct->id[3]!=-1 && oct->id[7]!=-1 && oct->id[4]!=-1){
 					//essa é para x...
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
@@ -3902,7 +3902,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					}
 				}
 
-				if(oct->id[1]!=-1 && oct->id[5]!=-1){
+				if(oct->id[1]!=-1 && oct->id[5]!=-1 && oct->id[4]!=-1){
 					//essa é para y...
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -3990,7 +3990,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					}
 				}
 
-				if(oct->id[1]!=-1 && oct->id[2]!=-1){
+				if(oct->id[1]!=-1 && oct->id[2]!=-1 && oct->id[3]!=-1){
 					//essa é para z...
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
