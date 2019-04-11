@@ -36,7 +36,19 @@ typedef struct
 typedef struct {
 	double coord[3];
 	int node_id;
+	bool flag; //maybe can be removed...
 } node_t;
+
+typedef struct
+{
+	uint64_t id;
+	int8_t  list_elem;
+	int8_t  list_face;
+	int32_t  elem[8]; // we must check this values
+	int8_t   face[24]; // we must check this values
+	double   n[24][3];
+	double   nm[3];
+} normal_t;
 
 typedef struct
 {
@@ -45,27 +57,14 @@ typedef struct
 	int32_t  elem[8]; // we must check this values
 } octant_vertex_t;
 
-/*
-typedef struct
-{
-	uint64_t id;
-	int32_t  list_elem;
-	int32_t  list_face;
-	int32_t  elem[8]; // we must check this values
-	int8_t   face[24]; // we must check this values
-	double   n[24][3];
-	double   nm[3];
-} normal_t;
-*/
-
-typedef struct
+typedef struct pillow
 {
 	uint64_t id;
 	uint64_t a;
 	uint64_t b;
 } pillow_t;
 
-typedef struct
+typedef struct octant
 {
 	int32_t    x,y,z;
 	int8_t     level;
@@ -77,7 +76,7 @@ typedef struct
 	int64_t    id;
 } octant_t;
 
-typedef struct
+typedef struct octree
 {
 	int64_t id[8];
 	bool    cut;
@@ -224,20 +223,19 @@ int const FaceNodesMap[6][4] = {
 int const FaceNodesMap_inv[6][4] = {
 		{1,5,6,2},
 		{0,4,7,3},
-		{2,6,7,3},
-		{0,4,5,1},
+		{3,7,6,2},
+		{1,5,4,0},
 		{0,1,2,3},
 		{4,5,6,7}
 };
 
-/*
-int vert_ord_face[4][3]= {
+
+int const vert_ord[4][3]= {
 		{0, 1, 3},
 		{1, 2, 0},
 		{2, 3, 1},
 		{3, 0, 2}
 };
-*/
 
 int const VertexEdgeMap[8][3] = {
 		{0,3,4}, //Vertex 0
@@ -248,6 +246,17 @@ int const VertexEdgeMap[8][3] = {
 		{5,8,9}, //Vertex 5
 		{6,9,10}, //Vertex 6
 		{7,10,11}  //Vertex 7
+};
+
+int const VertexVertexMap[8][3] = {
+		{1,3,4},
+		{0,2,5},
+		{1,3,6},
+		{0,2,7},
+		{5,7,0},
+		{4,6,1},
+		{5,7,2},
+		{4,6,3}
 };
 
 int const EdgeEdgeMap[12][4] = {
