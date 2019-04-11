@@ -847,6 +847,12 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				octant_t* elem6 = (octant_t*)sc_array_index(&mesh->elements,oct->id[6]);
 				octant_t* elem7 = (octant_t*)sc_array_index(&mesh->elements,oct->id[7]);
 
+				//printf("face 0:%s\n", oct->face[0] ? "true" : "false");
+				//printf("face 1:%s\n", oct->face[1] ? "true" : "false");
+				//printf("face 2:%s\n", oct->face[2] ? "true" : "false");
+				//printf("face 3:%s\n", oct->face[3] ? "true" : "false");
+				//printf("face 4:%s\n", oct->face[4] ? "true" : "false");
+				//printf("face 5:%s\n", oct->face[5] ? "true" : "false");
 				//face x-
 				if(oct->face[0]){
 					node1 = elem0->nodes[3].id;
@@ -876,6 +882,41 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(point[edge]->y);
 						aux.push_back(point[edge]->z);
 					}else{
+
+					}
+
+					node1 = elem0->nodes[4].id;
+					node2 = elem3->nodes[7].id;
+					edge = 1;
+
+					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem0->nodes[7].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}else{
+
+					}
+
+					if(point[0]==NULL && point[1]==NULL){
+
 						for(int iel = 0; iel<8; iel++){
 							octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 
@@ -933,7 +974,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 									aux.push_back(point_s[5]->z);
 								}
 							}
-
 						}
 					}
 				}
@@ -941,7 +981,37 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				//face x+
 				if(oct->face[1]){
 					node1 = elem1->nodes[2].id;
-					node2 = elem7->nodes[6].id;
+					node2 = elem5->nodes[6].id;
+					edge = 0;
+
+					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem1->nodes[6].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}else{
+
+					}
+
+					node1 = elem1->nodes[5].id;
+					node2 = elem2->nodes[6].id;
 					edge = 1;
 
 					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
@@ -967,6 +1037,10 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(point[edge]->y);
 						aux.push_back(point[edge]->z);
 					}else{
+
+					}
+
+					if(point[0]==NULL && point[1]==NULL){
 						for(int iel = 0; iel<8; iel++){
 							octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 
@@ -1026,6 +1100,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 							}
 
 						}
+
 					}
 				}
 
@@ -1033,7 +1108,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				if(oct->face[2]){
 					node1 = elem0->nodes[1].id;
 					node2 = elem4->nodes[5].id;
-					edge = 2;
+					edge = 0;
 
 					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -1058,6 +1133,38 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(point[edge]->y);
 						aux.push_back(point[edge]->z);
 					}else{
+
+					}
+
+					node1 = elem0->nodes[4].id;
+					node2 = elem1->nodes[5].id;
+					edge = 1;
+
+					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem0->nodes[5].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}
+
+					if(point[0] == NULL && point[1] == NULL){
 						for(int iel = 0; iel<8; iel++){
 							octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 
@@ -1116,7 +1223,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 									aux.push_back(point_s[1]->z);
 								}
 							}
-
 						}
 					}
 				}
@@ -1134,7 +1240,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
 					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
 					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-					if (list == NULL) continue;
+					//if (list == NULL) continue;
 					while (list) {
 						b = GTS_BBOX(list->data);
 						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
@@ -1217,7 +1323,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				if(oct->face[4]){
 					node1 = elem4->nodes[5].id;
 					node2 = elem7->nodes[6].id;
-					edge = 4;
+					edge = 0;
 
 					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -1242,6 +1348,38 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(point[edge]->y);
 						aux.push_back(point[edge]->z);
 					}else{
+
+					}
+
+					node1 = elem4->nodes[7].id;
+					node2 = elem5->nodes[6].id;
+					edge = 1;
+
+					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem4->nodes[6].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}
+
+					if(point[0] == NULL && point[1] == NULL){
 						for(int iel = 0; iel<8; iel++){
 							octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 
@@ -1307,7 +1445,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				if(oct->face[5]){
 					node1 = elem0->nodes[1].id;
 					node2 = elem3->nodes[2].id;
-					edge = 5;
+					edge = 0;
 
 					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -1332,6 +1470,38 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(point[edge]->y);
 						aux.push_back(point[edge]->z);
 					}else{
+
+					}
+
+					node1 = elem3->nodes[0].id;
+					node2 = elem2->nodes[1].id;
+					edge = 1;
+
+					v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem3->nodes[1].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}
+
+					if(point[0]==NULL && point[1]==NULL){
 						for(int iel = 0; iel<8; iel++){
 							octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 
@@ -1395,7 +1565,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				}
 			}
 
-			if(oc_count==4){
+			if(oc_count==4 && true){
 				int node1, node2;
 				GtsVertex *v1;
 				GtsVertex *v2;
@@ -1412,7 +1582,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					octant_t* elem7 = (octant_t*)sc_array_index(&mesh->elements,oct->id[7]);
 
 					//face x-
-					if(true){
+					if(false){
 						node1 = elem0->nodes[3].id;
 						node2 = elem4->nodes[7].id;
 
@@ -1468,6 +1638,36 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
+						}
+
+						node1 = elem0->nodes[5].id;
+						node2 = elem3->nodes[6].id;
+						edge = 1;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL){
+							aux.push_back(elem0->nodes[6].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}else{
+
 						}
 					}
 
@@ -1993,7 +2193,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				}
 			}
 
-			if(oc_count==8){
+			if(oc_count==8 && true){
 				for(int iel = 0; iel<8; iel++){
 					octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 					//verifica se as arestas foram cortadas
@@ -2259,7 +2459,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			}
 
-			if(oc_count==4){
+			if(oc_count==4 && true){
 				int node1, node2;
 				GtsVertex *v1;
 				GtsVertex *v2;
@@ -2268,7 +2468,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				GSList* list;
 				GtsBBox *b;
 
-				if(oct->id[3]!=-1 && oct->id[7]!=-1){
+				if(oct->id[3]!=-1 && oct->id[7]!=-1 && true){
 					//esse e para o x
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
@@ -2339,8 +2539,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 					//edge 2
 					if(true){
-						node1 = elem3->nodes[2].id;
-						node2 = elem3->nodes[3].id;
+						node1 = elem0->nodes[1].id;
+						node2 = elem3->nodes[2].id;
 
 						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
 						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
@@ -2360,7 +2560,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						}
 
 						if(point[edge]!=NULL){
-							aux.push_back(elem3->nodes[3].id);
+							aux.push_back(elem0->nodes[2].id);
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
@@ -2494,7 +2694,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 					//edge 7
 					if(true){
-						node1 = elem4->nodes[3].id;
+						node1 = elem3->nodes[3].id;
 						node2 = elem7->nodes[7].id;
 
 						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
@@ -2515,7 +2715,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						}
 
 						if(point[edge]!=NULL){
-							aux.push_back(elem4->nodes[7].id);
+							aux.push_back(elem3->nodes[7].id);
 							aux.push_back(point[edge]->x);
 							aux.push_back(point[edge]->y);
 							aux.push_back(point[edge]->z);
@@ -2554,7 +2754,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 					}
 
-					//edge 9 nope
+					//edge 9
 					if(true){
 						node1 = elem4->nodes[5].id;
 						node2 = elem7->nodes[6].id;
@@ -2649,7 +2849,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
-				if(oct->id[1]!=-1 && oct->id[5]!=-1){
+				if(oct->id[1]!=-1 && oct->id[5]!=-1 && true){
 					//esse e para o y
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -3030,12 +3230,12 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 				}
 
-				if(oct->id[0]!=-1 && oct->id[2]!=-1){
+				if(oct->id[0]!=-1 && oct->id[2]!=-1 && true){
 					//esse e para o z
 					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 					octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
-					octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[4]);
-					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[5]);
+					octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[2]);
+					octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
 
 					//edge 0
 					if(true){
@@ -3881,6 +4081,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			if(oc_count==2){
 				octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
+				octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
 				octant_t* elem4 = (octant_t*)sc_array_index(&mesh->elements,oct->id[4]);
 				octant_t* elem3 = (octant_t*)sc_array_index(&mesh->elements,oct->id[3]);
 
@@ -3951,6 +4152,41 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(point[edge]->z);
 					}
 				}
+
+				if(oct->id[0]!=-1 && oct->id[1]!=-1){
+					int node1 = elem0->nodes[7].id;
+					int node2 = elem1->nodes[6].id;
+
+					int edge = 0;
+					GtsBBox *sb;
+					GSList* list;
+					GtsBBox *b;
+
+					GtsVertex* v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex* v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+					point[edge] = NULL;
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					//if (list == NULL) continue;
+					while (list) {
+						b = GTS_BBOX(list->data);
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (point[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+
+					if(point[edge]!=NULL){
+						aux.push_back(elem0->nodes[6].id);
+						aux.push_back(point[edge]->x);
+						aux.push_back(point[edge]->y);
+						aux.push_back(point[edge]->z);
+					}
+				}
+
 				//printf("Oc_count = 2 implemented, please check it...\n");
 			}
 		}
@@ -4262,106 +4498,116 @@ void FreeMovableNodes(hexa_tree_t* mesh){
 
 void IdentifyMovableNodes(hexa_tree_t* mesh){
 
-	for(int iel = 0; iel < mesh->oct.elem_count; iel++){
-		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, iel);
+	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++){
+		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 
-		for(int i=0; i<8; i++){
-			if(oct->id[i]!=-1){
-				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[i]);
-
+		for(int iel=0; iel<8; iel++){
+			if(oct->id[iel]!=-1){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
+				//printf("Sou o elemento %d, o numero %d do octree\n",elem->id,iel);
 				//identificando as arestas interceptadas
 				//face superior
-				if(i==0 || i ==1){
+				if(iel==0 || iel ==1){
 					if(elem->edge[0].ref){
 						oct->edge[0]=true;
 					}
 				}
-				if(i==1 || i ==2){
+				if(iel==1 || iel ==2){
 					if(elem->edge[1].ref){
 						oct->edge[1]=true;
 					}
 				}
-				if(i==2 || i ==3){
+				if(iel==2 || iel ==3){
 					if(elem->edge[2].ref){
 						oct->edge[2]=true;
 					}
 				}
-				if(i==3 || i ==0){
+				if(iel==3 || iel ==0){
 					if(elem->edge[3].ref){
 						oct->edge[3]=true;
 					}
 				}
 
 				//face inferior
-				if(i==4 || i ==5){
+				if(iel==4 || iel ==5){
 					if(elem->edge[8].ref){
 						oct->edge[8]=true;
 					}
 				}
-				if(i==5 || i ==6){
+				if(iel==5 || iel ==6){
 					if(elem->edge[9].ref){
 						oct->edge[9]=true;
 					}
 				}
-				if(i==6 || i ==7){
+				if(iel==6 || iel ==7){
 					if(elem->edge[10].ref){
 						oct->edge[10]=true;
 					}
 				}
-				if(i==7 || i ==4){
+				if(iel==7 || iel ==4){
 					if(elem->edge[11].ref){
 						oct->edge[11]=true;
 					}
 				}
 
 				//arestas verticais
-				if(i==0 || i ==4){
+				if(iel==0 || iel ==4){
 					if(elem->edge[4].ref){
 						oct->edge[4]=true;
 					}
 				}
-				if(i==1 || i ==5){
+				if(iel==1 || iel ==5){
 					if(elem->edge[5].ref){
 						oct->edge[5]=true;
 					}
 				}
-				if(i==2 || i ==6){
+				if(iel==2 || iel ==6){
 					if(elem->edge[6].ref){
 						oct->edge[6]=true;
 					}
 				}
-				if(i==3 || i ==7){
+				if(iel==3 || iel ==7){
 					if(elem->edge[7].ref){
 						oct->edge[7]=true;
 					}
 				}
-			}
-		}
 
-		//identificando as faces
-		//x-
-		if(oct->edge[4] || oct->edge[11] || oct->edge[7] || oct->edge[3]){
-			oct->face[0]=true;
-		}
-		//x+
-		if(oct->edge[5] || oct->edge[1] || oct->edge[6] || oct->edge[9]){
-			oct->face[1]=true;
-		}
-		//y-
-		if(oct->edge[0] || oct->edge[5] || oct->edge[8] || oct->edge[4]){
-			oct->face[2]=true;
-		}
-		//y+
-		if(oct->edge[2] || oct->edge[6] || oct->edge[10] || oct->edge[7]){
-			oct->face[3]=true;
-		}
-		//z-
-		if(oct->edge[8] || oct->edge[9] || oct->edge[10] || oct->edge[11]){
-			oct->face[4]=true;
-		}
-		//z+
-		if(oct->edge[0] || oct->edge[1] || oct->edge[2] || oct->edge[3]){
-			oct->face[5]=true;
+				//printf("%s\n", oct->edge[0] ? "true" : "false");
+				//identificando as faces
+				//x-
+				if(oct->edge[4] || oct->edge[11] || oct->edge[7] || oct->edge[3]){
+					oct->face[0]=true;
+				}
+				//x+
+				if(oct->edge[5] || oct->edge[1] || oct->edge[6] || oct->edge[9]){
+					oct->face[1]=true;
+				}
+				//y-
+				if(oct->edge[0] || oct->edge[5] || oct->edge[8] || oct->edge[4]){
+					oct->face[2]=true;
+				}
+				//y+
+				if(oct->edge[2] || oct->edge[6] || oct->edge[10] || oct->edge[7]){
+					oct->face[3]=true;
+				}
+				//z-
+				if(oct->edge[8] || oct->edge[9] || oct->edge[10] || oct->edge[11]){
+					//printf("Sou face 4 desde que criancinha\n");
+					//printf("%s\n", oct->face[4] ? "true" : "false");
+					oct->face[4]=true;
+					//printf("%s\n", oct->face[4] ? "true" : "false");
+				}
+				//z+
+				if(oct->edge[0] || oct->edge[1] || oct->edge[2] || oct->edge[3]){
+					//printf("Sou face 5 desde que criancinha\n");
+					//printf("%s\n", oct->face[5] ? "true" : "false");
+					oct->face[5]=true;
+					//printf("%s\n", oct->face[5] ? "true" : "false");
+				}
+
+			}
+
+
 		}
 	}
 }
