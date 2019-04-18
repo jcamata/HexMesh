@@ -24,6 +24,7 @@ typedef struct
 	int32_t id;
 	int32_t x,y,z;
 	int fixed;
+	int color;
 } octant_node_t;
 
 typedef struct
@@ -180,18 +181,18 @@ int const EdgeVerticesMap[12][2] = {
 };
 
 int const EdgeVerticesMap_surf_diagonal[12][2] = {
-		{0, 5},
-		{1, 4},
-		{3, 6},
-		{2, 7},
-		{0, 7},
-		{3, 4},
-		{1, 6},
-		{2, 5},
-		{4, 6},
-		{5, 7},
-		{0, 2},
-		{1, 3}
+		{0, 5}, //y-
+		{1, 4}, //y-
+		{3, 6}, //y+
+		{2, 7}, //y+
+		{0, 7}, //x-
+		{3, 4}, //x-
+		{1, 6}, //x+
+		{2, 5}, //x+
+		{4, 6}, //z-
+		{5, 7}, //z-
+		{0, 2}, //z+
+		{1, 3}  //z+
 };
 
 int const EdgeVerticesMap_vol_diagonal[4][2] = {
@@ -214,19 +215,19 @@ int const FaceEdgesMap[6][4] = {
 int const FaceNodesMap[6][4] = {
 		{0,4,7,3},
 		{1,5,6,2},
-		{0,4,5,1},
+		{1,5,4,0},
 		{2,6,7,3},
-		{4,5,6,7},
-		{0,1,2,3}
+		{5,4,7,3},
+		{1,0,3,2}
 };
 
 int const FaceNodesMap_inv[6][4] = {
 		{1,5,6,2},
 		{0,4,7,3},
-		{3,7,6,2},
+		{2,6,7,3},
 		{1,5,4,0},
-		{0,1,2,3},
-		{4,5,6,7}
+		{1,0,3,2},
+		{5,4,7,3}
 };
 
 
