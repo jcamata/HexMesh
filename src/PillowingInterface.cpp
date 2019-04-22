@@ -17,113 +17,12 @@ using namespace std;
 
 int const VerDiag[8] = {6,7,4,5,2,3,0,1};
 
-void Jac(const double* cord_inx, const double* cord_iny, const double* cord_inz, double J_det[8]){
-
-	//cord_in -> matrix de 3 por 8 que tem as coordenadas (x,y,z) dos 8 nos
-	double N[3][8];
-	double out[3];
-	//double J_det[8];
-
-	int ngp = 2;
-	double xr[ngp];
-	double yr[ngp];
-	double zr[ngp];
-	double cord_in[3][8];
-	int count = 0;
-	xr[0] = -sqrt(3)/3;
-	xr[1] = sqrt(3)/3;
-
-	yr[0] = xr[0];
-	zr[0] = xr[0];
-	yr[1] = xr[1];
-	zr[1] = xr[1];
-
-	for(int k = 0; k<8;k++){
-		cord_in[0][k] = cord_inx[k];
-		cord_in[1][k] = cord_iny[k];
-		cord_in[2][k] = cord_inz[k];
-	}
-
-	double J[3][3];
-	for(int i = 0; i<3; i++){
-		for(int j = 0; j<3; j++){
-			J[i][j] = 0;
-		}
-	}
-
-	for(int ix = 0; ix < ngp; ix++){
-		for(int iy = 0; iy < ngp; iy++){
-			for(int iz = 0; iz < ngp; iz++){
-
-				/*
-				N[0] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-				N[1] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-				N[2] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-				N[3] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-
-				N[4] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-				N[5] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-				N[6] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-				N[7] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-				 */
-
-				N[0][0] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][0] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][0] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][1] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][1] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][1] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][2] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][2] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][2] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][3] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][3] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][3] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][4] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][4] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][4] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][5] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][5] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][5] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][6] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][6] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][6] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				N[0][7] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
-				N[1][7] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
-				N[2][7] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
-
-				for(int i = 0; i<3; i++){
-					for(int j = 0; j<3; j++){
-						for(int k = 0; k<8;k++){
-							J[i][j] += N[i][k]*cord_in[j][k];
-						}
-					}
-				}
-
-				double aux = J[1][1]*J[2][2]*J[3][3] + J[1][2]*J[2][3]*J[3][1] + J[1][3]*J[2][1]*J[3][2];
-				aux = -J[1][3]*J[2][2]*J[3][1] - J[1][1]*J[2][3]*J[3][2] - J[1][2]*J[2][1]*J[3][3];
-				J_det[count] = aux;
-				count++;
-			}
-		}
-	}
-
-	//return J_det;
-
-}
-
 void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 	int elem_old = mesh->elements.elem_count;
 	int nodes_old = mesh->nodes.elem_count;
 	bool clamped = true;
 
+	printf("Building hash\n");
 	//criando a hash de nos para evitar nos duplicados no pillowing
 	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
 	for(int n = 0; n < mesh->nodes.elem_count; n++){
@@ -193,20 +92,30 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		}
 	}
 
+	if(false){
+		for(int ive = 0; ive < vertex_hash->a.elem_count; ive++){
+			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, ive);
+			printf("Vertex:%d\n",vert->id);
+		}
+	}
+	//printf("Size of vertex hash is:%d\n",vertex_hash->a.elem_count);
+	printf("Building normal hash\n");
 	sc_hash_array *hash_normal = sc_hash_array_new(sizeof(normal_t), vertex_hash_id, vertex_equal_id, &clamped);
 	//entrando em cada vertice de nodes_b_mat e encontrando o vertice na hash de vertices,
-	// acessando a lista de elementos para calculo da normal naquele elemento
+	//acessando a lista de elementos para calculo da normal naquele elemento
 	//TODO check if the normal is good with all the surfaces
 	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
-		octant_vertex_t key;
-		size_t position;
-		key.id = nodes_b_mat[ino];
+		//printf("no lido no nodes_b_mat:%d\n",nodes_b_mat[ino]);
+		octant_vertex_t keyV;
+		size_t positionV;
+		keyV.id = nodes_b_mat[ino];
+		//printf("Vou procurar o no:%d na hash de vertices\n",keyV.id);
 
-		bool lvert = (octant_vertex_t*) sc_hash_array_lookup (vertex_hash, &key, &position);
+		bool lvert = sc_hash_array_lookup(vertex_hash, &keyV, &positionV);
 
 		if(lvert){
-			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
-			//printf("achei o no numero:%d\n",vert->id);
+			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, positionV);
+			//printf("achei o no numero:%d na lista de vertices\n",vert->id);
 			for(int iel = 0; iel < vert->list_elem; iel++){
 				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, vert->elem[iel]);
 
@@ -223,13 +132,12 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 						keyN.coord[0] = coords[3*elem->nodes[snode].id+0];
 						keyN.coord[1] = coords[3*elem->nodes[snode].id+1];
 						keyN.coord[2] = coords[3*elem->nodes[snode].id+2];
-						lfvinbmat = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+						lfvinbmat = sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
 						if(!lfvinbmat) lockedSurface = false;
 					}
 
 
 					if(lockedSurface){
-
 						int ive;
 						//find the node to find the normal
 						for (int iv = 0 ; iv <4; iv++){
@@ -257,9 +165,10 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 						double norm = sqrt(nx*nx+ny*ny+nz*nz);
 
 						normal_t keyN;
+						size_t  positionN;
 						keyN.id = nodes_b_mat[ino];
 						//printf("Meu no que vai entrar na hash eh:%d\n",keyN.id);
-						normal_t * normal = (normal_t*) sc_hash_array_insert_unique(hash_normal, &keyN, &position);
+						normal_t * normal = (normal_t*) sc_hash_array_insert_unique(hash_normal, &keyN, &positionN);
 
 						if(normal!=NULL){
 							normal->id = nodes_b_mat[ino];
@@ -271,7 +180,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 							normal->n[normal->list_face-1][1] = ny/norm;
 							normal->n[normal->list_face-1][2] = nz/norm;
 						}else{
-							normal = (normal_t*) sc_array_index(&hash_normal->a, position);
+							normal = (normal_t*) sc_array_index(&hash_normal->a, positionN);
 							normal->elem[normal->list_elem] = elem->id;
 							normal->face[normal->list_face] = isurf;
 							normal->n[normal->list_face][0] = nx/norm;
@@ -286,14 +195,17 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 				}
 			}
 		}else{
-			printf ("Error in hash lookup. Node:%d\n",key.id);
+			printf ("Error in vertex hash lookup. Node:%d\n",keyV.id);
 			exit (EXIT_FAILURE);
 		}
 	}
 
+	//printf("Normal hash size:%d\n",hash_normal->a.elem_count);
+	printf("Building normal values for the surface\n");
 	//making the mean value of the surface normal
 	for(int ino = 0; ino < hash_normal->a.elem_count; ino ++){
 		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, ino);
+		//printf("id of the normal node is:%d\n",normal->id);
 		double nx = 0;
 		double ny = 0;
 		double nz = 0;
@@ -340,6 +252,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	if(scale==0) scale = 0.1;
 	scale = 0.5*scale;
 
+	printf("Creating the nodes for the pillowing\n");
 	//printf("Escala de: %f\n",scale);
 	//creating the nodes for the pillowing
 	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
@@ -350,9 +263,10 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		normal_t keyN;
 		size_t  positionN;
 		keyN.id = nodes_b_mat[ino];
-		bool tre = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
+		//printf("no que esta sendo procurado na hash eh:%d\n",keyN.id);
+		bool tre = sc_hash_array_lookup (hash_normal, &keyN, &positionN);
 		if(!tre){
-			printf ("Error in hash lookup. Node:%d\n",keyN.id);
+			printf("Error in normal hash lookup to create pillow nodes. Node:%d\n",keyN.id);
 			exit (EXIT_FAILURE);
 		}
 		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
@@ -521,6 +435,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		}
 	}
 
+	printf("Creating elements in the pillowing\n");
 	//create the elements for the pillowing...
 	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
 		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
@@ -764,7 +679,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 						keyN.coord[0] = coords[3*keyN.node_id+0];
 						keyN.coord[1] = coords[3*keyN.node_id+1];
 						keyN.coord[2] = coords[3*keyN.node_id+2];
-						lfvinbmat = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+						lfvinbmat = sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
 						if(!lfvinbmat) lockedSurface = false;
 					}
 
@@ -779,7 +694,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 							pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
 							printf("Encontrei o no:%d, junto com os nos a:%d e b:%d\n",pil->id,pil->a,pil->b);
 						}
-						*/
+						 */
 						face_map[face_c] = isurf;
 						face_c++;
 					}else{
@@ -934,6 +849,111 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	}
 }
 
+/*
+ * void Jac(const double* cord_inx, const double* cord_iny, const double* cord_inz, double J_det[8]){
+
+	//cord_in -> matrix de 3 por 8 que tem as coordenadas (x,y,z) dos 8 nos
+	double N[3][8];
+	double out[3];
+	//double J_det[8];
+
+	int ngp = 2;
+	double xr[ngp];
+	double yr[ngp];
+	double zr[ngp];
+	double cord_in[3][8];
+	int count = 0;
+	xr[0] = -sqrt(3)/3;
+	xr[1] = sqrt(3)/3;
+
+	yr[0] = xr[0];
+	zr[0] = xr[0];
+	yr[1] = xr[1];
+	zr[1] = xr[1];
+
+	for(int k = 0; k<8;k++){
+		cord_in[0][k] = cord_inx[k];
+		cord_in[1][k] = cord_iny[k];
+		cord_in[2][k] = cord_inz[k];
+	}
+
+	double J[3][3];
+	for(int i = 0; i<3; i++){
+		for(int j = 0; j<3; j++){
+			J[i][j] = 0;
+		}
+	}
+
+	for(int ix = 0; ix < ngp; ix++){
+		for(int iy = 0; iy < ngp; iy++){
+			for(int iz = 0; iz < ngp; iz++){
+
+				/*
+				N[0] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+				N[1] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+				N[2] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+				N[3] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+
+				N[4] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+				N[5] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+				N[6] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+				N[7] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+ */
+/*
+				N[0][0] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][0] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][0] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][1] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][1] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][1] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][2] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][2] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][2] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][3] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][3] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][3] = -(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][4] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][4] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][4] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][5] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][5] = -(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][5] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][6] = +(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][6] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][6] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				N[0][7] = -(1 - yr[iy])*(1 - zr[iz])/double(8);
+				N[1][7] = +(1 - xr[iy])*(1 - zr[iz])/double(8);
+				N[2][7] = +(1 - xr[iy])*(1 - yr[iz])/double(8);
+
+				for(int i = 0; i<3; i++){
+					for(int j = 0; j<3; j++){
+						for(int k = 0; k<8;k++){
+							J[i][j] += N[i][k]*cord_in[j][k];
+						}
+					}
+				}
+
+				double aux = J[1][1]*J[2][2]*J[3][3] + J[1][2]*J[2][3]*J[3][1] + J[1][3]*J[2][1]*J[3][2];
+				aux = -J[1][3]*J[2][2]*J[3][1] - J[1][1]*J[2][3]*J[3][2] - J[1][2]*J[2][1]*J[3][3];
+				J_det[count] = aux;
+				count++;
+			}
+		}
+	}
+
+	//return J_det;
+
+}
+ *
+ */
+/*
 void PillowingInterface_ok(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
 	int elem_old = mesh->elements.elem_count;
@@ -1155,10 +1175,9 @@ void PillowingInterface_ok(hexa_tree_t* mesh, std::vector<double>& coords, std::
 	scale = 0.5*scale;
 	//printf("Escala de: %f\n",scale);
 	//creating the nodes for the pillowing
-	//TODO fazer as bordas do dominio
 	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
 
-		//TODO find if the node is in the surface
+		//to check if the node lies on the exterior surface
 		octant_node_t* nodeR = (octant_node_t*) sc_array_index (&mesh->nodes, nodes_b_mat[ino]);
 
 		normal_t keyN;
@@ -1166,7 +1185,7 @@ void PillowingInterface_ok(hexa_tree_t* mesh, std::vector<double>& coords, std::
 		keyN.id = nodes_b_mat[ino];
 		bool tre = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
 		if(!tre){
-			printf ("Error in hash lookup. Node:%d\n",keyN.id);
+			printf("Error in normal hash lookup to create pillow nodes. Node:%d\n",keyN.id);
 			exit (EXIT_FAILURE);
 		}
 		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
@@ -1379,7 +1398,8 @@ void PillowingInterface_ok(hexa_tree_t* mesh, std::vector<double>& coords, std::
 							pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
 							//printf("Encontrei o no:%d, junto com os nos a:%d e b:%d\n",pil->id,pil->a,pil->b);
 						}
-						 */
+ */
+/*
 						face_map[face_c] = isurf;
 						face_c++;
 					}else{
@@ -1439,7 +1459,8 @@ void PillowingInterface_ok(hexa_tree_t* mesh, std::vector<double>& coords, std::
 
 							double dista = sqrt(dist0a[0]*dist0a[0]+dist0a[1]*dist0a[1]+dist0a[2]*dist0a[2]);
 							double distb = sqrt(dist0b[0]*dist0b[0]+dist0b[1]*dist0b[1]+dist0b[2]*dist0b[2]);
-							 */
+ */
+/*
 							dist0a[0] = gts_point_distance (&p0,&pa);
 							dist0b[0] = gts_point_distance (&p0,&pb);
 							double dista = dist0a[0];
