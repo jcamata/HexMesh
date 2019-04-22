@@ -120,6 +120,821 @@ void Jac(const double* cord_inx, const double* cord_iny, const double* cord_inz,
 }
 
 void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
+	int elem_old = mesh->elements.elem_count;
+	int nodes_old = mesh->nodes.elem_count;
+	bool clamped = true;
+
+	//criando a hash de nos para evitar nos duplicados no pillowing
+	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	for(int n = 0; n < mesh->nodes.elem_count; n++){
+		size_t position;
+		node_t *r;
+		node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
+		key.coord[0] = coords[3*node->id+0];
+		key.coord[1] = coords[3*node->id+1];
+		key.coord[2] = coords[3*node->id+2];
+		key.node_id = node->id;
+
+		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+		if(r!=NULL){
+			r->coord[0] = coords[3*node->id+0];
+			r->coord[1] = coords[3*node->id+1];
+			r->coord[2] = coords[3*node->id+2];
+			r->node_id = node->id;
+		}else{
+			printf("Verificar o no numero %d\n",node->id);
+		}
+	}
+
+	//fazendo hash nos nodes_b_mat
+	sc_hash_array_t* hash_b_mat = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	for(int n = 0; n < nodes_b_mat.size(); n++){
+		size_t position;
+		node_t *r;
+		node_t key;
+		int node = nodes_b_mat[n];
+		key.coord[0] = coords[3*node+0];
+		key.coord[1] = coords[3*node+1];
+		key.coord[2] = coords[3*node+2];
+		key.node_id = node;
+
+		r = (node_t*) sc_hash_array_insert_unique(hash_b_mat, &key, &position);
+		if(r!=NULL){
+			r->coord[0] = coords[3*node+0];
+			r->coord[1] = coords[3*node+1];
+			r->coord[2] = coords[3*node+2];
+			r->node_id = node;
+			r->flag = true;
+		}else{
+			printf("Verificar o no numero %d\n",node);
+		}
+	}
+
+	//fazendo vertex hash
+	sc_hash_array_t*	vertex_hash = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+		size_t  position;
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		for (int ino = 0; ino < 8; ino++){
+			octant_vertex_t key;
+			key.id = elem->nodes[ino].id;
+			octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique (vertex_hash, &key, &position);
+			if(vert != NULL){
+				vert->id = elem->nodes[ino].id;
+				vert->list_elem = 1;
+				vert->elem[vert->list_elem-1] = elem->id;
+			}else{
+				vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
+				vert->elem[vert->list_elem] = elem->id;
+				vert->list_elem++;
+			}
+		}
+	}
+
+	sc_hash_array *hash_normal = sc_hash_array_new(sizeof(normal_t), vertex_hash_id, vertex_equal_id, &clamped);
+	//entrando em cada vertice de nodes_b_mat e encontrando o vertice na hash de vertices,
+	// acessando a lista de elementos para calculo da normal naquele elemento
+	//TODO check if the normal is good with all the surfaces
+	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
+		octant_vertex_t key;
+		size_t position;
+		key.id = nodes_b_mat[ino];
+
+		bool lvert = (octant_vertex_t*) sc_hash_array_lookup (vertex_hash, &key, &position);
+
+		if(lvert){
+			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
+			//printf("achei o no numero:%d\n",vert->id);
+			for(int iel = 0; iel < vert->list_elem; iel++){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, vert->elem[iel]);
+
+				for(int isurf = 0; isurf < 6; isurf++){
+
+					bool lockedSurface = true;
+					bool lfvinbmat = true;
+					for (int iv = 0 ; iv <4; iv++){
+						//procurando se os 4 nos da superficie estao na lista de hash_b_mat
+						node_t keyN;
+						size_t  positionN;
+						int snode = FaceNodesMap[isurf][iv];
+						keyN.node_id = elem->nodes[snode].id;
+						keyN.coord[0] = coords[3*elem->nodes[snode].id+0];
+						keyN.coord[1] = coords[3*elem->nodes[snode].id+1];
+						keyN.coord[2] = coords[3*elem->nodes[snode].id+2];
+						lfvinbmat = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+						if(!lfvinbmat) lockedSurface = false;
+					}
+
+
+					if(lockedSurface){
+
+						int ive;
+						//find the node to find the normal
+						for (int iv = 0 ; iv <4; iv++){
+							if(elem->nodes[FaceNodesMap[isurf][iv]].id == nodes_b_mat[ino]){
+								ive = 	iv;
+							}
+						}
+
+						int node0 = elem->nodes[FaceNodesMap[isurf][vert_ord[ive][0]]].id;
+						int node1 = elem->nodes[FaceNodesMap[isurf][vert_ord[ive][1]]].id;
+						int node2 = elem->nodes[FaceNodesMap[isurf][vert_ord[ive][2]]].id;
+
+						double ax = coords[3*node0 +0] - coords[3*node1 +0];
+						double ay = coords[3*node0 +1] - coords[3*node1 +1];
+						double az = coords[3*node0 +2] - coords[3*node1 +2];
+
+						double bx = coords[3*node0 +0] - coords[3*node2 +0];
+						double by = coords[3*node0 +1] - coords[3*node2 +1];
+						double bz = coords[3*node0 +2] - coords[3*node2 +2];
+
+						double nx = -(ay*bz - az*by);
+						double ny = -(az*bx - ax*bz);
+						double nz = -(ax*by - ay*bx);
+
+						double norm = sqrt(nx*nx+ny*ny+nz*nz);
+
+						normal_t keyN;
+						keyN.id = nodes_b_mat[ino];
+						//printf("Meu no que vai entrar na hash eh:%d\n",keyN.id);
+						normal_t * normal = (normal_t*) sc_hash_array_insert_unique(hash_normal, &keyN, &position);
+
+						if(normal!=NULL){
+							normal->id = nodes_b_mat[ino];
+							normal->list_elem = 1;
+							normal->list_face = 1;
+							normal->elem[normal->list_face-1] = elem->id;
+							normal->face[normal->list_face-1] = isurf;
+							normal->n[normal->list_face-1][0] = nx/norm;
+							normal->n[normal->list_face-1][1] = ny/norm;
+							normal->n[normal->list_face-1][2] = nz/norm;
+						}else{
+							normal = (normal_t*) sc_array_index(&hash_normal->a, position);
+							normal->elem[normal->list_elem] = elem->id;
+							normal->face[normal->list_face] = isurf;
+							normal->n[normal->list_face][0] = nx/norm;
+							normal->n[normal->list_face][1] = ny/norm;
+							normal->n[normal->list_face][2] = nz/norm;
+							normal->list_elem++;
+							normal->list_face++;
+						}
+						//printf("node:%d element:%d surface:%d nx:%f ny:%f nz:%f\n",key.id, vert->elem[iel], isurf,nx,ny,nz );
+					}
+
+				}
+			}
+		}else{
+			printf ("Error in hash lookup. Node:%d\n",key.id);
+			exit (EXIT_FAILURE);
+		}
+	}
+
+	//making the mean value of the surface normal
+	for(int ino = 0; ino < hash_normal->a.elem_count; ino ++){
+		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, ino);
+		double nx = 0;
+		double ny = 0;
+		double nz = 0;
+
+		for(int isurf = 0; isurf < normal->list_face; isurf++){
+			nx += (normal->n[isurf][0]);
+			ny += (normal->n[isurf][1]);
+			nz += (normal->n[isurf][2]);
+		}
+		normal->nm[0] = nx/normal->list_face;
+		normal->nm[1] = ny/normal->list_face;
+		normal->nm[2] = nz/normal->list_face;
+
+		double norm_mag = sqrt(normal->nm[0]*normal->nm[0] + normal->nm[1]*normal->nm[1] + normal->nm[2]*normal->nm[2]);
+
+		normal->nm[0] = normal->nm[0]/norm_mag;
+		normal->nm[1] = normal->nm[1]/norm_mag;
+		normal->nm[2] = normal->nm[2]/norm_mag;
+
+	}
+
+	////////////////////////
+	GtsPoint p;
+	sc_hash_array_t* pillowIds = sc_hash_array_new(sizeof(pillow_t), vertex_hash_id, vertex_equal_id, &clamped);
+	double scale = 10;
+
+	//find the scale for the pillowing
+	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
+		octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		for(int i = 0; i<8; i++){
+			if(oct->id[i]!=-1){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[i]);
+
+				double dx = abs(coords[3*elem->nodes[0].id+0] - coords[3*elem->nodes[1].id+0]);
+				double dy = abs(coords[3*elem->nodes[0].id+1] - coords[3*elem->nodes[3].id+1]);
+				double dz = abs(coords[3*elem->nodes[0].id+2] - coords[3*elem->nodes[4].id+2]);
+
+				double dmin = min(dx,dy);
+				dmin = min(dmin,dz);
+				scale = min(scale,dmin);
+			}
+		}
+	}
+	if(scale==0) scale = 0.1;
+	scale = 0.5*scale;
+
+	//printf("Escala de: %f\n",scale);
+	//creating the nodes for the pillowing
+	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
+
+		//just to check if the node is in the surface...
+		octant_node_t* nodeR = (octant_node_t*) sc_array_index (&mesh->nodes, nodes_b_mat[ino]);
+
+		normal_t keyN;
+		size_t  positionN;
+		keyN.id = nodes_b_mat[ino];
+		bool tre = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
+		if(!tre){
+			printf ("Error in hash lookup. Node:%d\n",keyN.id);
+			exit (EXIT_FAILURE);
+		}
+		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
+
+		size_t positionP;
+		pillow_t keyP;
+		keyP.id=nodes_b_mat[ino];
+		//printf("%d\n",keyP.id);
+		pillow_t* pnode = (pillow_t*) sc_hash_array_insert_unique (pillowIds, &keyP, &positionP);
+		double x,y,z;
+		if(pnode != NULL){
+
+			if((nodeR->x == mesh->x_start || nodeR->x == mesh->x_end) &&
+					(nodeR->y == mesh->y_start || nodeR->y == mesh->y_end)){
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr ;
+				y = yr ;
+				z = zr + scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr ;
+				y = yr ;
+				z = zr - scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}else if((nodeR->x == mesh->x_start || nodeR->x == mesh->x_end) &&
+					(nodeR->z == 0 || nodeR->z == mesh->max_z)){
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr ;
+				y = yr + scale*normal->nm[1];
+				z = zr ;
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr ;
+				y = yr - scale*normal->nm[1];
+				z = zr ;
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}else if((nodeR->y == mesh->y_start || nodeR->y == mesh->y_end) &&
+					(nodeR->z == 0 || nodeR->z == mesh->max_z)){
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr + scale*normal->nm[0];
+				y = yr ;
+				z = zr ;
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr - scale*normal->nm[0];
+				y = yr ;
+				z = zr ;
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}else if(nodeR->x == mesh->x_start || nodeR->x == mesh->x_end){
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr ;
+				y = yr + scale*normal->nm[1];
+				z = zr + scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr ;
+				y = yr - scale*normal->nm[1];
+				z = zr - scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}else if(nodeR->y == mesh->y_start || nodeR->y == mesh->y_end){
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr + scale*normal->nm[0];
+				y = yr ;
+				z = zr + scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr - scale*normal->nm[0];
+				y = yr ;
+				z = zr - scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}else if(nodeR->z == 0 || nodeR->z == mesh->max_z){
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr + scale*normal->nm[0];
+				y = yr + scale*normal->nm[1];
+				z = zr ;
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr - scale*normal->nm[0];
+				y = yr - scale*normal->nm[1];
+				z = zr ;
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}else{
+				pnode->id = nodes_b_mat[ino];
+				double xr = coords[3*nodes_b_mat[ino]+0];
+				double yr = coords[3*nodes_b_mat[ino]+1];
+				double zr = coords[3*nodes_b_mat[ino]+2];
+
+				x = xr + scale*normal->nm[0];
+				y = yr + scale*normal->nm[1];
+				z = zr + scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				int node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->a = node;
+
+				x = xr - scale*normal->nm[0];
+				y = yr - scale*normal->nm[1];
+				z = zr - scale*normal->nm[2];
+
+				gts_point_set(&p, x, y, z);
+				node = AddPoint(mesh, hash_nodes, &p, coords);
+				pnode->b = node;
+			}
+		}else{
+			printf("Error in add pillowing node in PillowingInterface.cpp, node: %d\n",keyP.id);
+		}
+	}
+
+	//create the elements for the pillowing...
+	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
+		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
+		for(int iel = 0; iel < 8 ; iel++){
+			if(oc->id[iel]!=-1){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
+
+				int conectO[8];
+				int conectA[8];
+				int conectB[8];
+
+				//create two new elements to check
+				// if they are cut by the surface
+				for(int ino = 0; ino < 8; ino++){
+					conectA[ino] = elem->nodes[ino].id;
+					conectB[ino] = elem->nodes[ino].id;
+					conectO[ino] = elem->nodes[ino].id;
+
+					size_t positionP;
+					pillow_t keyP;
+					keyP.id = elem->nodes[ino].id;
+					bool lpillow = sc_hash_array_lookup(pillowIds, &keyP, &positionP);
+
+					if(lpillow){
+						pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,positionP);
+
+						conectA[ino] = pil->a;
+						conectB[ino] = pil->b;
+
+						/*
+						normal_t keyN;
+						size_t  positionN;
+						keyN.id = elem->nodes[ino].id;
+						bool lnormal = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
+						normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
+
+						//printf("achei o no %d no elemento %d\n",keyP.id,elem->id);
+
+						GtsPoint pr;
+						GtsPoint p0;
+						GtsPoint p1;
+						GtsPoint p2;
+						GtsPoint pa;
+						GtsPoint pb;
+
+						gts_point_set(&pa, coords[3*pil->a+0], coords[3*pil->a+1], coords[3*pil->a+2]);
+						gts_point_set(&pb, coords[3*pil->b+0], coords[3*pil->b+1], coords[3*pil->b+2]);
+						int noderef = elem->nodes[VerDiag[ino]].id;
+						gts_point_set(&pr, coords[3*noderef+0], coords[3*noderef+1], coords[3*noderef+2]);
+
+						int nnode = VertexVertexMap[ino][0];
+						p0.x = coords[3*elem->nodes[nnode].id+0];
+						p0.y = coords[3*elem->nodes[nnode].id+1];
+						p0.z = coords[3*elem->nodes[nnode].id+2];
+
+						nnode = VertexVertexMap[ino][1];
+						p1.x = coords[3*elem->nodes[nnode].id+0];
+						p1.y = coords[3*elem->nodes[nnode].id+1];
+						p1.z = coords[3*elem->nodes[nnode].id+2];
+
+						nnode = VertexVertexMap[ino][2];
+						p2.x = coords[3*elem->nodes[nnode].id+0];
+						p2.y = coords[3*elem->nodes[nnode].id+1];
+						p2.z = coords[3*elem->nodes[nnode].id+2];
+
+						double dist0a;
+						double dist0b;
+
+						dist0a = gts_point_distance (&pr,&pa);
+						dist0b = gts_point_distance (&pr,&pb);
+
+						//verifica se a aresta corta a superficie
+						GtsSegment * segments[6]={0};
+						GtsPoint * point[6]={NULL};
+
+						GtsVertex *v0 = gts_vertex_new(gts_vertex_class(), p0.x, p0.y, p0.z);
+						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), p1.x, p1.y, p1.z);
+						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), p2.x, p2.y, p2.z);
+						GtsVertex *va = gts_vertex_new(gts_vertex_class(), pa.x, pa.y, pa.z);
+						GtsVertex *vb = gts_vertex_new(gts_vertex_class(), pb.x, pb.y, pb.z);
+
+						segments[0] = gts_segment_new(gts_segment_class(), va, v0);
+						segments[1] = gts_segment_new(gts_segment_class(), va, v1);
+						segments[2] = gts_segment_new(gts_segment_class(), va, v2);
+
+						segments[3] = gts_segment_new(gts_segment_class(), vb, v0);
+						segments[4] = gts_segment_new(gts_segment_class(), vb, v1);
+						segments[5] = gts_segment_new(gts_segment_class(), vb, v2);
+
+						for(int edge =0; edge < 6; edge++){
+							GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+							GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+							//if (list == NULL) continue;
+							while (list) {
+								GtsBBox *b = GTS_BBOX(list->data);
+								point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+								if (point[edge]){
+									break;
+								}
+								list = list->next;
+							}
+						}
+
+						if((point[0]==NULL || point[1]==NULL || point[2]==NULL) &&
+								(point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+							nbuffer[ino] = pil->a;
+							//elem->nodes[ino].id = pil->a;
+						}else if((point[3]==NULL || point[4]==NULL || point[5]==NULL) &&
+								(point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+							nbuffer[ino] = pil->b;
+							//elem->nodes[ino].id = pil->b;
+						}else{
+							printf("Sou um merda pq nao gosto da condicao\n");
+						}
+						 */
+						/*
+						//dist0a>dist0b && point[0]!=NULL && point[1]!=NULL && point[2]!=NULL
+						if(dist0a>dist0b && (point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+							//elem->nodes[ino].id = pil->b;
+							nbuffer[ino] = pil->b;
+							//dist0a<dist0b && point[3]!=NULL && point[4]!=NULL && point[5]!=NULL
+						}else if(dist0a<dist0b && (point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+							//elem->nodes[ino].id = pil->a;
+							nbuffer[ino] = pil->a;
+						}else if(dist0a==dist0b || (abs(dist0a-dist0b)/dist0a)<0.005){
+							if((point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+								//elem->nodes[ino].id = pil->b;
+								nbuffer[ino] = pil->b;
+								//dist0a<dist0b && point[3]!=NULL && point[4]!=NULL && point[5]!=NULL
+							}else if((point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+								//elem->nodes[ino].id = pil->a;
+								nbuffer[ino] = pil->a;
+							}
+						}else{
+
+							if((point[0]==NULL || point[1]==NULL || point[2]==NULL) &&
+									(point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+								nbuffer[ino] = pil->a;
+							}else if((point[3]==NULL || point[4]==NULL || point[5]==NULL) &&
+									(point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+								nbuffer[ino] = pil->b;
+							}
+
+							printf("Deu ruim!\n");
+							printf("Sou o no:%d pil->a:%d e pil->b:%d\n", elem->nodes[ino].id, pil->a,pil->b);
+							printf("Dist0a = %f e dist0b = %f\n",dist0a,dist0b);
+							for(int i = 0; i <6; i++){
+								if(point[i]!=NULL){
+									printf("sou a aresta %d e point[%d]!=NULL\n",i,i);
+								}else{
+									printf("sou a aresta %d e point[%d]==NULL\n",i,i);
+								}
+							}
+						}
+						 */
+					}
+				}
+
+				///////////
+				GtsSegment * segments[12]={0};
+				GtsPoint * pointA[12]={NULL};
+				GtsPoint * pointB[12]={NULL};
+
+				for (int edge = 0; edge < 12; ++edge) {
+					pointA[edge] = NULL;
+					int node1 = conectA[EdgeVerticesMap[edge][0]];
+					int node2 = conectA[EdgeVerticesMap[edge][1]];
+					GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					if (list == NULL) continue;
+					while (list) {
+						GtsBBox *b = GTS_BBOX(list->data);
+						pointA[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (pointA[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+				}
+
+				for (int edge = 0; edge < 12; ++edge) {
+					pointB[edge] = NULL;
+					int node1 = conectB[EdgeVerticesMap[edge][0]];
+					int node2 = conectB[EdgeVerticesMap[edge][1]];
+					GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+					GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+					segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+					GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+					GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+					if (list == NULL) continue;
+					while (list) {
+						GtsBBox *b = GTS_BBOX(list->data);
+						pointB[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (pointB[edge]) {
+							break;
+						}
+						list = list->next;
+					}
+				}
+
+				int A = 0;
+				int B = 0;
+				for(int edge = 0; edge<12;edge++){
+					if(pointA[edge]!=NULL) A++;
+					if(pointB[edge]!=NULL) B++;
+				}
+
+				//printf("Para o elemento:%d temos: A=%d e B=%d\n",elem->id,A,B);
+
+				//define the new connectivity for the "old" element
+				for(int ino = 0; ino < 8; ino++){
+					if(A==0){
+						elem->nodes[ino].id = conectA[ino];
+						elem->nodes[ino].fixed = 0;
+					}else if(B==0){
+						elem->nodes[ino].id = conectB[ino];
+						elem->nodes[ino].fixed = 0;
+					}else{
+						printf("Problem to define the pillow side\n");
+					}
+				}
+
+				//find if the element has a surface in nodes_b_mat
+				//if true, create a new element
+				int face_c=0;
+				int face_map[6];
+				//loop in the faces
+				//check if the surface is locked
+				for(int isurf = 0; isurf < 6; isurf++){
+					bool lockedSurface = true;
+					bool lfvinbmat = true;
+					for (int iv = 0 ; iv <4; iv++){
+						//procurando se os 4 nos da superficie estao na lista de hash_b_mat
+						node_t keyN;
+						size_t  positionN;
+						int snode = FaceNodesMap[isurf][iv];
+						keyN.node_id = conectO[snode];
+						keyN.coord[0] = coords[3*keyN.node_id+0];
+						keyN.coord[1] = coords[3*keyN.node_id+1];
+						keyN.coord[2] = coords[3*keyN.node_id+2];
+						lfvinbmat = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+						if(!lfvinbmat) lockedSurface = false;
+					}
+
+					if(lockedSurface){
+						/*
+						for(int ino = 0; ino<4;ino++){
+							size_t position;
+							pillow_t key;
+							key.id = conectO[FaceNodesMap[isurf][ino]];
+							printf("Estou procurando elemento %d, no no:%d, na face:%d\n",elem->id,key.id,isurf);
+							bool nfound = sc_hash_array_lookup(pillowIds, &key, &position);
+							pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
+							printf("Encontrei o no:%d, junto com os nos a:%d e b:%d\n",pil->id,pil->a,pil->b);
+						}
+						*/
+						face_map[face_c] = isurf;
+						face_c++;
+					}else{
+
+					}
+				}
+
+				int new_nodes[4];
+				bool create_pelem = true;
+				//create new element and do the connectivity of elements
+				for(int isurf = 0; isurf < face_c;isurf++){
+
+					// select the new nodes created in the pillowing process
+					// for the surface in the new element
+					for(int ino = 0; ino <4; ino++){
+						int snode = FaceNodesMap[face_map[isurf]][ino];
+						new_nodes[ino] = elem->nodes[snode].id;
+					}
+
+					//printf("Elemento:%d, face:%d, new_nodes: %d %d %d %d\n",elem->id,face_map[isurf],new_nodes[0],new_nodes[1],new_nodes[2],new_nodes[3]);
+
+					//printf("Elemento:%d, face:%d\n",elem->id,face_map[isurf]);
+					//create the element
+					octant_t* pelem;
+					if(create_pelem){
+						pelem = (octant_t*) sc_array_push(&mesh->elements);
+						pelem->id = mesh->elements.elem_count+1;
+						pelem->n_mat = elem->n_mat;
+						pelem->pad = elem->pad;
+						pelem->x = elem->x;
+						pelem->y = elem->y;
+						pelem->z = elem->z;
+						for(int ino = 0; ino<8; ino++){
+							pelem->nodes[ino].fixed= 0;
+							pelem->nodes[ino].x = elem->nodes[ino].x;
+							pelem->nodes[ino].y = elem->nodes[ino].y;
+							pelem->nodes[ino].z = elem->nodes[ino].z;
+						}
+					}
+					for(int ino = 0; ino <4; ino++){
+						//printf("No do elemento original:%d\n",connec[FaceNodesMap[face_map[isurf]][ino]]);
+						//printf("No do elemento modificado:%d\n",elem->nodes[FaceNodesMap[face_map[isurf]][ino]].id);
+						//printf("Trocado por:%d\n",new_nodes[ino]);
+
+						if(create_pelem){
+							pelem->nodes[FaceNodesMap[face_map[isurf]][ino]].id = conectO[FaceNodesMap[face_map[isurf]][ino]];
+							pelem->nodes[FaceNodesMap[face_map[isurf]][ino]].fixed = elem->nodes[FaceNodesMap[face_map[isurf]][ino]].fixed;
+							pelem->nodes[FaceNodesMap_inv[face_map[isurf]][ino]].id= new_nodes[ino];
+							//printf("FaceNodesMap:%d\n",FaceNodesMap[face_map[isurf]][ino]);
+						}
+
+					}
+
+					if(create_pelem){
+						for(int ino = 0; ino<8; ino++){
+							octant_node_t * node = (octant_node_t*) sc_array_index(&mesh->nodes, pelem->nodes[ino].id);
+							node->x=elem->nodes[ino].x;
+							node->y=elem->nodes[ino].y;
+							node->z=elem->nodes[ino].z;
+							node->fixed =pelem->nodes[ino].fixed;
+						}
+					}
+					if(false){
+						printf("El:%d conectividade orignal\n",elem->id);
+						for(int ino = 0; ino<8; ino++){
+							printf(" %d",conectO[ino]);
+						}
+						printf("\nModificada \n");
+						for(int ino = 0; ino<8; ino++){
+							printf("%d ",elem->nodes[ino].id);
+						}
+						printf("\n");
+						printf("New El:%d conectividade:\n",pelem->id);
+						for(int ino = 0; ino<8; ino++){
+							printf("%d ",pelem->nodes[ino].id);
+						}
+						printf("\n");
+					}
+				}
+			}
+		}
+	}
+
+	// for debug
+	if(false){
+		char fdname[80];
+		sprintf(fdname,"normal_%04d.txt", mesh->mpi_rank);
+		FILE* treta = fopen(fdname,"w");
+
+		sprintf(fdname,"below_%04d.txt", mesh->mpi_rank);
+		FILE* treta1 = fopen(fdname,"w");
+
+		sprintf(fdname,"above_%04d.txt", mesh->mpi_rank);
+		FILE* treta2 = fopen(fdname,"w");
+
+		sprintf(fdname,"ids_%04d.txt", mesh->mpi_rank);
+		FILE* treta3 = fopen(fdname,"w");
+
+		sprintf(fdname,"nodes_%04d.txt", mesh->mpi_rank);
+		FILE* treta4 = fopen(fdname,"w");
+
+		for(int ino = 0; ino < hash_normal->a.elem_count; ino ++){
+			normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, ino);
+			int node = 3*normal->id;
+			fprintf(treta,"%f %f %f %f %f %f\n",coords[node+0],normal->nm[0],coords[node+1],normal->nm[1],coords[node+2],normal->nm[2]);
+		}
+
+		for(int ino = 0; ino < pillowIds->a.elem_count; ino ++){
+			pillow_t* pil = (pillow_t*) sc_array_index (&pillowIds->a, ino);
+			fprintf(treta3,"%d %d %d\n",pil->id,pil->a,pil->b);
+
+			int node = 3*pil->b;
+			fprintf(treta1,"%f %f %f\n",coords[node+0],coords[node+1],coords[node+2]);
+			node = 3*pil->a;
+			fprintf(treta2,"%f %f %f\n",coords[node+0],coords[node+1],coords[node+2]);
+			node = 3*pil->id;
+			fprintf(treta4,"%f %f %f\n",coords[node+0],coords[node+1],coords[node+2]);
+		}
+
+		fclose(treta);
+		fclose(treta1);
+		fclose(treta2);
+		fclose(treta3);
+		fclose(treta4);
+
+		for(int iel = 0 ; iel < mesh->elements.elem_count; iel++){
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+			printf("\n");
+			printf("Conectividade no final do elemento:%d  eh ", elem->id);
+			for(int ino = 0; ino<8; ino++){
+				printf("%d ",elem->nodes[ino].id);
+			}
+			printf("\n");
+		}
+
+	}
+
+	//update the vectors
+	mesh->local_n_elements = mesh->elements.elem_count;
+	mesh->local_n_nodes = mesh->nodes.elem_count;
+	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
+	printf(" %d nodes were created in the pillowing process\n",mesh->nodes.elem_count - nodes_old);
+	printf(" %d elements were created in the pillowing process\n",mesh->elements.elem_count - elem_old);
+
+	for (int ino = 0; ino < mesh->local_n_nodes; ino++) {
+		mesh->part_nodes[ino]=0;
+	}
+
+	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
+		mesh->part_nodes[nodes_b_mat[ino]] = 1;
+	}
+}
+
+void PillowingInterface_ok(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
 	int elem_old = mesh->elements.elem_count;
 	int nodes_old = mesh->nodes.elem_count;
@@ -350,6 +1165,10 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		size_t  positionN;
 		keyN.id = nodes_b_mat[ino];
 		bool tre = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
+		if(!tre){
+			printf ("Error in hash lookup. Node:%d\n",keyN.id);
+			exit (EXIT_FAILURE);
+		}
 		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
 
 		size_t positionP;
@@ -359,14 +1178,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		pillow_t* pnode = (pillow_t*) sc_hash_array_insert_unique (pillowIds, &keyP, &positionP);
 		double x,y,z;
 		if(pnode != NULL){
-			//node_t keyM;
-			//size_t  positionNM;
-			//keyM.node_id = nodes_b_mat[ino];
-			//keyM.coord[0] = coords[3*nodes_b_mat[ino]+0];
-			//keyM.coord[1] = coords[3*nodes_b_mat[ino]+1];
-			//keyM.coord[2] = coords[3*nodes_b_mat[ino]+2];
-			//bool nnode = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
-			//node_t* node = (node_t*) sc_array_index (&hash_b_mat->a, positionN);
+
 			if((nodeR->x == mesh->x_start || nodeR->x == mesh->x_end) &&
 					(nodeR->y == mesh->y_start || nodeR->y == mesh->y_end)){
 				pnode->id = nodes_b_mat[ino];
@@ -871,6 +1683,329 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	printf("Criei %d nos\n",mesh->nodes.elem_count - nodes_old);
 }
 
+/*
+ * //create the elements for the pillowing...
+	//mesh->oct.elem_count
+	for(int ioc = 0 ; ioc < 0; ioc++){
+		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
+		for(int iel = 0; iel < 8 ; iel++){
+			if(oc->id[iel]!=-1){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
+
+				int connec[8];
+				for(int ino = 0; ino <8; ino++){
+					connec[ino] = elem->nodes[ino].id;
+				}
+
+				int face_c=0;
+				int face_map[6];
+				//loop in the faces
+				//check if the surface is locked
+				//then new nodes are add to new_nodes
+				for(int isurf = 0; isurf < 6; isurf++){
+					bool lockedSurface = true;
+					bool lfvinbmat = true;
+					for (int iv = 0 ; iv <4; iv++){
+						//procurando se os 4 nos da superficie estao na lista de hash_b_mat
+						node_t keyN;
+						size_t  positionN;
+						int snode = FaceNodesMap[isurf][iv];
+						keyN.node_id = elem->nodes[snode].id;
+						keyN.coord[0] = coords[3*elem->nodes[snode].id+0];
+						keyN.coord[1] = coords[3*elem->nodes[snode].id+1];
+						keyN.coord[2] = coords[3*elem->nodes[snode].id+2];
+						lfvinbmat = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+						if(!lfvinbmat) lockedSurface = false;
+					}
+
+					if(lockedSurface){
+
+						if(false){
+							for(int ino = 0; ino<4;ino++){
+								size_t position;
+								pillow_t key;
+								key.id = elem->nodes[FaceNodesMap[isurf][ino]].id;
+								printf("Estou procurando elemento %d, no no:%d, na face:%d\n",elem->id,key.id,isurf);
+								bool nfound = sc_hash_array_lookup(pillowIds, &key, &position);
+								pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
+								printf("Encontrei o no:%d, junto com os nos a:%d e b:%d\n",pil->id,pil->a,pil->b);
+							}
+						}
+						face_map[face_c] = isurf;
+						face_c++;
+					}else{
+
+					}
+				}
+
+				//printf("Para o elemento %d as faces sao: ",elem->id);
+				//for(int isurf = 0; isurf < face_c;isurf++){
+				//	printf("%d",face_map[isurf]);
+				//}
+				//printf("\n");
+
+				int new_nodes[4];
+				bool create_pelem = true;
+				//create new element and do the connectivity of elements
+				for(int isurf = 0; isurf < face_c;isurf++){
+
+					// select the new nodes created in the pillowing process
+					// for the surface in the element
+					for(int ino = 0; ino <4; ino++){
+						//check if the node is in the hash_b_mat
+						node_t keyN;
+						size_t  positionN;
+						int surfnode = FaceNodesMap[face_map[isurf]][ino];
+						keyN.node_id = elem->nodes[surfnode].id;
+						keyN.coord[0] = coords[3*elem->nodes[surfnode].id+0];
+						keyN.coord[1] = coords[3*elem->nodes[surfnode].id+1];
+						keyN.coord[2] = coords[3*elem->nodes[surfnode].id+2];
+						bool lnode = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+
+						if(lnode){
+							size_t position;
+							pillow_t key;
+							key.id = elem->nodes[surfnode].id;
+							//printf("Estou procurando elemento %d, no no:%d, na face:%d\n",elem->id,key.id,face_map[isurf]);
+							bool nfound = sc_hash_array_lookup(pillowIds, &key, &position);
+							pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
+
+							GtsPoint p0;
+							GtsPoint pa;
+							GtsPoint pb;
+
+							gts_point_set(&pa, coords[3*pil->a+0], coords[3*pil->a+1], coords[3*pil->a+2]);
+							gts_point_set(&pb, coords[3*pil->b+0], coords[3*pil->b+1], coords[3*pil->b+2]);
+
+							int nnode = VerDiag[surfnode];
+							p0.x = coords[3*elem->nodes[nnode].id+0];
+							p0.y = coords[3*elem->nodes[nnode].id+1];
+							p0.z = coords[3*elem->nodes[nnode].id+2];
+
+							double dist0a;
+							double dist0b;
+
+							dist0a = gts_point_distance (&p0,&pa);
+							dist0b = gts_point_distance (&p0,&pb);
+
+							//verifica se a aresta corta a superficie
+							GtsSegment * segments[2]={0};
+							GtsPoint * point[2]={NULL};
+
+							GtsVertex *v0 = gts_vertex_new(gts_vertex_class(), p0.x, p0.y, p0.z);
+							GtsVertex *va = gts_vertex_new(gts_vertex_class(), pa.x, pa.y, pa.z);
+							GtsVertex *vb = gts_vertex_new(gts_vertex_class(), pb.x, pb.y, pb.z);
+							segments[0] = gts_segment_new(gts_segment_class(), v0, va);
+							segments[1] = gts_segment_new(gts_segment_class(), v0, vb);
+
+							int edge =0;
+							GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+							GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+							//if (list == NULL) continue;
+							while (list) {
+								GtsBBox *b = GTS_BBOX(list->data);
+								point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+								if (point[edge]){
+									break;
+								}
+								list = list->next;
+							}
+
+							edge =1;
+							sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+							list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+							//if (list == NULL) continue;
+							while (list) {
+								GtsBBox *b = GTS_BBOX(list->data);
+								point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+								if (point[edge]) {
+									break;
+								}
+								list = list->next;
+							}
+
+
+
+
+							if((dist0a<dist0b) && (point[1]!=NULL)){
+								new_nodes[ino] = pil->a;
+							}else if((dist0a>dist0b) && (point[0]!=NULL)){
+								new_nodes[ino] = pil->b;
+							}else{
+								printf("Deu ruim na escolha do lado...coloquei pra cima\n");
+								new_nodes[ino] = pil->a;
+							}
+
+
+
+						}else{
+							printf("Some error, check here\n");
+						}
+					}
+
+					//printf("Elemento:%d, face:%d, new_nodes: %d %d %d %d\n",elem->id,face_map[isurf],new_nodes[0],new_nodes[1],new_nodes[2],new_nodes[3]);
+
+					//printf("Elemento:%d, face:%d\n",elem->id,face_map[isurf]);
+					//create the element
+					octant_t* pelem;
+					if(create_pelem){
+						pelem = (octant_t*) sc_array_push(&mesh->elements);
+						pelem->id = mesh->elements.elem_count+1;
+						pelem->n_mat = elem->n_mat;
+						pelem->pad = elem->pad;
+						pelem->x = elem->x;
+						pelem->y = elem->y;
+						pelem->z = elem->z;
+						for(int ino = 0; ino<8; ino++){
+							pelem->nodes[ino].fixed= 0;
+							pelem->nodes[ino].x = elem->nodes[ino].x;
+							pelem->nodes[ino].y = elem->nodes[ino].y;
+							pelem->nodes[ino].z = elem->nodes[ino].z;
+						}
+
+
+						for(int ino = 0; ino <4; ino++){
+							//printf("No do elemento original:%d\n",connec[FaceNodesMap[face_map[isurf]][ino]]);
+							//printf("No do elemento modificado:%d\n",elem->nodes[FaceNodesMap[face_map[isurf]][ino]].id);
+							//printf("Trocado por:%d\n",new_nodes[ino]);
+
+							pelem->nodes[FaceNodesMap[face_map[isurf]][ino]].id = connec[FaceNodesMap[face_map[isurf]][ino]];
+							pelem->nodes[FaceNodesMap[face_map[isurf]][ino]].fixed = elem->nodes[FaceNodesMap[face_map[isurf]][ino]].fixed;
+							pelem->nodes[FaceNodesMap_inv[face_map[isurf]][ino]].id= new_nodes[ino];
+							//printf("FaceNodesMap:%d\n",FaceNodesMap[face_map[isurf]][ino]);
+							elem->nodes[FaceNodesMap[face_map[isurf]][ino]].id = new_nodes[ino];
+						}
+
+						//deve ser depois de atribuir o id correto para o no do elemento...
+						for(int ino = 0; ino<8; ino++){
+							octant_node_t * node = (octant_node_t*) sc_array_index(&mesh->nodes, pelem->nodes[ino].id);
+							node->x=elem->nodes[ino].x;
+							node->y=elem->nodes[ino].y;
+							node->z=elem->nodes[ino].z;
+							node->fixed =pelem->nodes[ino].fixed;
+						}
+					}
+
+					if(false){
+						printf("El:%d conectividade orignal\n",elem->id);
+						for(int ino = 0; ino<8; ino++){
+							printf(" %d",connec[ino]);
+						}
+						printf("\nModificada \n");
+						for(int ino = 0; ino<8; ino++){
+							printf("%d ",elem->nodes[ino].id);
+						}
+						printf("\n");
+						printf("New El:%d conectividade:\n",pelem->id);
+						for(int ino = 0; ino<8; ino++){
+							printf("%d ",pelem->nodes[ino].id);
+						}
+						printf("\n");
+					}
+				}
+
+				if(face_c==0 && true){
+					//printf("Para o elemento %d\n",elem->id);
+					int edge_c=0;
+					int edge_map[12];
+					for(int iedge = 0; iedge < 12; iedge++){
+						//procurando se os 2 nos da aresta estao na lista de hash_b_mat
+						node_t keyN;
+						size_t  positionN;
+						bool n0 = false;
+						bool n1 = false;
+						//printf("edge: %d\n",iedge);
+						int enode = EdgeVerticesMap[iedge][0];
+						//printf("nos: %d",elem->nodes[enode].id);
+						keyN.node_id = elem->nodes[enode].id;
+						keyN.coord[0] = coords[3*elem->nodes[enode].id+0];
+						keyN.coord[1] = coords[3*elem->nodes[enode].id+1];
+						keyN.coord[2] = coords[3*elem->nodes[enode].id+2];
+						n0 = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+
+						enode = EdgeVerticesMap[iedge][1];
+						//printf(" %d\n",elem->nodes[enode].id);
+						keyN.node_id = elem->nodes[enode].id;
+						keyN.coord[0] = coords[3*elem->nodes[enode].id+0];
+						keyN.coord[1] = coords[3*elem->nodes[enode].id+1];
+						keyN.coord[2] = coords[3*elem->nodes[enode].id+2];
+						n1 = (node_t*) sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
+
+						if(n0 && n1){
+							edge_map[edge_c] = iedge;
+							edge_c++;
+						}
+					}
+
+					//printf("Para o elemento %d tivemos %d arestas\n",elem->id,edge_c);
+
+					if(edge_c > 0){
+						//printf("Elemento:%d\n",elem->id);
+
+						for(int iedge = 0; iedge < edge_c; iedge++){
+							for(int ino = 0; ino <2;ino++){
+								int enode = EdgeVerticesMap[edge_map[iedge]][ino];
+								//printf("No:%d da aresta:%d\n",enode,edge_map[iedge]);
+								size_t position;
+								pillow_t key;
+								key.id = elem->nodes[enode].id;
+								//printf("Estou procurando elemento %d, no no:%d, na face:%d\n",elem->id,key.id,isurf);
+								bool nfound = sc_hash_array_lookup(pillowIds, &key, &position);
+								pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
+
+								GtsPoint p0;
+								GtsPoint pa;
+								GtsPoint pb;
+
+								gts_point_set(&pa, coords[3*pil->a+0], coords[3*pil->a+1], coords[3*pil->a+2]);
+								gts_point_set(&pb, coords[3*pil->b+0], coords[3*pil->b+1], coords[3*pil->b+2]);
+
+								int nnode = VerDiag[enode];
+								p0.x = coords[3*elem->nodes[nnode].id+0];
+								p0.y = coords[3*elem->nodes[nnode].id+1];
+								p0.z = coords[3*elem->nodes[nnode].id+2];
+
+								double dist0a[3];
+								double dist0b[3];
+
+								dist0a[0] = gts_point_distance (&p0,&pa);
+								dist0b[0] = gts_point_distance (&p0,&pb);
+								double dista = dist0a[0];
+								double distb = dist0b[0];
+								if(dista<distb){
+									new_nodes[ino] = pil->a;
+								}else{
+									new_nodes[ino] = pil->b;
+								}
+							}
+						}
+
+						for(int iedge = 0; iedge < edge_c; iedge++){
+							for(int ino = 0; ino <2; ino++){
+								int enode = EdgeVerticesMap[edge_map[iedge]][ino];
+								//printf("elemento:%d aresta:%d No:%d\n",elem->id,elem->edge[edge_map[iedge]],enode);
+								elem->nodes[enode].id = new_nodes[ino];
+							}
+
+						}
+					}
+
+				}
+
+				if(create_pelem){
+					//free fiwed nodes
+					for(int ino = 0; ino<8; ino++){
+						elem->nodes[ino].fixed = 0;
+					}
+				}
+
+			}
+		}
+	}
+
+
+ *
+ */
 /*
  *
  * //check if the element is good
