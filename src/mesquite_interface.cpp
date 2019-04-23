@@ -391,15 +391,21 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 	for(int treta = 0; treta <6 ; treta ++){
 
 		//x+
-		int snodes[]={5,6,2,1};
-		int axis = 0;
-
-		if(treta == 1){
+		int snodes[4];
+		int axis;
+		if(treta == 0){
+			//x+
+			snodes[0]=5;
+			snodes[1]=6;
+			snodes[2]=2;
+			snodes[3]=1;
+			axis = 0;
+		}else if(treta == 1){
 			//x-
-			snodes[0]=4;
-			snodes[1]=7;
-			snodes[2]=3;
-			snodes[3]=0;
+			snodes[0]=0;
+			snodes[1]=3;
+			snodes[2]=7;
+			snodes[3]=4;
 			axis = 1;
 		}else if(treta ==2){
 			//y+
@@ -670,10 +676,10 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 
 		//printf("Numero de nos fixos na face %d é de %d\n",axis,hash_FixedNodes->a.elem_count);
 		//printf("nos dentro da hash fixa:");
-		//for(int j = 0; j<hash_FixedNodes->a.elem_count;j++){
-		//node_t* rr= (node_t*) sc_array_index (&hash_FixedNodes->a, j);
-		//printf(" %d", rr->node_id);
-		//}
+		for(int j = 0; j<hash_FixedNodes->a.elem_count;j++){
+			node_t* rr= (node_t*) sc_array_index (&hash_FixedNodes->a, j);
+			//printf(" %d", rr->node_id);
+		}
 		//printf("\n");
 		//printf("nos fixos: ");
 		//nos fixos e coordenadas dos nos
@@ -691,13 +697,13 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 					fixed_nodes[i] = true;
 				}
 			}
-
+			//printf(" %d", fixed_nodes[i]);
 			/*
 			bool tre = sc_hash_array_lookup(hash_FixedNodes,&node->node_id,&position);
 			if(tre){
 				fixed_nodes[i] = true;
 			}
-			printf(" %d", fixed_nodes[i]);
+
 			 */
 		}
 		//printf("\n");
@@ -720,26 +726,34 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 			//finalmente mandando a malha pro mesquite...
 			Mesquite::MeshImpl mesq_mesh0(nvertices,nelem,Mesquite::QUADRILATERAL, &fixed_nodes[0], &Scoors[0], &conn[0]);
 
-			Mesquite::PlanarDomain plane;
-			if(axis == 0){
-				Mesquite::PlanarDomain plane(Vector3D(1,0,0), (Scoors[0],Scoors[1],Scoors[2]));
-			}else if(axis == 1){
-				Mesquite::PlanarDomain plane(Vector3D(-1,0,0), (Scoors[0],Scoors[1],Scoors[2]));
-			}else if(axis == 2){
-				Mesquite::PlanarDomain plane(Vector3D(0,1,0), (Scoors[0],Scoors[1],Scoors[2]));
-			}else if(axis == 3){
-				Mesquite::PlanarDomain plane(Vector3D(0,-1,0), (Scoors[0],Scoors[1],Scoors[2]));
-			}else if(axis == 4){
-				Mesquite::PlanarDomain plane(Vector3D(0,0,1), (Scoors[0],Scoors[1],Scoors[2]));
-			}else if(axis == 5){
-				Mesquite::PlanarDomain plane(Vector3D(0,0,-1), (Scoors[0],Scoors[1],Scoors[2]));
-			}
 
+			Vector3D point(Scoors[0],Scoors[1],Scoors[2]);
+			Vector3D normal;
+			if(axis == 0){
+				normal.set(1,0,0);
+				//Mesquite::PlanarDomain plane(normal, point);
+			}else if(axis == 1){
+				normal.set(-1,0,0);
+				//Mesquite::PlanarDomain plane(Vector3D(-1,0,0), point);
+			}else if(axis == 2){
+				normal.set(0,1,0);
+				//Mesquite::PlanarDomain plane(Vector3D(0,1,0), point);
+			}else if(axis == 3){
+				normal.set(0,-1,0);
+				//Mesquite::PlanarDomain plane(Vector3D(0,-1,0), point);
+			}else if(axis == 4){
+				normal.set(0,0,-1);
+				//Mesquite::PlanarDomain plane(Vector3D(0,0,1), point);
+			}else if(axis == 5){
+				normal.set(0,0,1);
+				//Mesquite::PlanarDomain plane(Vector3D(0,0,-1), point);
+			}
+			Mesquite::PlanarDomain plane(normal, point);
 			MeshDomainAssoc mesh_and_domain0 = MeshDomainAssoc(&mesq_mesh0, &plane);
 			printf("Status da criacao do mesh_domain para normal %d: %d\n",axis, mesh_and_domain0.are_compatible());
 			assert(mesh_and_domain0.are_compatible()==1);
 
-			if(true){
+			if(false){
 				// creates an intruction queue
 				InstructionQueue queue1;
 
@@ -769,14 +783,15 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 				// launches optimization on mesh_set1
 				queue1.run_instructions(&mesh_and_domain0, err);
 			}
-			printf("LaplaceWrapper do not work...\n");
-			/*
-				LaplaceWrapper lp_wrapper0;
-				lp_wrapper0.set_vertex_movement_limit_factor(1.e-5);
-				lp_wrapper0.set_iteration_limit(10);
-				lp_wrapper0.enable_culling(false);
-				lp_wrapper0.run_instructions( &mesh_and_domain0, err );
-			 */
+			LaplaceWrapper lp_wrapper0;
+			lp_wrapper0.set_vertex_movement_limit_factor(1.e-6);
+			lp_wrapper0.set_iteration_limit(5);
+			lp_wrapper0.enable_culling(true);
+			lp_wrapper0.run_instructions( &mesh_and_domain0, err );
+
+			if (err){
+				std::cout << err << std::endl;
+			}
 
 			if(false){
 				// creates an intruction queue
@@ -840,6 +855,19 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 			un_wrapper0.set_outer_iteration_limit(10);
 			un_wrapper0.run_instructions( &mesh_and_domain0, err );
 
+			if (err){
+				std::cout << err << std::endl;
+			}
+
+			ShapeImprover smoother;
+			IdealWeightInverseMeanRatio extra_metric;
+			smoother.quality_assessor().add_quality_assessment(&extra_metric);
+			smoother.set_cpu_time_limit(120);
+			smoother.run_instructions( &mesh_and_domain0, err );
+			if (err){
+				std::cout << err << std::endl;
+			}
+
 			/*
 		    ShapeImprover smoother;
 		    IdealWeightInverseMeanRatio extra_metric;
@@ -847,7 +875,8 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 		    smoother.set_cpu_time_limit(120);
 		    smoother.run_instructions( &mesh_and_domain0, err );
 
-
+			SizeAdaptShapeWrapper smoother(1e-2);
+			smoother.run_instructions( &mesh_and_domain0, err);
 
 	  	    SizeAdaptShapeWrapper smoother(1e-2);
 	  	    MeshDomainAssoc mesh_and_domain = MeshDomainAssoc(&mesh, &geom);
@@ -869,7 +898,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 			mesq_mesh0.clear();
 
 		}else{
-			printf("Deu ruim no esquema! numero de elementos eh igual a 0.\n");
+			printf("Please check mesquite_interface! set of elements = 0.\n");
 		}
 
 		aux.clear();
