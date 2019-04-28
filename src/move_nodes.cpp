@@ -15,7 +15,7 @@ using namespace std;
 
 #include <ctime>
 
-
+/*
 typedef struct {
 	GPtrArray * array;
 } ListOfPoints;
@@ -25,7 +25,7 @@ static void InsertPoint(GtsPoint * p, ListOfPoints * lp) {
 }
 
 bool is_point_over_surface(GtsPoint * p, GNode * tree);
-
+ */
 unsigned vertex_hash_id(const void *v, const void *u) {
 	const octant_vertex_t *q = (const octant_vertex_t*) v;
 	uint32_t a, b, c;
@@ -102,7 +102,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 	std::vector<double> aux;
 
 	//moving the nodes in the surface...
-	if(true){
+	if(false){
 		//achando os pontos de onde a superficie corta o octree nas 6 superficies
 		for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 			octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
@@ -2177,11 +2177,56 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			}
 
+			if(oc_count==2 && false){
+				int node1, node2;
+				GtsVertex *v1;
+				GtsVertex *v2;
+				int edge = 0;
+				GtsBBox *sb;
+				GSList* list;
+				GtsBBox *b;
+
+				if(oct->id[0]!=-1 && oct->id[4]!=-1 ){
+					//essa é para x+y+...
+					octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
+					octant_t* elem4 = (octant_t*)sc_array_index(&mesh->elements,oct->id[4]);
+
+					//
+					if(true){
+						node1 = elem0->nodes[3].id;
+						node2 = elem0->nodes[2].id;
+
+						v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3 + 0], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
+						v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3 + 0], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+
+						point[edge] = NULL;
+						segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
+						sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+						list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+						//if (list == NULL) continue;
+						while (list) {
+							b = GTS_BBOX(list->data);
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+							if (point[edge]) {
+								break;
+							}
+							list = list->next;
+						}
+
+						if(point[edge]!=NULL && false){
+							aux.push_back(elem0->nodes[2].id);
+							aux.push_back(point[edge]->x);
+							aux.push_back(point[edge]->y);
+							aux.push_back(point[edge]->z);
+						}
+					}
+				}
+			}
 		}
 	}
 
 	//moving the nodes in the edges...
-	if(true){
+	if(false){
 		//achando os pontos de onde a superficie corta o octree nas 12 arestas
 		for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 			octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
@@ -3617,7 +3662,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 	}
 
 	//moving the central node of the octree...
-	if(true){
+	if(false){
 		//achando os pontos de onde a superficie corta o octree no central
 		for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 			octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
@@ -3629,7 +3674,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 				}
 			}
 
-			if(oc_count==8 && false){
+			if(oc_count==8 && true){
 				octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 				octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
 				octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[2]);
@@ -3876,7 +3921,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 			}
 
-			if(oc_count == 8) {
+			if(oc_count == 8 && false) {
 
 				octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 				octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -4238,7 +4283,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(zz);
 
 					}else{
-						//printf("Error in move_node.cpp\n some error in the central node \n");
+						printf("Error in move_node.cpp\n some error in the central node oct=4 \n");
+						printf("Node %d\n",elem0->nodes[6].id);
+						exit(EXIT_FAILURE);
 					}
 				}
 
@@ -4326,7 +4373,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(zz);
 
 					}else{
-						//printf("Error in move_node.cpp\n some error in the central node \n");
+						printf("Error in move_node.cpp\n some error in the central node oct=4\n");
+						printf("Node %d\n",elem0->nodes[6].id);
+						exit (EXIT_FAILURE);
 					}
 				}
 
@@ -4414,10 +4463,13 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 						aux.push_back(zz);
 
 					}else{
-						printf("Error in move_node.cpp\n some error in the central node \n");
+						printf("Error in move_node.cpp\n some error in the central node oct=4 \n");
+						printf("Node %d\n",elem0->nodes[6].id);
+						exit (EXIT_FAILURE);
 					}
 				}
 			}
+
 			if(oc_count==2){
 				octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 				octant_t* elem1 = (octant_t*)sc_array_index(&mesh->elements,oct->id[1]);
@@ -5066,22 +5118,13 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 				}
 				//z-
 				if(oct->edge[8] || oct->edge[9] || oct->edge[10] || oct->edge[11]){
-					//printf("Sou face 4 desde que criancinha\n");
-					//printf("%s\n", oct->face[4] ? "true" : "false");
 					oct->face[4]=true;
-					//printf("%s\n", oct->face[4] ? "true" : "false");
 				}
 				//z+
 				if(oct->edge[0] || oct->edge[1] || oct->edge[2] || oct->edge[3]){
-					//printf("Sou face 5 desde que criancinha\n");
-					//printf("%s\n", oct->face[5] ? "true" : "false");
 					oct->face[5]=true;
-					//printf("%s\n", oct->face[5] ? "true" : "false");
 				}
-
 			}
-
-
 		}
 	}
 }
@@ -5122,7 +5165,7 @@ void DoOctree(hexa_tree_t* mesh){
 	sc_array_reset(&mesh->oct);
 
 	//hash for the elements
-	sc_hash_array_t * hash = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_t), el_hash_id, el_equal_id, &clamped);
+	sc_hash_array_t * hashOctree = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_t), el_hash_id, el_equal_id, &clamped);
 	octant_t* r;
 	bool elem_lookup;
 	bool vert_lookup;
@@ -5135,7 +5178,7 @@ void DoOctree(hexa_tree_t* mesh){
 		octant_t key;
 		key.id = cut->id;
 
-		elem_lookup = sc_hash_array_lookup(hash, &key, &position);
+		elem_lookup = sc_hash_array_lookup(hashOctree, &key, &position);
 
 		int temp_id[8];
 		bool temp_cut = false;;
@@ -5165,12 +5208,12 @@ void DoOctree(hexa_tree_t* mesh){
 					key.id = elem->id;
 
 					if(cut->id==elem->id){
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						temp_id[0] = elem->id;
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5180,11 +5223,11 @@ void DoOctree(hexa_tree_t* mesh){
 					if(cut->nodes[1].id == elem->nodes[0].id && cut->nodes[2].id == elem->nodes[3].id &&
 							cut->nodes[5].id==elem->nodes[4].id && cut->nodes[6].id==elem->nodes[7].id){
 						temp_id[1] = elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5193,11 +5236,11 @@ void DoOctree(hexa_tree_t* mesh){
 
 					if(cut->nodes[2].id==elem->nodes[0].id && cut->nodes[6].id==elem->nodes[4].id){
 						temp_id[2]= elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5207,11 +5250,11 @@ void DoOctree(hexa_tree_t* mesh){
 					if(cut->nodes[3].id==elem->nodes[0].id && cut->nodes[2].id==elem->nodes[1].id &&
 							cut->nodes[6].id==elem->nodes[5].id && cut->nodes[7].id==elem->nodes[4].id){
 						temp_id[3]= elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5221,11 +5264,11 @@ void DoOctree(hexa_tree_t* mesh){
 					if(cut->nodes[4].id==elem->nodes[0].id && cut->nodes[5].id==elem->nodes[1].id &&
 							cut->nodes[6].id==elem->nodes[2].id && cut->nodes[7].id==elem->nodes[3].id){
 						temp_id[4]= elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5234,11 +5277,11 @@ void DoOctree(hexa_tree_t* mesh){
 
 					if(cut->nodes[5].id==elem->nodes[0].id && cut->nodes[6].id==elem->nodes[3].id){
 						temp_id[5]= elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5247,11 +5290,11 @@ void DoOctree(hexa_tree_t* mesh){
 
 					if(cut->nodes[6].id==elem->nodes[0].id){
 						temp_id[6]= elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5260,11 +5303,11 @@ void DoOctree(hexa_tree_t* mesh){
 
 					if(cut->nodes[6].id==elem->nodes[1].id && cut->nodes[7].id==elem->nodes[0].id){
 						temp_id[7]= elem->id;
-						r = (octant_t*) sc_hash_array_insert_unique(hash,&key,&position);
+						r = (octant_t*) sc_hash_array_insert_unique(hashOctree,&key,&position);
 						if(r!=NULL){
 							r->id= elem->id;
 						}else{
-							r =  (octant_t*) sc_array_index(&hash->a,position);
+							r =  (octant_t*) sc_array_index(&hashOctree->a,position);
 						}
 						if(elem->pad==-1 || cut->pad == -1){
 							temp_cut = true;
@@ -5287,61 +5330,62 @@ void DoOctree(hexa_tree_t* mesh){
 		}
 	}
 
-	if(true){
-		int count = 0;
-		//seleciona apenas os octantes cortados
-		for(int iel = 0; iel< mesh->oct.elem_count; iel++){
-			octree_t *oc = (octree_t*) sc_array_index(&mesh->oct, iel);
-			//inicia com arestas e faces como nao cortadas
-			for(int i = 0; i<12;i++){
-				oc->edge[i] = false;
-			}
-			for(int i = 0; i<6;i++){
-				oc->face[i] = false;
-			}
+	//inicializacao e fixando nos dos vertices do octree
+	for(int ioc = 0; ioc< mesh->oct.elem_count; ioc++){
+		octree_t *oc = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		//inicia com arestas e faces como nao cortadas
+		for(int iedge = 0; iedge<12;iedge++){
+			oc->edge[iedge] = false;
+		}
+		for(int isurf = 0; isurf<6;isurf++){
+			oc->face[isurf] = false;
+		}
 
-			for(int i = 0; i<8; i++){
-				//printf("Octree numero:%d, elemento numero:%d\n",iel,oc->id[i]);
-				if(oc->id[i]!=-1){
-					octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[i]);
-					elem->pad = oc->id[0]+1;
-					//fix nodes
-					if(i==0){
-						//printf("Entrei para fixar o 0 para o elemento numero:%d\n",elem->id);
-						elem->nodes[0].fixed=1;
-					}else if(i==1){
-						//printf("Entrei para fixar o 1 para o elemento numero:%d\n",elem->id);
-						elem->nodes[1].fixed=1;
-					}else if(i==2){
-						//printf("Entrei para fixar o 2 para o elemento numero:%d\n",elem->id);
-						elem->nodes[2].fixed=1;
-					}else if(i==3){
-						//printf("Entrei para fixar o 3 para o elemento numero:%d\n",elem->id);
-						elem->nodes[3].fixed=1;
-					}else if(i==4){
-						//printf("Entrei para fixar o 4 para o elemento numero:%d\n",elem->id);
-						elem->nodes[4].fixed=1;
-					}else if(i==5){
-						//printf("Entrei para fixar o 5 para o elemento numero:%d\n",elem->id);
-						elem->nodes[5].fixed=1;
-					}else if(i==6){
-						//printf("Entrei para fixar o 6 para o elemento numero:%d\n",elem->id);
-						elem->nodes[6].fixed=1;
-					}else if(i==7){
-						//printf("Entrei para fixar o 7 para o elemento numero:%d\n",elem->id);
-						elem->nodes[7].fixed=1;
-					}
+		for(int iel = 0; iel<8; iel++){
+			//printf("Octree numero:%d, elemento numero:%d\n",iel,oc->id[i]);
+			if(oc->id[iel]!=-1){
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
+				elem->pad = oc->id[0]+1;
+
+				//fix nodes
+				if(iel==0){
+					//printf("Entrei para fixar o 0 para o elemento numero:%d\n",elem->id);
+					elem->nodes[0].fixed=1;
+				}else if(iel==1){
+					//printf("Entrei para fixar o 1 para o elemento numero:%d\n",elem->id);
+					elem->nodes[1].fixed=1;
+				}else if(iel==2){
+					//printf("Entrei para fixar o 2 para o elemento numero:%d\n",elem->id);
+					elem->nodes[2].fixed=1;
+				}else if(iel==3){
+					//printf("Entrei para fixar o 3 para o elemento numero:%d\n",elem->id);
+					elem->nodes[3].fixed=1;
+				}else if(iel==4){
+					//printf("Entrei para fixar o 4 para o elemento numero:%d\n",elem->id);
+					elem->nodes[4].fixed=1;
+				}else if(iel==5){
+					//printf("Entrei para fixar o 5 para o elemento numero:%d\n",elem->id);
+					elem->nodes[5].fixed=1;
+				}else if(iel==6){
+					//printf("Entrei para fixar o 6 para o elemento numero:%d\n",elem->id);
+					elem->nodes[6].fixed=1;
+				}else if(iel==7){
+					//printf("Entrei para fixar o 7 para o elemento numero:%d\n",elem->id);
+					elem->nodes[7].fixed=1;
 				}
 			}
 		}
 	}
 
+
+	//extract the vertex structure
 	//sc_hash_array_rip (indep_vertex,  &mesh->vertex);
 
+	//for debug
 	if(false){
-		for(int iel = 0; iel< mesh->oct.elem_count; iel++){
-			octree_t *oc = (octree_t*) sc_array_index(&mesh->oct, iel);
-			printf("Octree numero:%d, foi cortado?:%d\n",iel,oc->cut);
+		for(int ioc = 0; ioc< mesh->oct.elem_count; ioc++){
+			octree_t *oc = (octree_t*) sc_array_index(&mesh->oct, ioc);
+			printf("Octree numero:%d, foi cortado?:%d\n",ioc,oc->cut);
 			printf("Ids dos elementos: ");
 			for(int i = 0; i<8; i++){
 				printf("%d ",oc->id[i]);
@@ -5376,7 +5420,6 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	DoOctree(mesh);
 	tend = time(0);
 	//	cout << "Time in DoOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
-
 
 	tstart = time(0);
 	printf(" Identifying the movable nodes...\n");
