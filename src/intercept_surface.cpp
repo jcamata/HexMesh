@@ -154,9 +154,10 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 		GtsSegment * segments[12]={0};
 		GtsPoint * point[12]={NULL};
 		int ed_cont = 0;
-
+		//printf("Element:%d\n",elem->id);
 		for (int edge = 0; edge < 12; ++edge) {
 			point[edge] = NULL;
+			elem->edge[edge].ref = false;
 			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
 			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
 			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
@@ -176,7 +177,9 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 				}
 				list = list->next;
 			}
+			//printf("edge:%d, %s ",edge, elem->edge[edge].ref ? "T" : "F");
 		}
+		//printf("\n");
 
 		//Bounding box intercepted
 		if(elem->pad == -1 && ed_cont == 0){
