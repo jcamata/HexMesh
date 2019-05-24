@@ -251,17 +251,23 @@ GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const
 
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 
-	double X_pml = 30000;
-	double Y_pml = 30000;
-	double Z_pml = 30000;
+	double X_pml = 8000;
+	double Y_pml = 8000;
+	double Z_pml = 8000;
 	//BUG here, if the number of layers is bigger than X the memory of elem cannot be read.
-	int layers_x = 1;
-	int layers_y = 1;
-	int layers_z = 12;
+	int layers_x = 10;
+	int layers_y = 10;
+	int layers_z = 20;
 	int mat_count = 25;
 	int n_layers = 2;
 	int8_t mask[NPML];
 	int32_t npmls[NPML] = {0};
+	//I should create a toto sc_array
+	//it avoid segmentation fault when we perform a
+	//push in mesh->elements sc_array due to the
+	//realocation of the sc_array
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
 
 	bool clamped = true;
 	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
@@ -291,7 +297,11 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 	//printf("Numero de elementos %d\n",n_el);
 
 	for (int i = 0; i < n_el; ++i) {
-		octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, i);
+		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, i);
+		octant_t * elem = (octant_t*) sc_array_push(&toto);
+		//hexa_element_init(elem);
+		hexa_element_copy(elemOrig,elem);
+		sc_array_reset(&toto);
 		elem->pml_id = 0;
 		bool edge, face, point;
 		point = true ;
