@@ -43,6 +43,40 @@ void hexa_element_init(octant_t *elem)
 	elem->pml_id= PML_NULL;
 }
 
+//octant_t * hexa_element_copy(hexa_tree_t* mesh,int iel)
+void hexa_element_copy(octant_t* elem, octant_t* elemCopy)
+{
+	//octant_t * elemCopy;
+	//octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+	elemCopy->level = elem->level;
+	elemCopy->x = elem->x;
+	elemCopy->y = elem->y;
+	elemCopy->z = elem->z;
+	elemCopy->pad = elem->pad;
+	elemCopy->pml_id = elem->pml_id;
+	elemCopy->n_mat = elem->n_mat;
+	elemCopy->id = elem->id;
+
+	for(int ino = 0; ino <8; ino++){
+		elemCopy->nodes[ino].x = elem->nodes[ino].x;
+		elemCopy->nodes[ino].y = elem->nodes[ino].y;
+		elemCopy->nodes[ino].z = elem->nodes[ino].z;
+		elemCopy->nodes[ino].fixed = elem->nodes[ino].fixed;
+		elemCopy->nodes[ino].id = elem->nodes[ino].id;
+		elemCopy->nodes[ino].color = elem->nodes[ino].color;
+	}
+
+	for(int iedge = 0; iedge<12; iedge++){
+		elemCopy->edge[iedge].ref = 	elem->edge[iedge].ref;
+		elemCopy->edge[iedge].id = elem->edge[iedge].id;
+		elemCopy->edge[iedge].coord[0] = elem->edge[iedge].coord[0];
+		elemCopy->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
+	}
+
+	//return elemCopy;
+}
+
 void hexa_element_conn(octant_t* h, int i, int j, int k, int step,  int level)
 {
 	octant_node_t *node;
@@ -180,7 +214,7 @@ void hexa_tree_cube(hexa_tree_t* mesh)
 	mesh->max_step = 0;
 
 	hexa_processors_interval(mesh);
-    //TODO
+	//TODO
 	//preciso achar aqui o numero para dividir esse negocio... assim eu consigo ajustar o numero de camadas e tal...
 	nz = 0;
 	int nz_test = nz+internal_step;
