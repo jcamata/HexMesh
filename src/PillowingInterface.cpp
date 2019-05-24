@@ -17,14 +17,9 @@ using namespace std;
 
 int const VerDiag[8] = {6,7,4,5,2,3,0,1};
 
-void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
-	int elem_old = mesh->elements.elem_count;
-	int nodes_old = mesh->nodes.elem_count;
-	bool clamped = true;
+void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, sc_hash_array_t* hash_nodes, sc_hash_array_t* hash_b_mat,sc_hash_array_t*vertex_hash, sc_hash_array *hash_normal){
 
-	printf("Building hash\n");
-	//criando a hash de nos para evitar nos duplicados no pillowing
-	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	//hash nodes
 	for(int n = 0; n < mesh->nodes.elem_count; n++){
 		size_t position;
 		node_t *r;
@@ -47,7 +42,6 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	}
 
 	//fazendo hash nos nodes_b_mat
-	sc_hash_array_t* hash_b_mat = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
 	for(int n = 0; n < nodes_b_mat.size(); n++){
 		size_t position;
 		node_t *r;
@@ -71,36 +65,31 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	}
 
 	//fazendo vertex hash
-	sc_hash_array_t*	vertex_hash = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
-	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
-		size_t  position;
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
+		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
+		for(int iel = 0; iel < 8 ; iel++){
+			if(oc->id[iel]!=-1){
+				size_t  position;
+				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
 
-		for (int ino = 0; ino < 8; ino++){
-			octant_vertex_t key;
-			key.id = elem->nodes[ino].id;
-			octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique (vertex_hash, &key, &position);
-			if(vert != NULL){
-				vert->id = elem->nodes[ino].id;
-				vert->list_elem = 1;
-				vert->elem[vert->list_elem-1] = elem->id;
-			}else{
-				vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
-				vert->elem[vert->list_elem] = elem->id;
-				vert->list_elem++;
+				for (int ino = 0; ino < 8; ino++){
+					octant_vertex_t key;
+					key.id = elem->nodes[ino].id;
+					octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique (vertex_hash, &key, &position);
+					if(vert != NULL){
+						vert->id = elem->nodes[ino].id;
+						vert->list_elem = 1;
+						vert->elem[vert->list_elem-1] = elem->id;
+					}else{
+						vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
+						vert->elem[vert->list_elem] = elem->id;
+						vert->list_elem++;
+					}
+				}
 			}
 		}
 	}
 
-	if(false){
-		for(int ive = 0; ive < vertex_hash->a.elem_count; ive++){
-			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, ive);
-			printf("Vertex:%d\n",vert->id);
-		}
-	}
-	//printf("Size of vertex hash is:%d\n",vertex_hash->a.elem_count);
-	printf("Building normal hash\n");
-	sc_hash_array *hash_normal = sc_hash_array_new(sizeof(normal_t), vertex_hash_id, vertex_equal_id, &clamped);
 	//entrando em cada vertice de nodes_b_mat e encontrando o vertice na hash de vertices,
 	//acessando a lista de elementos para calculo da normal naquele elemento
 	//TODO check if the normal is good with all the surfaces
@@ -115,83 +104,78 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 
 		if(lvert){
 			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, positionV);
-			//printf("achei o no numero:%d na lista de vertices\n",vert->id);
+			//printf("achei o no numero:%d na lista de vertices\n \n",vert->id);
 			for(int iel = 0; iel < vert->list_elem; iel++){
 				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, vert->elem[iel]);
 
 				for(int isurf = 0; isurf < 6; isurf++){
 
-					bool lockedSurface = true;
-					bool lfvinbmat = true;
+					int ncount = 0;
 					for (int iv = 0 ; iv <4; iv++){
-						//procurando se os 4 nos da superficie estao na lista de hash_b_mat
+						size_t positionN;
 						node_t keyN;
-						size_t  positionN;
-						int snode = FaceNodesMap[isurf][iv];
-						keyN.node_id = elem->nodes[snode].id;
-						keyN.coord[0] = coords[3*elem->nodes[snode].id+0];
-						keyN.coord[1] = coords[3*elem->nodes[snode].id+1];
-						keyN.coord[2] = coords[3*elem->nodes[snode].id+2];
-						lfvinbmat = sc_hash_array_lookup (hash_b_mat, &keyN, &positionN);
-						if(!lfvinbmat) lockedSurface = false;
+						int node = elem->nodes[FaceNodesMap[isurf][iv]].id;
+						keyN.coord[0] = coords[3*node+0];
+						keyN.coord[1] = coords[3*node+1];
+						keyN.coord[2] = coords[3*node+2];
+						keyN.node_id = node;
+						bool lnode = sc_hash_array_lookup(hash_b_mat, &keyN, &positionN);
+						if(lnode){
+							ncount++;
+						}
 					}
+					//int ive;
+					//find the node to find the normal
+					for (int iv = 0 ; iv <4; iv++){
+						if(elem->nodes[FaceNodesMap[isurf][iv]].id == nodes_b_mat[ino] && ncount==4){
 
+							int node0 = elem->nodes[FaceNodesMap[isurf][vert_ord[iv][0]]].id;
+							int node1 = elem->nodes[FaceNodesMap[isurf][vert_ord[iv][1]]].id;
+							int node2 = elem->nodes[FaceNodesMap[isurf][vert_ord[iv][2]]].id;
 
-					if(lockedSurface){
-						int ive;
-						//find the node to find the normal
-						for (int iv = 0 ; iv <4; iv++){
-							if(elem->nodes[FaceNodesMap[isurf][iv]].id == nodes_b_mat[ino]){
-								ive = 	iv;
+							double ax = coords[3*node0 +0] - coords[3*node1 +0];
+							double ay = coords[3*node0 +1] - coords[3*node1 +1];
+							double az = coords[3*node0 +2] - coords[3*node1 +2];
+
+							double bx = coords[3*node0 +0] - coords[3*node2 +0];
+							double by = coords[3*node0 +1] - coords[3*node2 +1];
+							double bz = coords[3*node0 +2] - coords[3*node2 +2];
+
+							double nx = -(ay*bz - az*by);
+							double ny = -(az*bx - ax*bz);
+							double nz = -(ax*by - ay*bx);
+
+							double norm = sqrt(nx*nx+ny*ny+nz*nz);
+
+							normal_t keyN;
+							size_t  positionN;
+							keyN.id = nodes_b_mat[ino];
+							//printf("Meu no que vai entrar na hash eh:%d\n",keyN.id);
+							normal_t * normal = (normal_t*) sc_hash_array_insert_unique(hash_normal, &keyN, &positionN);
+
+							if(normal!=NULL){
+								normal->id = nodes_b_mat[ino];
+								normal->list_elem = 1;
+								normal->list_face = 1;
+								normal->elem[normal->list_face-1] = elem->id;
+								normal->face[normal->list_face-1] = isurf;
+								normal->n[normal->list_face-1][0] = nx/norm;
+								normal->n[normal->list_face-1][1] = ny/norm;
+								normal->n[normal->list_face-1][2] = nz/norm;
+							}else{
+								normal = (normal_t*) sc_array_index(&hash_normal->a, positionN);
+								//normal->id = keyN.id;
+								normal->elem[normal->list_elem] = elem->id;
+								normal->face[normal->list_face] = isurf;
+								normal->n[normal->list_face][0] = nx/norm;
+								normal->n[normal->list_face][1] = ny/norm;
+								normal->n[normal->list_face][2] = nz/norm;
+								normal->list_elem++;
+								normal->list_face++;
 							}
+							//printf("node:%d element:%d surface:%d nx:%f ny:%f nz:%f\n",key.id, vert->elem[iel], isurf,nx,ny,nz );
 						}
-
-						int node0 = elem->nodes[FaceNodesMap[isurf][vert_ord[ive][0]]].id;
-						int node1 = elem->nodes[FaceNodesMap[isurf][vert_ord[ive][1]]].id;
-						int node2 = elem->nodes[FaceNodesMap[isurf][vert_ord[ive][2]]].id;
-
-						double ax = coords[3*node0 +0] - coords[3*node1 +0];
-						double ay = coords[3*node0 +1] - coords[3*node1 +1];
-						double az = coords[3*node0 +2] - coords[3*node1 +2];
-
-						double bx = coords[3*node0 +0] - coords[3*node2 +0];
-						double by = coords[3*node0 +1] - coords[3*node2 +1];
-						double bz = coords[3*node0 +2] - coords[3*node2 +2];
-
-						double nx = -(ay*bz - az*by);
-						double ny = -(az*bx - ax*bz);
-						double nz = -(ax*by - ay*bx);
-
-						double norm = sqrt(nx*nx+ny*ny+nz*nz);
-
-						normal_t keyN;
-						size_t  positionN;
-						keyN.id = nodes_b_mat[ino];
-						//printf("Meu no que vai entrar na hash eh:%d\n",keyN.id);
-						normal_t * normal = (normal_t*) sc_hash_array_insert_unique(hash_normal, &keyN, &positionN);
-
-						if(normal!=NULL){
-							normal->id = nodes_b_mat[ino];
-							normal->list_elem = 1;
-							normal->list_face = 1;
-							normal->elem[normal->list_face-1] = elem->id;
-							normal->face[normal->list_face-1] = isurf;
-							normal->n[normal->list_face-1][0] = nx/norm;
-							normal->n[normal->list_face-1][1] = ny/norm;
-							normal->n[normal->list_face-1][2] = nz/norm;
-						}else{
-							normal = (normal_t*) sc_array_index(&hash_normal->a, positionN);
-							normal->elem[normal->list_elem] = elem->id;
-							normal->face[normal->list_face] = isurf;
-							normal->n[normal->list_face][0] = nx/norm;
-							normal->n[normal->list_face][1] = ny/norm;
-							normal->n[normal->list_face][2] = nz/norm;
-							normal->list_elem++;
-							normal->list_face++;
-						}
-						//printf("node:%d element:%d surface:%d nx:%f ny:%f nz:%f\n",key.id, vert->elem[iel], isurf,nx,ny,nz );
 					}
-
 				}
 			}
 		}else{
@@ -200,8 +184,6 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		}
 	}
 
-	//printf("Normal hash size:%d\n",hash_normal->a.elem_count);
-	printf("Building normal values for the surface\n");
 	//making the mean value of the surface normal
 	for(int ino = 0; ino < hash_normal->a.elem_count; ino ++){
 		normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, ino);
@@ -227,9 +209,16 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 
 	}
 
+	if(hash_normal->a.elem_count != nodes_b_mat.size()){
+		printf("Numero de elementos na hash normal eh diferente de nodes_b_mat\n");
+		printf("%d vs %d\n",hash_normal->a.elem_count,nodes_b_mat.size());
+		exit (EXIT_FAILURE);
+	}
+}
+
+void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, sc_hash_array_t* pillowIds, sc_hash_array_t* hash_nodes, sc_hash_array_t* hash_b_mat,sc_hash_array_t*vertex_hash, sc_hash_array *hash_normal){
 	////////////////////////
 	GtsPoint p;
-	sc_hash_array_t* pillowIds = sc_hash_array_new(sizeof(pillow_t), vertex_hash_id, vertex_equal_id, &clamped);
 	double scale = 10;
 
 	//find the scale for the pillowing
@@ -252,8 +241,8 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	if(scale==0) scale = 0.1;
 	scale = 0.5*scale;
 
-	printf("Creating the nodes for the pillowing\n");
-	//printf("Escala de: %f\n",scale);
+	printf("     Creating the nodes for the pillowing\n");
+	printf("     Scale: %f\n",scale);
 	//creating the nodes for the pillowing
 	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
 
@@ -273,7 +262,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 
 		size_t positionP;
 		pillow_t keyP;
-		keyP.id=nodes_b_mat[ino];
+		keyP.id = nodes_b_mat[ino];
 		//printf("%d\n",keyP.id);
 		pillow_t* pnode = (pillow_t*) sc_hash_array_insert_unique (pillowIds, &keyP, &positionP);
 		double x,y,z;
@@ -435,13 +424,28 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		}
 	}
 
-	printf("Creating elements in the pillowing\n");
+	//I should create a toto sc_array
+	//it avoid segmentation fault when we perform a
+	//push in mesh->elements sc_array due to the
+	//realocation of the sc_array
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	printf("     Creating elements in the pillowing\n");
 	//create the elements for the pillowing...
+	//mesh->oct.elem_count
 	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
 		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
 		for(int iel = 0; iel < 8 ; iel++){
 			if(oc->id[iel]!=-1){
-				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
+
+				octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
+				octant_t * elem = (octant_t*) sc_array_push(&toto);
+				hexa_element_init(elem);
+				hexa_element_copy(elemOrig,elem);
+				sc_array_reset(&toto);
+
+				//octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
 
 				int conectO[8];
 				int conectA[8];
@@ -466,130 +470,130 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 						conectB[ino] = pil->b;
 
 						/*
-						normal_t keyN;
-						size_t  positionN;
-						keyN.id = elem->nodes[ino].id;
-						bool lnormal = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
-						normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
+							normal_t keyN;
+							size_t  positionN;
+							keyN.id = elem->nodes[ino].id;
+							bool lnormal = (normal_t*) sc_hash_array_lookup (hash_normal, &keyN, &positionN);
+							normal_t* normal = (normal_t*) sc_array_index (&hash_normal->a, positionN);
 
-						//printf("achei o no %d no elemento %d\n",keyP.id,elem->id);
+							//printf("achei o no %d no elemento %d\n",keyP.id,elem->id);
 
-						GtsPoint pr;
-						GtsPoint p0;
-						GtsPoint p1;
-						GtsPoint p2;
-						GtsPoint pa;
-						GtsPoint pb;
+							GtsPoint pr;
+							GtsPoint p0;
+							GtsPoint p1;
+							GtsPoint p2;
+							GtsPoint pa;
+							GtsPoint pb;
 
-						gts_point_set(&pa, coords[3*pil->a+0], coords[3*pil->a+1], coords[3*pil->a+2]);
-						gts_point_set(&pb, coords[3*pil->b+0], coords[3*pil->b+1], coords[3*pil->b+2]);
-						int noderef = elem->nodes[VerDiag[ino]].id;
-						gts_point_set(&pr, coords[3*noderef+0], coords[3*noderef+1], coords[3*noderef+2]);
+							gts_point_set(&pa, coords[3*pil->a+0], coords[3*pil->a+1], coords[3*pil->a+2]);
+							gts_point_set(&pb, coords[3*pil->b+0], coords[3*pil->b+1], coords[3*pil->b+2]);
+							int noderef = elem->nodes[VerDiag[ino]].id;
+							gts_point_set(&pr, coords[3*noderef+0], coords[3*noderef+1], coords[3*noderef+2]);
 
-						int nnode = VertexVertexMap[ino][0];
-						p0.x = coords[3*elem->nodes[nnode].id+0];
-						p0.y = coords[3*elem->nodes[nnode].id+1];
-						p0.z = coords[3*elem->nodes[nnode].id+2];
+							int nnode = VertexVertexMap[ino][0];
+							p0.x = coords[3*elem->nodes[nnode].id+0];
+							p0.y = coords[3*elem->nodes[nnode].id+1];
+							p0.z = coords[3*elem->nodes[nnode].id+2];
 
-						nnode = VertexVertexMap[ino][1];
-						p1.x = coords[3*elem->nodes[nnode].id+0];
-						p1.y = coords[3*elem->nodes[nnode].id+1];
-						p1.z = coords[3*elem->nodes[nnode].id+2];
+							nnode = VertexVertexMap[ino][1];
+							p1.x = coords[3*elem->nodes[nnode].id+0];
+							p1.y = coords[3*elem->nodes[nnode].id+1];
+							p1.z = coords[3*elem->nodes[nnode].id+2];
 
-						nnode = VertexVertexMap[ino][2];
-						p2.x = coords[3*elem->nodes[nnode].id+0];
-						p2.y = coords[3*elem->nodes[nnode].id+1];
-						p2.z = coords[3*elem->nodes[nnode].id+2];
+							nnode = VertexVertexMap[ino][2];
+							p2.x = coords[3*elem->nodes[nnode].id+0];
+							p2.y = coords[3*elem->nodes[nnode].id+1];
+							p2.z = coords[3*elem->nodes[nnode].id+2];
 
-						double dist0a;
-						double dist0b;
+							double dist0a;
+							double dist0b;
 
-						dist0a = gts_point_distance (&pr,&pa);
-						dist0b = gts_point_distance (&pr,&pb);
+							dist0a = gts_point_distance (&pr,&pa);
+							dist0b = gts_point_distance (&pr,&pb);
 
-						//verifica se a aresta corta a superficie
-						GtsSegment * segments[6]={0};
-						GtsPoint * point[6]={NULL};
+							//verifica se a aresta corta a superficie
+							GtsSegment * segments[6]={0};
+							GtsPoint * point[6]={NULL};
 
-						GtsVertex *v0 = gts_vertex_new(gts_vertex_class(), p0.x, p0.y, p0.z);
-						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), p1.x, p1.y, p1.z);
-						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), p2.x, p2.y, p2.z);
-						GtsVertex *va = gts_vertex_new(gts_vertex_class(), pa.x, pa.y, pa.z);
-						GtsVertex *vb = gts_vertex_new(gts_vertex_class(), pb.x, pb.y, pb.z);
+							GtsVertex *v0 = gts_vertex_new(gts_vertex_class(), p0.x, p0.y, p0.z);
+							GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), p1.x, p1.y, p1.z);
+							GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), p2.x, p2.y, p2.z);
+							GtsVertex *va = gts_vertex_new(gts_vertex_class(), pa.x, pa.y, pa.z);
+							GtsVertex *vb = gts_vertex_new(gts_vertex_class(), pb.x, pb.y, pb.z);
 
-						segments[0] = gts_segment_new(gts_segment_class(), va, v0);
-						segments[1] = gts_segment_new(gts_segment_class(), va, v1);
-						segments[2] = gts_segment_new(gts_segment_class(), va, v2);
+							segments[0] = gts_segment_new(gts_segment_class(), va, v0);
+							segments[1] = gts_segment_new(gts_segment_class(), va, v1);
+							segments[2] = gts_segment_new(gts_segment_class(), va, v2);
 
-						segments[3] = gts_segment_new(gts_segment_class(), vb, v0);
-						segments[4] = gts_segment_new(gts_segment_class(), vb, v1);
-						segments[5] = gts_segment_new(gts_segment_class(), vb, v2);
+							segments[3] = gts_segment_new(gts_segment_class(), vb, v0);
+							segments[4] = gts_segment_new(gts_segment_class(), vb, v1);
+							segments[5] = gts_segment_new(gts_segment_class(), vb, v2);
 
-						for(int edge =0; edge < 6; edge++){
-							GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
-							GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-							//if (list == NULL) continue;
-							while (list) {
-								GtsBBox *b = GTS_BBOX(list->data);
-								point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
-								if (point[edge]){
-									break;
+							for(int edge =0; edge < 6; edge++){
+								GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
+								GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+								//if (list == NULL) continue;
+								while (list) {
+									GtsBBox *b = GTS_BBOX(list->data);
+									point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+									if (point[edge]){
+										break;
+									}
+									list = list->next;
 								}
-								list = list->next;
 							}
-						}
-
-						if((point[0]==NULL || point[1]==NULL || point[2]==NULL) &&
-								(point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
-							nbuffer[ino] = pil->a;
-							//elem->nodes[ino].id = pil->a;
-						}else if((point[3]==NULL || point[4]==NULL || point[5]==NULL) &&
-								(point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
-							nbuffer[ino] = pil->b;
-							//elem->nodes[ino].id = pil->b;
-						}else{
-							printf("Sou um merda pq nao gosto da condicao\n");
-						}
-						 */
-						/*
-						//dist0a>dist0b && point[0]!=NULL && point[1]!=NULL && point[2]!=NULL
-						if(dist0a>dist0b && (point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
-							//elem->nodes[ino].id = pil->b;
-							nbuffer[ino] = pil->b;
-							//dist0a<dist0b && point[3]!=NULL && point[4]!=NULL && point[5]!=NULL
-						}else if(dist0a<dist0b && (point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
-							//elem->nodes[ino].id = pil->a;
-							nbuffer[ino] = pil->a;
-						}else if(dist0a==dist0b || (abs(dist0a-dist0b)/dist0a)<0.005){
-							if((point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
-								//elem->nodes[ino].id = pil->b;
-								nbuffer[ino] = pil->b;
-								//dist0a<dist0b && point[3]!=NULL && point[4]!=NULL && point[5]!=NULL
-							}else if((point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
-								//elem->nodes[ino].id = pil->a;
-								nbuffer[ino] = pil->a;
-							}
-						}else{
 
 							if((point[0]==NULL || point[1]==NULL || point[2]==NULL) &&
 									(point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
 								nbuffer[ino] = pil->a;
+								//elem->nodes[ino].id = pil->a;
 							}else if((point[3]==NULL || point[4]==NULL || point[5]==NULL) &&
 									(point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
 								nbuffer[ino] = pil->b;
+								//elem->nodes[ino].id = pil->b;
+							}else{
+								printf("Sou um merda pq nao gosto da condicao\n");
 							}
+						 */
+						/*
+							//dist0a>dist0b && point[0]!=NULL && point[1]!=NULL && point[2]!=NULL
+							if(dist0a>dist0b && (point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+								//elem->nodes[ino].id = pil->b;
+								nbuffer[ino] = pil->b;
+								//dist0a<dist0b && point[3]!=NULL && point[4]!=NULL && point[5]!=NULL
+							}else if(dist0a<dist0b && (point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+								//elem->nodes[ino].id = pil->a;
+								nbuffer[ino] = pil->a;
+							}else if(dist0a==dist0b || (abs(dist0a-dist0b)/dist0a)<0.005){
+								if((point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+									//elem->nodes[ino].id = pil->b;
+									nbuffer[ino] = pil->b;
+									//dist0a<dist0b && point[3]!=NULL && point[4]!=NULL && point[5]!=NULL
+								}else if((point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+									//elem->nodes[ino].id = pil->a;
+									nbuffer[ino] = pil->a;
+								}
+							}else{
 
-							printf("Deu ruim!\n");
-							printf("Sou o no:%d pil->a:%d e pil->b:%d\n", elem->nodes[ino].id, pil->a,pil->b);
-							printf("Dist0a = %f e dist0b = %f\n",dist0a,dist0b);
-							for(int i = 0; i <6; i++){
-								if(point[i]!=NULL){
-									printf("sou a aresta %d e point[%d]!=NULL\n",i,i);
-								}else{
-									printf("sou a aresta %d e point[%d]==NULL\n",i,i);
+								if((point[0]==NULL || point[1]==NULL || point[2]==NULL) &&
+										(point[3]!=NULL || point[4]!=NULL || point[5]!=NULL)){
+									nbuffer[ino] = pil->a;
+								}else if((point[3]==NULL || point[4]==NULL || point[5]==NULL) &&
+										(point[0]!=NULL || point[1]!=NULL || point[2]!=NULL)){
+									nbuffer[ino] = pil->b;
+								}
+
+								printf("Deu ruim!\n");
+								printf("Sou o no:%d pil->a:%d e pil->b:%d\n", elem->nodes[ino].id, pil->a,pil->b);
+								printf("Dist0a = %f e dist0b = %f\n",dist0a,dist0b);
+								for(int i = 0; i <6; i++){
+									if(point[i]!=NULL){
+										printf("sou a aresta %d e point[%d]!=NULL\n",i,i);
+									}else{
+										printf("sou a aresta %d e point[%d]==NULL\n",i,i);
+									}
 								}
 							}
-						}
 						 */
 					}
 				}
@@ -646,18 +650,17 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 					if(pointB[edge]!=NULL) B++;
 				}
 
-				//printf("Para o elemento:%d temos: A=%d e B=%d\n",elem->id,A,B);
-
-				//define the new connectivity for the "old" element
+				//define the new connectivity for the copy of the "old" element
 				for(int ino = 0; ino < 8; ino++){
-					if(A==0){
+					if(A == 0){
 						elem->nodes[ino].id = conectA[ino];
 						elem->nodes[ino].fixed = 0;
-					}else if(B==0){
+					}else if(B == 0){
 						elem->nodes[ino].id = conectB[ino];
 						elem->nodes[ino].fixed = 0;
-					}else{
+					}else if(ino == 0 && A!=0 && B!=0){
 						printf("Problem to define the pillow side\n");
+						printf("Para o elemento:%d temos: A=%d e B=%d\n",elem->id,A,B);
 					}
 				}
 
@@ -685,15 +688,15 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 
 					if(lockedSurface){
 						/*
-						for(int ino = 0; ino<4;ino++){
-							size_t position;
-							pillow_t key;
-							key.id = conectO[FaceNodesMap[isurf][ino]];
-							printf("Estou procurando elemento %d, no no:%d, na face:%d\n",elem->id,key.id,isurf);
-							bool nfound = sc_hash_array_lookup(pillowIds, &key, &position);
-							pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
-							printf("Encontrei o no:%d, junto com os nos a:%d e b:%d\n",pil->id,pil->a,pil->b);
-						}
+							for(int ino = 0; ino<4;ino++){
+								size_t position;
+								pillow_t key;
+								key.id = conectO[FaceNodesMap[isurf][ino]];
+								printf("Estou procurando elemento %d, no no:%d, na face:%d\n",elem->id,key.id,isurf);
+								bool nfound = sc_hash_array_lookup(pillowIds, &key, &position);
+								pillow_t* pil = (pillow_t*) sc_array_index(&pillowIds->a,position);
+								printf("Encontrei o no:%d, junto com os nos a:%d e b:%d\n",pil->id,pil->a,pil->b);
+							}
 						 */
 						face_map[face_c] = isurf;
 						face_c++;
@@ -774,12 +777,49 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 						printf("\n");
 					}
 				}
+
+				//load the element and aplly the new conectivitty
+				octant_t* el = (octant_t*) sc_array_index(&mesh->elements, oc->id[iel]);
+
+				for(int ino=0; ino<8; ino++){
+					el->nodes[ino].id = elem->nodes[ino].id;
+				}
 			}
 		}
 	}
 
-	// for debug
+}
+
+void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
+	int elem_old = mesh->elements.elem_count;
+	int nodes_old = mesh->nodes.elem_count;
+	bool clamped = true;
+
+	//criando a hash de nos para evitar nos duplicados no pillowing
+	sc_hash_array_t*hash_nodes = (sc_hash_array_t *)sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	//hash nodes nodes_b_mat
+	sc_hash_array_t*hash_b_mat = (sc_hash_array_t *)sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	//vertex hash
+	sc_hash_array_t*	vertex_hash = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
+	//normal hash
+	sc_hash_array*  hash_normal = (sc_hash_array_t *)sc_hash_array_new(sizeof(normal_t), vertex_hash_id, vertex_equal_id, &clamped);
+
+	printf("     Building hashs\n");
+	BuildHash(mesh, coords, nodes_b_mat, hash_nodes, hash_b_mat, vertex_hash, hash_normal);
+
 	if(false){
+		for(int ive = 0; ive < vertex_hash->a.elem_count; ive++){
+			octant_vertex_t * vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, ive);
+			printf("Vertex:%d\n",vert->id);
+		}
+	}
+
+	//pillow hash
+	sc_hash_array_t* pillowIds = (sc_hash_array_t *)sc_hash_array_new(sizeof(pillow_t), vertex_hash_id, vertex_equal_id, &clamped);
+	Pillowing(mesh, coords, nodes_b_mat, pillowIds,hash_nodes,hash_b_mat,vertex_hash,hash_normal);
+
+	// for debug
+	if(true){
 		char fdname[80];
 		sprintf(fdname,"normal_%04d.txt", mesh->mpi_rank);
 		FILE* treta = fopen(fdname,"w");
@@ -819,7 +859,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		fclose(treta2);
 		fclose(treta3);
 		fclose(treta4);
-
+		/*
 		for(int iel = 0 ; iel < mesh->elements.elem_count; iel++){
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 			printf("\n");
@@ -829,7 +869,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 			}
 			printf("\n");
 		}
-
+		 */
 	}
 
 	//update the vectors
@@ -837,8 +877,8 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	mesh->local_n_nodes = mesh->nodes.elem_count;
 	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-	printf(" %d nodes were created in the pillowing process\n",mesh->nodes.elem_count - nodes_old);
-	printf(" %d elements were created in the pillowing process\n",mesh->elements.elem_count - elem_old);
+	printf("     %d nodes were created in the pillowing process\n",mesh->nodes.elem_count - nodes_old);
+	printf("     %d elements were created in the pillowing process\n",mesh->elements.elem_count - elem_old);
 
 	for (int ino = 0; ino < mesh->local_n_nodes; ino++) {
 		mesh->part_nodes[ino]=0;
