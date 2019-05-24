@@ -28,7 +28,7 @@ void copy_octant(octant_t *orig, octant_t* dest)
 void hexa_tree_init(hexa_tree_t* mesh, int max_levels)
 {
 	sc_array_init(&mesh->elements, sizeof(octant_t));
-	mesh->ncellx = (int32_t) pow(3, max_levels);
+	mesh->ncellx = 2*(int32_t) pow(3, max_levels);
 	mesh->ncelly = mesh->ncellx;
 	mesh->ncellz = mesh->ncellx;
 	mesh->max_levels = max_levels;

@@ -293,6 +293,10 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void PillowingInterface(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat);
 void Adjust_material(hexa_tree_t *mesh);
+void ExtrudeToOctree(hexa_tree_t* mesh,std::vector<double>& coords);
+//octant_t * hexa_element_copy(hexa_tree_t *mesh,int iel);
+void hexa_element_init(octant_t *elem);
+void hexa_element_copy(octant_t * elem, octant_t * elemCopy);
 void UntagleMesh(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 void hexa_mesh_write_h5(hexa_tree_t* mesh, const char* root_name, std::vector<double> coords);
