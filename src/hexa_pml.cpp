@@ -178,8 +178,7 @@ int edge_equal_fn(const void *v, const void *u, const void *w) {
 
 	return (unsigned) ((e1->coord[0] == e2->coord[0]) &&
 			(e1->coord[1] == e2->coord[1]) &&
-			(e1->coord[2] == e2->coord[2]) &&
-			(e1->node_id == e2->node_id));
+			(e1->coord[2] == e2->coord[2]));
 }
 
 
@@ -187,9 +186,13 @@ int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<
 	size_t position;
 	node_t *r;
 	node_t key;
-	key.coord[0] = p->x;
-	key.coord[1] = p->y;
-	key.coord[2] = p->z;
+	int a,b,c;
+	a = p->x*1e6;
+	b = p->y*1e6;
+	c = p->z*1e6;
+	key.coord[0] = double(a/1e6);
+	key.coord[1] = double(b/1e6);
+	key.coord[2] = double(c/1e6);
 
 	r = (node_t*) sc_hash_array_insert_unique(hash, &key, &position);
 
@@ -207,9 +210,9 @@ int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<
 		n->fixed = 0;
 		mesh->part_nodes[n->id] = mesh->mpi_rank;
 
-		coords.push_back(p->x);
-		coords.push_back(p->y);
-		coords.push_back(p->z);
+		coords.push_back(key.coord[0]);
+		coords.push_back(key.coord[1]);
+		coords.push_back(key.coord[2]);
 		return r->node_id;
 	} else {
 		r = (node_t*) sc_array_index(&hash->a, position);

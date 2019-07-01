@@ -243,11 +243,10 @@ void hexa_tree_destroy(hexa_tree_t* mesh)
 	sc_array_reset(&mesh->comm_map.RecvFrom);
 	sc_array_reset(&mesh->comm_map.SendTo);
 	sc_array_reset(&mesh->nodes);
-	sc_array_reset(&mesh->vertex);
+	//sc_array_reset(&mesh->vertex);
 	sc_array_reset(&mesh->oct);
 	sc_array_reset(&mesh->shared_nodes);
 
-	if(mesh->gdata.bbt!=NULL)
-		gts_bb_tree_destroy(mesh->gdata.bbt, TRUE);
+	if(mesh->gdata.bbt!=NULL) gts_bb_tree_destroy(mesh->gdata.bbt, TRUE);
 
 }

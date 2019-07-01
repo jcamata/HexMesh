@@ -36,6 +36,69 @@ int node_comp (const void *v, const void *u){
 	}
 }
 
+uint64_t cantor_function_id(uint32_t c, uint32_t d){
+	uint64_t e;
+	uint32_t a;
+	uint32_t b;
+
+	if(c>d){
+		a = c;
+		b = d;
+	}else{
+		a=d;
+		b=c;
+	}
+
+	if(a>=b){
+		return e = a*a+a+b;
+	}else{
+		return e = a+b*b;
+	}
+}
+
+unsigned edge_hash_id(const void *v, const void *u) {
+	const octant_edge_t *q = (const octant_edge_t*) v;
+	uint64_t a, b, c;
+
+	a = (uint32_t) q->id;
+	b = (uint32_t) 1;
+	c = (uint32_t) 0;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int edge_equal_id(const void *v, const void *u, const void *w) {
+	const octant_edge_t *e1 = (const octant_edge_t*) v;
+	const octant_edge_t *e2 = (const octant_edge_t*) u;
+
+	return (unsigned) (e1->id == e2->id);
+
+}
+
+void hexa_insert_shared_edge(sc_hash_array_t *shared_edges, shared_edge_t* edge, int processor){
+
+	size_t position;
+	shared_edge_t *sn;
+	int i;
+
+	if( processor < 0) return;
+
+	sn = (shared_edge_t*) sc_hash_array_insert_unique (shared_edges, edge, &position);
+	if(sn != NULL){
+		sn->id = edge->id;
+		sn->listSz = 1;
+		sn->rankList[0] = processor;
+	} else{
+		sn = (shared_edge_t*) sc_array_index(&shared_edges->a, position);
+		for(i=0; i < sn->listSz; ++i)
+			if(sn->rankList[i] == processor) break;
+		if(i == sn->listSz){
+			sn->rankList[sn->listSz] = processor;
+			sn->listSz++;
+		}
+	}
+}
 
 unsigned node_hash_fn (const void *v, const void *u)
 {
@@ -115,7 +178,11 @@ void hexa_mesh(hexa_tree_t* mesh){
 
 	bool                clamped = true;
 	sc_hash_array_t    *indep_nodes;
+	sc_hash_array_t    *indep_edges;
+
 	sc_hash_array_t    *shared_nodes;
+	sc_hash_array_t    *shared_edges;
+
 	sc_hash_array_t    *SendTo;
 	sc_hash_array_t    *RecvFrom;
 	size_t              position;
@@ -125,6 +192,9 @@ void hexa_mesh(hexa_tree_t* mesh){
 
 	indep_nodes     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_node_t), node_hash_fn, node_equal_fn, &clamped);
 	shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_hash_fn, node_equal_fn, &clamped);
+
+	indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_edge_t), edge_hash_id, edge_equal_id, &clamped);
+	shared_edges    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_id, edge_equal_id, &clamped);
 
 	//insert internal nodes in the hash_array
 	for(int i = 0; i < mesh->elements.elem_count; i++)
@@ -388,6 +458,266 @@ void hexa_mesh(hexa_tree_t* mesh){
 		printf("Total number of elements: %lld\n", mesh->total_n_elements);
 		printf("Total number of nodes: %lld\n", mesh->total_n_nodes);
 	}
+
+	//edges
+	//add edge_identification
+	//int nedges = 0;
+	//initialization for the edge id
+	//TODO MEMORY and TIME consumption are insane...
+	//printf("edges\n");
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		for (int edge = 0; edge < 12; ++edge) {
+			int Edge2GNode[2];
+
+			//look for the global_node_id to create the edge_id
+			int node1 = mesh->global_id[elem->nodes[EdgeVerticesMap[edge][0]].id];
+			int node2 = mesh->global_id[elem->nodes[EdgeVerticesMap[edge][1]].id];
+			//assert(node1 >= 0);
+			//assert(node2 >= 0);
+
+			Edge2GNode[0] = node1 <= node2 ? node1 : node2;
+			Edge2GNode[1] = node1 >= node2 ? node1 : node2;
+
+			//elem->edge[edge].id = edge_id(Edge2GNode, indep_edges, nedges);
+			//elem->edge[edge].ref = false;
+			//elem->edge[edge].coord[0] = Edge2GNode[0];
+			//elem->edge[edge].coord[1] = Edge2GNode[1];
+			elem->edge[edge].id = cantor_function_id(node1,node2);
+			elem->edge[edge].ref = false;
+			elem->edge[edge].coord[0] = Edge2GNode[0];
+			elem->edge[edge].coord[1] = Edge2GNode[1];
+
+			size_t position;
+			octant_edge_t *r;
+			octant_edge_t key;
+			key.id = elem->edge[edge].id;
+			key.coord[0] = node1;
+			key.coord[1] = node2;
+
+			r = (octant_edge_t*) sc_hash_array_insert_unique(indep_edges, &key, &position);
+			if (r != NULL) {
+				r->coord[0] = key.coord[0];
+				r->coord[1] = key.coord[1];
+				r->id = elem->edge[edge].id;
+				r->ref = false;
+			}
+		}
+	}
+#ifdef HEXA_DEBUG_
+	if(0){
+		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+			for (int edge = 0; edge < 12; ++edge) {
+				fprintf(mesh->fdbg,"El:%lld, edge:%lld, coord[0]:%lld, coord[1]:%lld\n",iel,elem->edge[edge].id,elem->edge[edge].coord[0],elem->edge[edge].coord[1]);
+			}
+		}
+	}
+#endif
+
+/*
+	// create the shared edges hash
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		size_t position0;
+		size_t position1;
+
+		for (int edge = 0; edge < 12; ++edge) {
+
+			bool out0 = false;
+			bool out1 = false;
+			octant_node_t* node0 = (octant_node_t*) sc_array_index (&mesh->nodes, elem->nodes[EdgeVerticesMap[edge][0]].id);
+			octant_node_t* node1 = (octant_node_t*) sc_array_index (&mesh->nodes, elem->nodes[EdgeVerticesMap[edge][1]].id);
+
+			out0 =  sc_hash_array_lookup(shared_nodes, node0, &position0);
+			out1 =  sc_hash_array_lookup(shared_nodes, node1, &position1);
+
+			if(out0 && out1){
+				shared_node_t* sn0 = (shared_node_t*) sc_array_index(&shared_nodes->a, position0);
+				shared_node_t* sn1 = (shared_node_t*) sc_array_index(&shared_nodes->a, position1);
+
+				for(int i = 0; i < sn0->listSz; i++){
+					for(int j = 0; j < sn1->listSz; j++){
+						if(sn0->rankList[i] == sn1->rankList[j]){
+							shared_edge_t      e;
+							e.id = elem->edge[edge].id;
+							hexa_insert_shared_edge(shared_edges, &e , sn0->rankList[i]);
+						}
+					}
+				}
+			}
+		}
+	}
+	////////////////////////////////////
+	//extract the share nodes from shared_nodes
+	sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
+
+#ifdef HEXA_DEBUG_
+	if(0){
+		fprintf(mesh->fdbg,"Shared nodes in global ids:\n");
+		fprintf(mesh->fdbg,"Total:%d\n",mesh->shared_nodes.elem_count);
+		for(int i = 0; i < mesh->shared_nodes.elem_count; ++i){
+			shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
+			fprintf(mesh->fdbg, "(%ld): %d %d %d\n", sn->id, sn->x, sn->y, sn->z);
+			fprintf(mesh->fdbg, "     shared with processors: ");
+			for(int j = 0; j < sn->listSz; j++){
+				fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+			}
+			fprintf(mesh->fdbg, "\n");
+		}
+	}
+#endif
+	////////////////////////////////////
+	//extract the edges from indep_edges
+	sc_hash_array_rip (indep_edges,  &mesh->edges);
+	//extract the shared edges from shared_edges
+	sc_hash_array_rip (shared_edges, &mesh->shared_edges);
+	//sc_array_sort(&mesh->shared_edges,edge_comp);
+
+#ifdef HEXA_DEBUG_
+	if (0){
+		fprintf(mesh->fdbg,"Edge ids:\n");
+		for(int i = 0; i < mesh->edges.elem_count; ++i){
+			octant_edge_t* sn = (octant_edge_t*) sc_array_index(&mesh->edges,i);
+			fprintf(mesh->fdbg, "Edge id:%lld status:%d\n", sn->id, sn->ref);
+		}
+
+		fprintf(mesh->fdbg,"Shared Edge ids:\n");
+		for(int i = 0; i < mesh->shared_edges.elem_count; ++i){
+			shared_edge_t* sn = (shared_edge_t*) sc_array_index(&mesh->shared_edges,i);
+			fprintf(mesh->fdbg, "Edge id:%lld\n", sn->id);
+		}
+	}
+#endif
+	printf("comm\n");
+
+	//edge map
+	int not_my_edges    = 0;
+	int my_own_edges    = 0;
+	//mesh->global_edge_id     = (uint64_t*)malloc(sizeof(uint64_t)*mesh->edges.elem_count);
+	//memset(mesh->global_edge_id,-2,mesh->edges.elem_count*sizeof(int64_t));
+	SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+	RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+
+	for(int i = 0; i < mesh->shared_edges.elem_count; ++i){
+		shared_edge_t* sn = (shared_edge_t*) sc_array_index(&mesh->shared_edges,i);
+
+		for(int j = 0; j < sn->listSz; j++){
+			if(sn->rankList[j] < mesh->mpi_rank) {
+				message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&sn->rankList[j],&position);
+				if(m!=NULL){
+					m->rank  = sn->rankList[j];
+					sc_array_init(&m->idxs, sizeof(uint64_t));
+					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+					*p = sn->id;
+				}else{
+					message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
+					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+					*p = sn->id;
+				}
+				my_own_edges++;
+				//       mesh->global_edge_id[sn->id] = -3;
+			}
+			else if (sn->rankList[j] > mesh->mpi_rank){
+				message_t *m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&sn->rankList[j],&position);
+				if(m!=NULL){
+					m->rank  = sn->rankList[j];
+					sc_array_init(&m->idxs, sizeof(uint64_t));
+					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+					*p = sn->id;
+				}else{
+					message_t* m = (message_t*)sc_array_index(&RecvFrom->a, position);
+					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+					*p = sn->id;
+				}
+				not_my_edges++;
+				//mesh->global_edge_id[sn->id] = -1;
+			}
+		}
+		// if(mesh->global_edge_id[sn->id] == -1) not_my_edges++;
+		// if(mesh->global_edge_id[sn->id] == -3) my_own_edges++;
+	}
+
+	local[2] = mesh->local_n_edges = mesh->edges.elem_count;
+	local[2] -= not_my_edges;
+
+	sc_hash_array_rip(RecvFrom, &mesh->comm_map_edge.RecvFrom );
+	sc_hash_array_rip(SendTo  , &mesh->comm_map_edge.SendTo   );
+
+#ifdef HEXA_DEBUG_
+	if(0){
+		fprintf(mesh->fdbg, "Shared Edges: \n");
+		fprintf(mesh->fdbg, "Total: %d\n",mesh->shared_edges.elem_count);
+		for(int i = 0; i < mesh->shared_edges.elem_count; ++i){
+			shared_edge_t* sn = (shared_edge_t*) sc_array_index(&mesh->shared_edges,i);
+			fprintf(mesh->fdbg, "%lld\n", sn->id);
+			fprintf(mesh->fdbg, "     shared with processors: ");
+			for(int j = 0; j < sn->listSz; j++){
+				fprintf(mesh->fdbg, "%d ", sn->rankList[j]);
+			}
+			fprintf(mesh->fdbg, "\n");
+		}
+		fprintf(mesh->fdbg,"Edges:\n");
+		fprintf(mesh->fdbg, "Recv from %ld processors\n", mesh->comm_map_edge.RecvFrom.elem_count);
+		for(int i=0; i < mesh->comm_map_edge.RecvFrom.elem_count; i++){
+			message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+			fprintf(mesh->fdbg, "  \n Recv %ld edges from %d\n", m->idxs.elem_count, m->rank);
+			for(int j =0; j < m->idxs.elem_count; j++){
+				int64_t *id = (int64_t*) sc_array_index(&m->idxs,j);
+				fprintf(mesh->fdbg, "%lld ", *id);
+				if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+			}
+		}
+		fprintf(mesh->fdbg,"\n");
+		fprintf(mesh->fdbg, "Send to %ld processors\n", mesh->comm_map_edge.SendTo.elem_count);
+		for(int i=0; i < mesh->comm_map_edge.SendTo.elem_count; i++){
+			message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
+			fprintf(mesh->fdbg, "\n Sending %ld edges from %d\n", m->idxs.elem_count, m->rank);
+			for(int j =0; j < m->idxs.elem_count; j++){
+				int64_t *id = (int64_t*) sc_array_index(&m->idxs,j);
+				fprintf(mesh->fdbg, "%lld ", *id);
+				if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+			}
+		}
+	}
+#endif
+
+	//size for the edges message
+	mesh->comm_map_edge.max_recvbuf_size = 0;
+	for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; i++){
+		message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
+		mesh->comm_map_edge.max_recvbuf_size +=  m->idxs.elem_count;
+	}
+
+	mesh->comm_map_edge.max_sendbuf_size = 0;
+	for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; i++){
+		message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
+		mesh->comm_map_edge.max_sendbuf_size +=  m->idxs.elem_count;
+	}
+
+	mesh->comm_map_edge.nrequests = mesh->comm_map_edge.RecvFrom.elem_count +
+			mesh->comm_map_edge.SendTo.elem_count;
+
+
+#ifdef HEXA_DEBUG_
+	if(0){
+		fprintf(mesh->fdbg,"\nEdges id and Elements:\n");
+		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+			fprintf(mesh->fdbg,"Element:%d\n",iel);
+			for (int edge = 0; edge < 12; ++edge) {
+				fprintf(mesh->fdbg,"id:%lld ref:%d coords:%d %d\n",elem->edge[edge].id,elem->edge[edge].ref,elem->edge[edge].coord[0],elem->edge[edge].coord[1]);
+			}
+		}
+	}
+#endif
+*/
 }
 
 

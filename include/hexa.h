@@ -40,6 +40,7 @@ typedef struct {
 	bool flag; //maybe can be removed...
 } node_t;
 
+/*
 typedef struct
 {
 	uint64_t id;
@@ -50,6 +51,7 @@ typedef struct
 	double   n[24][3];
 	double   nm[3];
 } normal_t;
+*/
 
 typedef struct
 {
@@ -58,12 +60,14 @@ typedef struct
 	int32_t  elem[8]; // we must check this values
 } octant_vertex_t;
 
+/*
 typedef struct pillow
 {
 	uint64_t id;
 	uint64_t a;
 	uint64_t b;
 } pillow_t;
+*/
 
 typedef struct octant
 {
@@ -72,6 +76,7 @@ typedef struct octant
 	int     pad;
 	int8_t     pml_id;
 	int        n_mat;
+	int tem;
 	octant_node_t nodes[8];
 	octant_edge_t edge[12];
 	int64_t    id;
@@ -92,6 +97,13 @@ typedef struct shared_node
 	int32_t       listSz;
 	int32_t      rankList[8];
 } shared_node_t;
+
+typedef struct shared_edge
+{
+        uint64_t     id;
+        int32_t      listSz;
+        int32_t      rankList[4];
+} shared_edge_t;
 
 typedef struct 
 {
@@ -132,10 +144,12 @@ typedef struct {
 
 	sc_array_t      elements;
 	sc_array_t      nodes;
+	sc_array_t      edges;
 	sc_array_t      vertex;
 	sc_array_t		oct;
 
 	sc_array_t      shared_nodes;
+	sc_array_t      shared_edges;
 
 	int64_t *global_id;
 
@@ -211,6 +225,14 @@ int const FaceEdgesMap[6][4] = {
 		{0, 1, 2, 3}
 };
 
+int const FaceNormalEdgesMap[6][4] = {
+		{0, 8,10, 2},
+		{0, 8,10, 2},
+		{1, 9,11, 3},
+		{1, 9,11, 3},
+		{5, 4, 7, 6},
+		{5, 4, 7, 6}
+};
 
 int const FaceNodesMap[6][4] = {
 		{0,4,7,3},
