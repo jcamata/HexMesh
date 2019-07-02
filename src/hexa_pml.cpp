@@ -186,14 +186,21 @@ int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<
 	size_t position;
 	node_t *r;
 	node_t key;
-	int a,b,c;
-	a = p->x*1e6;
-	b = p->y*1e6;
-	c = p->z*1e6;
-	key.coord[0] = double(a/1e6);
-	key.coord[1] = double(b/1e6);
-	key.coord[2] = double(c/1e6);
 
+	int a,b,c;
+	double factor = 1e2;
+	a = p->x*factor;
+	b = p->y*factor;
+	c = p->z*factor;
+	key.coord[0] = double(a/factor);
+	key.coord[1] = double(b/factor);
+	key.coord[2] = double(c/factor);
+
+	/*
+	key.coord[0] = p->x;
+	key.coord[1] = p->y;
+	key.coord[2] = p->z;
+	*/
 	r = (node_t*) sc_hash_array_insert_unique(hash, &key, &position);
 
 	if (r != NULL) {
@@ -208,7 +215,7 @@ int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<
 		n->z = -1;
 		//n->color = -1;
 		n->fixed = 0;
-		mesh->part_nodes[n->id] = mesh->mpi_rank;
+		//mesh->part_nodes[n->id] = mesh->mpi_rank;
 
 		coords.push_back(key.coord[0]);
 		coords.push_back(key.coord[1]);

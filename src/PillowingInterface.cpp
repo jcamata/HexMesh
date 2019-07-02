@@ -150,7 +150,7 @@ void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 			}
 
 			int id;
-			if(ncount == 1){
+			if(ncount == 1 && false){
 
 				elem->edge[VertexEdgeMap[aux[0]][0]].ref = true;
 				elem->edge[VertexEdgeMap[aux[0]][1]].ref = true;
@@ -166,7 +166,7 @@ void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 				edge_add(id, hash_edge_ref);
 			}
 
-			if(ncount != 1){
+			if(ncount != 1 || true){
 				std::vector<int> listaux;
 				std::vector<int> list;
 				//printf("vetor auxiliar: ");
@@ -2227,11 +2227,20 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 		for(int iel = 0; iel<8; iel++) elements_ids.push_back(oc->id[iel]);
 	}
 
-	for (int i = 0; i < 10; i++){
+	int iter_count = 0;
+	int diff = 50;
+	while(iter_count < 1000 && diff != 0){
+		int edgecount = hash_edge_ref->a.elem_count;
 		IdentifyTemplate(mesh, elements_ids, hash_edge_ref);
 		Edge_identification( mesh, elements_ids, hash_edge_ref);
 		Edge_propagation (mesh, elements_ids, hash_edge_ref);
 		Edge_comunication(mesh, elements_ids, hash_edge_ref);
+		diff = edgecount - hash_edge_ref->a.elem_count;
+
+		if(diff == 0){
+			printf("         %d iteractions to propagate the edge contamination\n",iter_count);
+		}
+		iter_count++;
 	}
 
 	IdentifyTemplate(mesh, elements_ids, hash_edge_ref);
@@ -2585,7 +2594,12 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
 
 void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -3064,11 +3078,18 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 		}
 	}
 
+	sc_array_reset(&toto);
+
 }
 
 void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -3336,11 +3357,17 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -3786,14 +3813,19 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
-
 
 	double cord_in_ref[3];
 	cord_in_ref[0] = 0;
@@ -4267,11 +4299,17 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -4920,12 +4958,17 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 		}
 
 	}
-
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -5570,13 +5613,20 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
+
 	double cord_in_ref[3];
 	cord_in_ref[0] = 0;
 	cord_in_ref[1] = 0;
@@ -6055,12 +6105,17 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
-
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -6526,14 +6581,19 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
-
 
 	double cord_in_ref[3];
 	cord_in_ref[0] = 0;
@@ -7772,11 +7832,17 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 		}
 
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 
@@ -8651,11 +8717,17 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
 
-	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
+	octant_t * elem = (octant_t*) sc_array_push(&toto);
+	hexa_element_copy(elemOrig,elem);
 
 	int id = elements_ids[iel];
 	int conn_p[64];
@@ -8761,6 +8833,7 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 			}
 		}
 	}
+	sc_array_reset(&toto);
 }
 
 
@@ -8771,11 +8844,11 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 	bool clamped = true;
 	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
 
-	for(int n = 0;n<mesh->nodes.elem_count;n++){
+	for(int ino = 0; ino<mesh->nodes.elem_count; ino++){
 		size_t position;
 		node_t *r;
 		node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
 		key.coord[0] = coords[3*node->id];
 		key.coord[1] = coords[3*node->id+1];
 		key.coord[2] = coords[3*node->id+2];
@@ -8785,9 +8858,13 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 	}
 
 	std::vector<int> elements_ids;
-	for(int ioc = 0; ioc <mesh->oct.elem_count; ioc++){
-		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
-		for(int iel = 0; iel<8; iel++) elements_ids.push_back(oc->id[iel]);
+	//for(int ioc = 0; ioc <mesh->oct.elem_count; ioc++){
+	//	octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
+	//	for(int iel = 0; iel<8; iel++) elements_ids.push_back(oc->id[iel]);
+	//}
+	for(int iel = 0; iel <mesh->elements.elem_count; iel++){
+		octant_t * elem = (octant_t*) sc_array_index (&mesh->elements, iel);
+		if(elem->pad!=0) elements_ids.push_back(elem->id);
 	}
 
 	double xs;

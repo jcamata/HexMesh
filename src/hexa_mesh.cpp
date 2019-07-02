@@ -7,7 +7,7 @@
 #include "hexa.h"
 
 void communicate_global_ids(hexa_tree_t* mesh);
-void communicate_global_edge_ids(hexa_tree_t* mesh);
+//void communicate_global_edge_ids(hexa_tree_t* mesh);
 
 int node_comp (const void *v, const void *u){
 

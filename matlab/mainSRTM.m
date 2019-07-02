@@ -1,28 +1,30 @@
 close all
 clear all
+clc
 
 % set bounds (in degrees and minutes)
 % [ minlat° minlat' maxlat° maxlat' minlon° minlon' maxlon° maxlon']
 % NOTE THAT YOU SHOULD CONSIDER A LARGER AREA THAN WHAT YOU INTEND TO MESH
 % l = [40 00 52 00   -5 00    8 00]; % France
-% l = [43 48 44 05    5 30    6 00]; % Cadarache, France
+% l = [43 40 44 00    5 30    6 00]; % Cadarache, France
 % l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
-l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
-% l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
+% l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
-% l = [38 40 38 60   20 40   20 60]; % test small Kefalonia, Greece
+% l = [38 00 38 32 20 10 20 56]; % test small Kefalonia, Greece
+% l = [38 03 38 31 20 18 20 50]; % test small Kefalonia, Greece
 % l = [20 00 21 00 -156 00 -155 00]; % test small Mauna Loa, Hawai
 
 % choose output directory
 outdir = '.';
 
 %choose output name
-output_name = 'Arg_full';
+output_name = 'Japan';
 
 % characteristic length over which details of the coastline are removed
 % put H<=0 if you want no smoothing (this is very expensive because many
 % small elements will be created)
-H = .05; % in units of lon/lat
+H = .03; % in units of lon/lat
 
 % minimum water depth
 minwater = -10;
@@ -152,11 +154,10 @@ T = cleanFlatT( topo.ConnectivityList, X, 1e-10 );
 topo = triangulation( T, X(:,1), X(:,2), X(:,3) );
 %figure; trisurf( topo ); shading flat;
 
-% return
-
 % write topography STL file
 if ~isempty(topo)
     [xtopo,ytopo] = lonlat2m(topo.Points(:,1),topo.Points(:,2));
+    xtopo = xtopo - min(xtopo); ytopo = ytopo - min(ytopo);
     write_stl( fullfile(outdir,[output_name,'_topo.stl']), ...
         [xtopo ytopo topo.Points(:,3)], topo.ConnectivityList');
 end
@@ -164,6 +165,7 @@ end
 % write bathymetry STL file
 if ~isempty(bathy)
     [xbathy,ybathy] = lonlat2m(bathy.Points(:,1),bathy.Points(:,2));
+    xbathy = xbathy - min(xbathy); ybathy = ybathy - min(ybathy);
     write_stl( fullfile(outdir,[output_name,'_bathy.stl']), ...
                  [xbathy ybathy bathy.Points(:,3)], bathy.ConnectivityList');
 end         
