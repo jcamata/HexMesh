@@ -8,6 +8,11 @@
 #include <vector>
 #include <mpi.h>
 #include <assert.h>
+#include <algorithm>
+#include <list>
+#include <iostream>
+#include <numeric>
+#include <random>
 
 //all headers
 #include "Mesquite_all_headers.hpp"
@@ -339,6 +344,370 @@ void SurfaceOptmimizationMesquite(hexa_tree_t* mesh, std::vector<double>& coords
 	Scoors.clear();
 	free(fixed_nodes);
 	sc_hash_array_truncate(hash_SurfaceNodes);
+
+}
+
+void OptLine(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
+
+	//criando a hash para os nos que eu nao posso mover...
+	bool clamped = true;
+	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+
+	for(int ino = 0; ino < material_fixed_nodes.size(); ino++){
+		size_t position;
+		node_t *r;
+		node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, material_fixed_nodes[ino]);
+		key.coord[0] = coords[3*node->id+0];
+		key.coord[1] = coords[3*node->id+1];
+		key.coord[2] = coords[3*node->id+2];
+		key.node_id = node->id;
+		r = (node_t*) sc_hash_array_insert_unique(hash_FixedNodes, &key, &position);
+		if (r != NULL) {
+			r->coord[0] = key.coord[0];
+			r->coord[1] = key.coord[1];
+			r->coord[2] = key.coord[2];
+			r->node_id = key.node_id;
+		} else {
+
+		}
+	}
+
+	double xs;
+	double xe;
+	double ys;
+	double ye;
+	double zs;
+	double ze;
+
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		if(node->z == 0){zs=coords[3*node->id+2];}
+		if(node->z == (mesh->ncellz))  {ze=coords[3*node->id+2];}
+		if(node->y == mesh->y_start){ys=coords[3*node->id+1];}
+		if(node->y == mesh->y_end)  {ye=coords[3*node->id+1];}
+		if(node->x == mesh->x_start)  {xs=coords[3*node->id];}
+		if(node->x == mesh->x_end)    {xe=coords[3*node->id];}
+	}
+
+	std::vector<int> aux0;
+	std::vector<int> aux1;
+	std::vector<int> aux2;
+	std::vector<int> aux3;
+
+	std::vector<int> aux4;
+	std::vector<int> aux5;
+	std::vector<int> aux6;
+	std::vector<int> aux7;
+
+	std::vector<int> aux8;
+	std::vector<int> aux9;
+	std::vector<int> aux10;
+	std::vector<int> aux11;
+
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+
+		double x = coords[3*node->id + 0];
+		double y = coords[3*node->id + 1];
+		double z = coords[3*node->id + 2];
+
+		//line 0
+		if(node->z == 0 && y == ys){
+			aux0.push_back(node->id);
+		}
+		//line 1
+		if(node->z == 0 && x == xe){
+			aux1.push_back(node->id);
+		}
+		//line 2
+		if(node->z == 0 && y == ye){
+			aux2.push_back(node->id);
+		}
+		//line 3
+		if(node->z == 0 && x == xs){
+			aux3.push_back(node->id);
+		}
+
+		//line 4
+		if(x == xs && y == ys){
+			aux4.push_back(node->id);
+		}
+		//line 5
+		if(x == xe && y == ys){
+			aux5.push_back(node->id);
+		}
+		//line 6
+		if(x == xe && y == ye){
+			aux6.push_back(node->id);
+		}
+		//line 7
+		if(x == xs && y == ye){
+			aux7.push_back(node->id);
+		}
+
+		//line 8
+		if(z == ze && y == ys){
+			aux8.push_back(node->id);
+		}
+		//line 9
+		if(z == ze && x == xe){
+			aux9.push_back(node->id);
+		}
+		//line 10
+		if(z == ze && y == ye){
+			aux10.push_back(node->id);
+		}
+		//line 11
+		if(z == ze && x == xs){
+			aux11.push_back(node->id);
+		}
+
+
+		if(false){
+			//line 0
+			if(node->z == 0 && node->y == mesh->y_start){
+				aux0.push_back(node->id);
+			}
+			//line 1
+			if(node->z == 0 && node->x == mesh->x_end){
+				aux1.push_back(node->id);
+			}
+			//line 2
+			if(node->z == 0 && node->y == mesh->y_end){
+				aux2.push_back(node->id);
+			}
+			//line 3
+			if(node->z == 0 && node->x == mesh->x_start){
+				aux3.push_back(node->id);
+			}
+
+			//line 4
+			if(node->x == mesh->x_start && node->y == mesh->y_start){
+				aux4.push_back(node->id);
+			}
+			//line 5
+			if(node->x == mesh->x_end && node->y == mesh->y_start){
+				aux5.push_back(node->id);
+			}
+			//line 6
+			if(node->x == mesh->x_end && node->y == mesh->y_end){
+				aux6.push_back(node->id);
+			}
+			//line 7
+			if(node->x == mesh->x_start && node->y == mesh->y_end){
+				aux7.push_back(node->id);
+			}
+
+			//line 8
+			if(node->z == (mesh->ncellz) && node->y == mesh->y_start){
+				aux8.push_back(node->id);
+			}
+			//line 9
+			if(node->z == (mesh->ncellz) && node->x == mesh->x_end){
+				aux9.push_back(node->id);
+			}
+			//line 10
+			if(node->z == (mesh->ncellz) && node->y == mesh->y_end){
+				aux10.push_back(node->id);
+			}
+			//line 11
+			if(node->z == (mesh->ncellz) && node->x == mesh->x_start){
+				aux11.push_back(node->id);
+			}
+		}
+	}
+
+	for(int iedge = 0; iedge<12; iedge++){
+		std::vector<int> aux;
+
+		if(true){
+			if(iedge == 0){
+				std::vector<double> temp;
+				//printf("Tenho %d elementos no vetor\n", aux0.size());
+				for(int ino = 0; ino < aux0.size(); ino++){
+					temp.push_back(coords[3*aux0[ino]+0]);
+					//printf("%f %d\n",temp[ino], aux0[ino]);
+				}
+
+				std::vector<int> V(aux0.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				//printf("Tenho %d elementos no vetor V\n", V.size());
+				//for(int ino = 0; ino < aux0.size(); ino++){
+				//	printf("%d\n",V[ino]);
+				//}
+
+				for(int ino = 0; ino < aux0.size(); ino++) aux.push_back(aux0[V[ino]]);
+			}
+			if(iedge == 1){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux1.size(); ino++) temp.push_back(coords[3*aux1[ino]+1]);
+
+				std::vector<int> V(aux1.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux1.size(); ino++) aux.push_back(aux1[V[ino]]);
+			}
+			if(iedge == 2){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux2.size(); ino++) temp.push_back(coords[3*aux2[ino]+0]);
+
+				std::vector<int> V(aux2.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux2.size(); ino++) aux.push_back(aux2[V[ino]]);
+			}
+			if(iedge == 3){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux3.size(); ino++) temp.push_back(coords[3*aux3[ino]+1]);
+
+				std::vector<int> V(aux3.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux3.size(); ino++) aux.push_back(aux3[V[ino]]);
+			}
+
+			if(iedge == 4){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux4.size(); ino++) temp.push_back(coords[3*aux4[ino]+2]);
+
+				std::vector<int> V(aux4.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux4.size(); ino++) aux.push_back(aux4[V[ino]]);
+			}
+			if(iedge == 5){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux5.size(); ino++) temp.push_back(coords[3*aux5[ino]+2]);
+
+				std::vector<int> V(aux5.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux5.size(); ino++) aux.push_back(aux5[V[ino]]);
+			}
+			if(iedge == 6){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux6.size(); ino++) temp.push_back(coords[3*aux6[ino]+2]);
+
+				std::vector<int> V(aux6.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux6.size(); ino++) aux.push_back(aux6[V[ino]]);
+			}
+			if(iedge == 7){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux7.size(); ino++) temp.push_back(coords[3*aux7[ino]+2]);
+
+				std::vector<int> V(aux7.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux7.size(); ino++) aux.push_back(aux7[V[ino]]);
+			}
+
+			if(iedge == 8){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux8.size(); ino++) temp.push_back(coords[3*aux8[ino]+0]);
+
+				std::vector<int> V(aux8.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux8.size(); ino++) aux.push_back(aux8[V[ino]]);
+			}
+			if(iedge == 9){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux9.size(); ino++) temp.push_back(coords[3*aux9[ino]+1]);
+
+				std::vector<int> V(aux9.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux9.size(); ino++) aux.push_back(aux9[V[ino]]);
+			}
+			if(iedge == 10){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux10.size(); ino++) temp.push_back(coords[3*aux10[ino]+0]);
+
+				std::vector<int> V(aux10.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux10.size(); ino++) aux.push_back(aux10[V[ino]]);
+			}
+			if(iedge == 11){
+				std::vector<double> temp;
+				for(int ino = 0; ino < aux11.size(); ino++) temp.push_back(coords[3*aux11[ino]+1]);
+
+				std::vector<int> V(aux11.size());
+				int x=0;
+				std::iota(V.begin(),V.end(),x++); //Initializing
+				sort(V.begin(),V.end(), [&](int i,int j){return temp[i]<temp[j];} );
+
+				for(int ino = 0; ino < aux11.size(); ino++) aux.push_back(aux11[V[ino]]);
+			}
+		}
+
+		printf("edge %d \n",iedge);
+		for(int ino = 0; ino < aux.size(); ino++){
+			printf("%d ",aux[ino]);
+		}
+		printf("\n");
+
+		int niter = 0;
+		double tol = 1;
+		while(niter < 100 && tol >= 0.001){
+			for(int ino = 1; ino < (aux.size()-1); ino++){
+				node_t key;
+				size_t position;
+				int node = aux[ino];
+				key.coord[0] = coords[3*node+0];
+				key.coord[1] = coords[3*node+1];
+				key.coord[2] = coords[3*node+2];
+				key.node_id = node;
+
+				bool nodel = sc_hash_array_lookup(hash_FixedNodes, &key, &position);
+				if(nodel){
+
+				}else{
+					int node0 = aux[ino-1];
+					int node2 = aux[ino+1];
+					double a = coords[3*node+0];
+					double b = coords[3*node+1];
+					double c = coords[3*node+2];
+					coords[3*node+0] = (coords[3*node0+0] + coords[3*node2+0])/2;
+					coords[3*node+1] = (coords[3*node0+1] + coords[3*node2+1])/2;
+					coords[3*node+2] = (coords[3*node0+2] + coords[3*node2+2])/2;
+					double a1 = coords[3*node+0];
+					double b1 = coords[3*node+1];
+					double c1 = coords[3*node+2];
+					tol = sqrt((a-a1)*(a-a1) + (b-b1)*(b-b1) + (c-c1)*(c-c1));
+					//printf("%f\n",tol);
+				}
+			}
+			niter++;
+		}
+	}
+	printf("     Please check 1D optimization\n");
 
 }
 
@@ -1067,8 +1436,9 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> 
 
 void UntagleMesh(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
 
+	OptLine(mesh,coords,material_fixed_nodes);
 	OptSurface(mesh, coords,material_fixed_nodes);
-	printf("Please check here later... Volumetric UntagleMesh\n");
+	//printf("Please check here later... Volumetric UntagleMesh\n");
 	//OptVolume(mesh, coords,material_fixed_nodes);
 
 }
