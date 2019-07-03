@@ -667,11 +667,11 @@ void OptLine(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> ma
 			}
 		}
 
-		printf("edge %d \n",iedge);
-		for(int ino = 0; ino < aux.size(); ino++){
-			printf("%d ",aux[ino]);
-		}
-		printf("\n");
+		//printf("edge %d \n",iedge);
+		//for(int ino = 0; ino < aux.size(); ino++){
+		//	printf("%d ",aux[ino]);
+		//	}
+		//printf("\n");
 
 		int niter = 0;
 		double tol = 1;
@@ -757,7 +757,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 		if(node->x == mesh->x_end)    {xe=coords[3*node->id];}
 	}
 
-	for(int treta = 0; treta <6 ; treta ++){
+	for(int treta = 0; treta <1 ; treta ++){
 
 		//x+
 		int snodes[4];
@@ -1124,46 +1124,6 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 
 			if(false){
 				// creates an intruction queue
-				InstructionQueue queue1;
-
-				// creates a mean ratio quality metric ...
-				ConditionNumberQualityMetric shape_metric;
-				EdgeLengthQualityMetric lapl_met;
-				lapl_met.set_averaging_method(QualityMetric::RMS);
-
-				// creates the laplacian smoother  procedures
-				LaplacianSmoother lapl1;
-				QualityAssessor stop_qa=QualityAssessor(&shape_metric);
-				stop_qa.add_quality_assessment(&lapl_met);
-
-				//**************Set stopping criterion****************
-				TerminationCriterion sc2;
-				sc2.add_iteration_limit( 50 );
-				sc2.add_relative_vertex_movement(1);
-				lapl1.set_outer_termination_criterion(&sc2);
-
-				// adds 1 pass of pass1 to mesh_set1
-				queue1.add_quality_assessor(&stop_qa,err);
-				queue1.set_master_quality_improver(&lapl1, err);
-				queue1.add_quality_assessor(&stop_qa,err);
-				// adds 1 passes of pass2 to mesh_set1
-				//  mesh_set1.add_quality_pass(pass2);
-
-				// launches optimization on mesh_set1
-				queue1.run_instructions(&mesh_and_domain0, err);
-			}
-			LaplaceWrapper lp_wrapper0;
-			lp_wrapper0.set_vertex_movement_limit_factor(1.e-6);
-			lp_wrapper0.set_iteration_limit(5);
-			lp_wrapper0.enable_culling(true);
-			lp_wrapper0.run_instructions( &mesh_and_domain0, err );
-
-			if (err){
-				std::cout << err << std::endl;
-			}
-
-			if(false){
-				// creates an intruction queue
 				InstructionQueue queue2;
 
 				// creates a mean ratio quality metric ...
@@ -1237,6 +1197,45 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>
 				std::cout << err << std::endl;
 			}
 
+			if(false){
+				// creates an intruction queue
+				InstructionQueue queue1;
+
+				// creates a mean ratio quality metric ...
+				ConditionNumberQualityMetric shape_metric;
+				EdgeLengthQualityMetric lapl_met;
+				lapl_met.set_averaging_method(QualityMetric::RMS);
+
+				// creates the laplacian smoother  procedures
+				LaplacianSmoother lapl1;
+				QualityAssessor stop_qa=QualityAssessor(&shape_metric);
+				stop_qa.add_quality_assessment(&lapl_met);
+
+				//**************Set stopping criterion****************
+				TerminationCriterion sc2;
+				sc2.add_iteration_limit( 50 );
+				sc2.add_relative_vertex_movement(1);
+				lapl1.set_outer_termination_criterion(&sc2);
+
+				// adds 1 pass of pass1 to mesh_set1
+				queue1.add_quality_assessor(&stop_qa,err);
+				queue1.set_master_quality_improver(&lapl1, err);
+				queue1.add_quality_assessor(&stop_qa,err);
+				// adds 1 passes of pass2 to mesh_set1
+				//  mesh_set1.add_quality_pass(pass2);
+
+				// launches optimization on mesh_set1
+				queue1.run_instructions(&mesh_and_domain0, err);
+			}
+			LaplaceWrapper lp_wrapper0;
+			lp_wrapper0.set_vertex_movement_limit_factor(1.e-6);
+			lp_wrapper0.set_iteration_limit(5);
+			lp_wrapper0.enable_culling(true);
+			//lp_wrapper0.run_instructions( &mesh_and_domain0, err );
+			printf("LAPLACE WRAPPER RETURN INVERTED ELEMENTS\n");
+			if (err){
+				std::cout << err << std::endl;
+			}
 			/*
 		    ShapeImprover smoother;
 		    IdealWeightInverseMeanRatio extra_metric;

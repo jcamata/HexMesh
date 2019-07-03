@@ -60,9 +60,9 @@ unsigned edge_hash_id(const void *v, const void *u) {
 	const octant_edge_t *q = (const octant_edge_t*) v;
 	uint64_t a, b, c;
 
-	a = (uint32_t) q->id;
-	b = (uint32_t) 1;
-	c = (uint32_t) 0;
+	a = (uint32_t) 1;
+	b = (uint32_t) q->coord[0];
+	c = (uint32_t) q->coord[1];
 	sc_hash_mix(a, b, c);
 	sc_hash_final(a, b, c);
 	return (unsigned) c;
@@ -72,7 +72,8 @@ int edge_equal_id(const void *v, const void *u, const void *w) {
 	const octant_edge_t *e1 = (const octant_edge_t*) v;
 	const octant_edge_t *e2 = (const octant_edge_t*) u;
 
-	return (unsigned) (e1->id == e2->id);
+	return (unsigned) (e1->coord[0] == e2->coord[0] &&
+			e1->coord[1] == e2->coord[1]);
 
 }
 
@@ -465,6 +466,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 	//initialization for the edge id
 	//TODO MEMORY and TIME consumption are insane...
 	//printf("edges\n");
+	int edge_count = 0;
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
@@ -485,7 +487,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 			//elem->edge[edge].ref = false;
 			//elem->edge[edge].coord[0] = Edge2GNode[0];
 			//elem->edge[edge].coord[1] = Edge2GNode[1];
-			elem->edge[edge].id = cantor_function_id(node1,node2);
+			//elem->edge[edge].id = cantor_function_id(node1,node2);
 			elem->edge[edge].ref = false;
 			elem->edge[edge].coord[0] = Edge2GNode[0];
 			elem->edge[edge].coord[1] = Edge2GNode[1];
@@ -493,16 +495,20 @@ void hexa_mesh(hexa_tree_t* mesh){
 			size_t position;
 			octant_edge_t *r;
 			octant_edge_t key;
-			key.id = elem->edge[edge].id;
-			key.coord[0] = node1;
-			key.coord[1] = node2;
+			key.coord[0] = Edge2GNode[0];
+			key.coord[1] = Edge2GNode[1];
 
 			r = (octant_edge_t*) sc_hash_array_insert_unique(indep_edges, &key, &position);
 			if (r != NULL) {
 				r->coord[0] = key.coord[0];
 				r->coord[1] = key.coord[1];
-				r->id = elem->edge[edge].id;
+				r->id = edge_count;
 				r->ref = false;
+				elem->edge[edge].id = edge_count;
+				edge_count++;
+			}else{
+				octant_edge_t* edgeId = (octant_edge_t*) sc_array_index(&indep_edges->a, position);
+				elem->edge[edge].id = edgeId->id;
 			}
 		}
 	}
@@ -519,7 +525,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 	}
 #endif
 
-/*
+	/*
 	// create the shared edges hash
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
@@ -614,11 +620,11 @@ void hexa_mesh(hexa_tree_t* mesh){
 					m->rank  = sn->rankList[j];
 					sc_array_init(&m->idxs, sizeof(uint64_t));
 					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
+	 *p = sn->id;
 				}else{
 					message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
 					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
+	 *p = sn->id;
 				}
 				my_own_edges++;
 				//       mesh->global_edge_id[sn->id] = -3;
@@ -629,11 +635,11 @@ void hexa_mesh(hexa_tree_t* mesh){
 					m->rank  = sn->rankList[j];
 					sc_array_init(&m->idxs, sizeof(uint64_t));
 					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
+	 *p = sn->id;
 				}else{
 					message_t* m = (message_t*)sc_array_index(&RecvFrom->a, position);
 					uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
+	 *p = sn->id;
 				}
 				not_my_edges++;
 				//mesh->global_edge_id[sn->id] = -1;
@@ -717,7 +723,7 @@ void hexa_mesh(hexa_tree_t* mesh){
 		}
 	}
 #endif
-*/
+	 */
 }
 
 
