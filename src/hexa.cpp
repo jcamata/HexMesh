@@ -40,6 +40,9 @@ void hexa_element_init(octant_t *elem)
 	elem->x     = elem->y = elem->z;
 	elem->pad   = 0;
 	elem->n_mat = 0;
+	elem->father = -1;
+	elem->tem = -1;
+	elem->boundary = false;
 	elem->pml_id= PML_NULL;
 }
 
@@ -163,15 +166,17 @@ void hexa_refinement_layer(hexa_tree_t* mesh, int nz, int coarse_step, int inter
 }
 
 
-void hexa_uniform_layer(hexa_tree_t* mesh, int nz, int coarse_step, int internal_step, int level)
+void hexa_uniform_layer(hexa_tree_t* mesh, int nz, int coarse_step, int internal_step, int level, bool nz_ext)
 {
 	for(int ny=mesh->y_start; ny < mesh->y_end; ny +=coarse_step) {
 		for(int nx=mesh->x_start; nx < mesh->x_end; nx+=coarse_step)
 		{
 			octant_t * elem = (octant_t*) sc_array_push(&mesh->elements);
-			elem->id=mesh->elements.elem_count;
+			elem->id = mesh->elements.elem_count;
 			hexa_element_init(elem);
 			hexa_element_conn(elem,nx,ny,nz, coarse_step, level);
+			if(ny == mesh->y_start || !((ny + coarse_step) < mesh->y_end) ||
+					nx == mesh->x_start || !((nx + coarse_step) < mesh->x_end) || nz_ext) elem->boundary = true;
 			mesh->max_step = MAX(mesh->max_step,coarse_step);
 			mesh->max_z = nz+mesh->max_step;
 		}
@@ -184,7 +189,12 @@ void hexa_transient_layer(hexa_tree_t* mesh, int nz, int coarse_step, int intern
 	for(int ny=mesh->y_start; ny < mesh->y_end; ny +=coarse_step) {
 		for(int nx=mesh->x_start; nx < mesh->x_end; nx+=coarse_step)
 		{
-			hexa_transition_element(mesh,nx,ny,nz,internal_step,level);
+			int ext = 0;
+			if(ny == mesh->y_start) ext = 1;
+			if(!((ny + coarse_step) < mesh->y_end)) ext = 2;
+			if(nx == mesh->x_start) ext = 3;
+			if(!((nx + coarse_step) < mesh->x_end)) ext = 4;
+			hexa_transition_element(mesh,nx,ny,nz,internal_step,level,ext);
 			mesh->max_step = MAX(mesh->max_step,internal_step);
 		}
 	}
@@ -217,19 +227,20 @@ void hexa_tree_cube(hexa_tree_t* mesh)
 	//TODO
 	//preciso achar aqui o numero para dividir esse negocio... assim eu consigo ajustar o numero de camadas e tal...
 	nz = 0;
-	int nz_test = nz+internal_step;
+	//int nz_test = nz+internal_step;
 	while( (nz+internal_step) <= mesh->ncellz)
 	{
-		if((nlayer+1)%30 == 0) {
+		if((nlayer+1)%60 == 0) {
 			coarse_step*=3;
 			hexa_transient_layer(mesh,nz,coarse_step, internal_step, level);
 			internal_step*=3;
 		} else {
-			hexa_uniform_layer(mesh,nz,coarse_step, internal_step,level);
+			bool nz_ext= false;
+			if(nz == 0 || !((nz+2*internal_step) <= mesh->ncellz)) nz_ext = true;
+			hexa_uniform_layer(mesh,nz,coarse_step, internal_step,level,nz_ext);
 		}
 
 		nz+=internal_step;
-
 		nlayer++;
 	}
 }
