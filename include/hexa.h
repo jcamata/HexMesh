@@ -19,7 +19,7 @@
 
 #define HEXA_DEBUG_
 
-typedef struct
+typedef struct octant_node
 {
 	int32_t id;
 	int32_t x,y,z;
@@ -33,6 +33,12 @@ typedef struct
 	bool ref;
 	bitmask_t coord[2];
 } octant_edge_t;
+
+typedef struct octant_surf
+{
+	int     pml;
+	bool    ext;
+} octant_surf_t;
 
 typedef struct {
 	double coord[3];
@@ -51,15 +57,22 @@ typedef struct
 	double   n[24][3];
 	double   nm[3];
 } normal_t;
-*/
+ */
 
-typedef struct
+typedef struct octant_vertex
 {
 	uint64_t id;
 	int32_t  list_elem;
 	int32_t  elem[8]; // we must check this values
 } octant_vertex_t;
 
+typedef struct edge
+{
+	uint64_t id;
+	bool ref;
+	int32_t  list_elem;
+	int32_t  elem[8]; // we must check this values
+} edge_t;
 /*
 typedef struct pillow
 {
@@ -67,7 +80,7 @@ typedef struct pillow
 	uint64_t a;
 	uint64_t b;
 } pillow_t;
-*/
+ */
 
 typedef struct octant
 {
@@ -77,9 +90,12 @@ typedef struct octant
 	int8_t     pml_id;
 	int        n_mat;
 	int tem;
+	int father;
 	octant_node_t nodes[8];
 	octant_edge_t edge[12];
+	octant_surf_t surf[6];
 	int64_t    id;
+	bool       boundary;
 } octant_t;
 
 typedef struct octree
@@ -100,9 +116,9 @@ typedef struct shared_node
 
 typedef struct shared_edge
 {
-        uint64_t     id;
-        int32_t      listSz;
-        int32_t      rankList[4];
+	uint64_t     id;
+	int32_t      listSz;
+	int32_t      rankList[4];
 } shared_edge_t;
 
 typedef struct 
@@ -147,6 +163,7 @@ typedef struct {
 	sc_array_t      edges;
 	sc_array_t      vertex;
 	sc_array_t		oct;
+	sc_array_t      outsurf;
 
 	sc_array_t      shared_nodes;
 	sc_array_t      shared_edges;
@@ -165,10 +182,10 @@ typedef struct {
 	int32_t x_end;
 	int32_t y_start;
 	int32_t y_end;
-	double x_startc;
-	double x_endc;
-	double y_startc;
-	double y_endc;
+	//double x_startc;
+	//double x_endc;
+	//double y_startc;
+	//double y_endc;
 	int neighbors[9];
 	comm_map_t comm_map;
 	comm_map_t  comm_map_edge;
@@ -304,7 +321,7 @@ void hexa_tree_init(hexa_tree_t* mesh, int max_levels);
 void hexa_tree_destroy(hexa_tree_t* mesh);
 void hexa_tree_cube(hexa_tree_t* mesh);
 int  hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename);
-void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, int level);
+void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, int level, int ext);
 void hexa_processors_interval(hexa_tree_t* mesh);
 void hexa_mesh(hexa_tree_t* tree);
 void GetMeshFromSurface(hexa_tree_t* tree, const char* surface_topo, std::vector<double>& coords);
@@ -333,6 +350,8 @@ int vertex_equal_id(const void *v, const void *u, const void *w);
 void hexa_insert_shared_node(sc_hash_array_t    *shared_nodes, octant_node_t* node, int processor);
 unsigned node_hash_fn (const void *v, const void *u);
 int node_equal_fn (const void *v1, const void *v2, const void *u);
+unsigned el_hash_id(const void *v, const void *u);
+int el_equal_id(const void *v, const void *u, const void *w);
 void hexa_mesh_destroy(hexa_tree_t* mesh);
 int node_comp (const void *v, const void *u);
 GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t);
