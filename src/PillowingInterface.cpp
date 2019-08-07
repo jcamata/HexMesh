@@ -70,54 +70,114 @@ void edge_add(uint64_t id, sc_hash_array_t* hash_edge_ref) {
 	}
 }
 
-void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat,
-		sc_hash_array_t* hash_nodes, sc_hash_array_t* hash_b_mat,sc_hash_array_t*vertex_hash,
-		sc_hash_array_t*hash_edge_ref){
+template<typename F>
+F trunc_decs(const F& f,
+		int decs){
+	int i1 = floor(f);
+	F rmnd = f - i1;
+	int i2 = static_cast<int> (rmnd * pow(10, decs));
+	F f1 = i2 / pow(10, decs);
 
+	return i1 + f1;
+	//return f;
+}
+
+int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash_nodes, GtsPoint *p, std::vector<double> &coords, int x, int y, int z) {
+	size_t position;
+	octant_node_t *r;
+	octant_node_t key;
+
+	key.x = x;
+	key.y = y;
+	key.z = z;
+
+	r = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+
+	if (r != NULL) {
+		r->x = x;
+		r->y = y;
+		r->z = z;
+		r->id = mesh->nodes.elem_count;
+		octant_node_t* n = (octant_node_t*) sc_array_push(&mesh->nodes);
+		n->id = r->id;
+		n->x = x;
+		n->y = y;
+		n->z = z;
+		n->color = -1;
+		n->fixed = 0;
+
+		const double xx = p->x;
+		const double yy = p->y;
+		const double zz = p->z;
+
+		coords.push_back(xx);
+		coords.push_back(yy);
+		coords.push_back(zz);
+		return r->id;
+	} else {
+		r = (octant_node_t*) sc_array_index(&hash_nodes->a, position);
+		return r->id;
+	}
+}
+
+GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z){
+
+	double N[8];
+	GtsPoint* point;
+	double out[3];
+
+
+	N[0] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[1] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[2] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+	N[3] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
+
+	N[4] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[5] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[6] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+	N[7] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
+
+	out[0] = 0;
+	out[1] = 0;
+	out[2] = 0;
+
+	for(int i=0;i<8;i++){
+		out[0] = N[i]*cord_in_x[i] + out[0] ;
+		out[1] = N[i]*cord_in_y[i] + out[1];
+		out[2] = N[i]*cord_in_z[i] + out[2];
+	}
+
+	point = gts_point_new(gts_point_class(),out[0],out[1],out[2]);
+
+	return point;
+}
+
+void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat,sc_hash_array_t*hash_edge_ref){
+
+	/*
 	//hash nodes
-	for(int n = 0; n < mesh->nodes.elem_count; n++){
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
 		size_t position;
-		node_t *r;
-		node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
-		key.coord[0] = coords[3*node->id+0];
-		key.coord[1] = coords[3*node->id+1];
-		key.coord[2] = coords[3*node->id+2];
-		key.node_id = node->id;
-
+		octant_node_t *r;
+		octant_node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		key.x = node->x;
+		key.y = node->y;
+		key.z = node->z;
 		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
 		if(r!=NULL){
-			r->coord[0] = coords[3*node->id+0];
-			r->coord[1] = coords[3*node->id+1];
-			r->coord[2] = coords[3*node->id+2];
-			r->node_id = node->id;
+			r->x = node->x;
+			r->y = node->y;
+			r->z = node->z;
+			r->id = node->id;
 		}else{
 			printf("Verificar o no numero %d\n",node->id);
+			octant_node_t* node_i = (octant_node_t*) sc_array_index (&hash_nodes->a, position);
+			printf("Ele foi confundido com o no %d\n", node_i->id);
 		}
 	}
 
-	//fazendo hash nos nodes_b_mat
-	for(int n = 0; n < nodes_b_mat.size(); n++){
-		size_t position;
-		node_t *r;
-		node_t key;
-		int node = nodes_b_mat[n];
-		key.coord[0] = coords[3*node+0];
-		key.coord[1] = coords[3*node+1];
-		key.coord[2] = coords[3*node+2];
-		key.node_id = node;
-
-		r = (node_t*) sc_hash_array_insert_unique(hash_b_mat, &key, &position);
-		if(r!=NULL){
-			r->coord[0] = coords[3*node+0];
-			r->coord[1] = coords[3*node+1];
-			r->coord[2] = coords[3*node+2];
-			r->node_id = node;
-			r->flag = true;
-		}else{
-			printf("Verificar o no numero %d\n",node);
-		}
-	}
+	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
 
 	//fazendo vertex hash
 	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
@@ -143,6 +203,35 @@ void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 		}
 	}
 
+	 */
+
+	bool clamped = true;
+	//hash nodes nodes_b_mat
+	sc_hash_array_t*   hash_b_mat  = (sc_hash_array_t *)sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+
+
+	//fazendo hash nos nodes_b_mat
+	for(int n = 0; n < nodes_b_mat.size(); n++){
+		size_t position;
+		node_t *r;
+		node_t key;
+		int node = nodes_b_mat[n];
+		key.coord[0] = coords[3*node+0];
+		key.coord[1] = coords[3*node+1];
+		key.coord[2] = coords[3*node+2];
+		key.node_id = node;
+
+		r = (node_t*) sc_hash_array_insert_unique(hash_b_mat, &key, &position);
+		if(r!=NULL){
+			r->coord[0] = coords[3*node+0];
+			r->coord[1] = coords[3*node+1];
+			r->coord[2] = coords[3*node+2];
+			r->node_id = node;
+			r->flag = true;
+		}else{
+			printf("Verificar o no numero %d\n",node);
+		}
+	}
 	//fazendo edge hash
 	//mesh->oct.elem_count
 	for(int ioc = 0 ; ioc < mesh->oct.elem_count; ioc++){
@@ -2315,7 +2404,7 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 
 	bool clamped = true;
-	//criando a hash de elementos afetados para evitar nos duplicados
+	//criando a hash de elementos afetados
 	sc_hash_array_t*   hash_elem  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_t), el_hash_id, el_equal_id, &clamped);
 	size_t position;
 	octant_t key;
@@ -2326,12 +2415,13 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 		for(int iel = 0; iel<8; iel++){
 			elements_ids.push_back(oc->id[iel]);
 			octant_t *r;
-			key.id = elements_ids[iel];
+			key.id = oc->id[iel];
 			r = (octant_t*) sc_hash_array_insert_unique(hash_elem, &key, &position);
 			if(r!=NULL){
 				r->id = elements_ids[iel];
 			}else{
-				printf("Verificar o no numero %d\n",elements_ids[iel]);
+				printf("Verificar o elemento numero %d\n",elements_ids[iel]);
+				printf("CheckOctreeTemplate in Pillow Interface\n");
 			}
 		}
 	}
@@ -2340,9 +2430,9 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 
 
 
-	for(int iel= 0; iel < elements_ids.size(); iel++ ){
+	//for(int iel= 0; iel < elements_ids.size(); iel++ ){
 
-	}
+	//}
 	//auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	//std::cout << "Time in hash elements_ids "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
@@ -2351,7 +2441,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 	/////////////////
 	// create the edge structure
 	//mesh->elements.elem_count
-	for (int iel = 0; iel < 0; ++iel) {
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
@@ -2376,28 +2466,28 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 	int iter_count = 0;
 	int diff = 50;
 	while(iter_count < 1000 && diff != 0){
-		printf("Numero de elementos:%d numero de arestas:%d\n",elements_ids.size(),hash_edge_ref->a.elem_count);
+		//printf("Numero de elementos:%d numero de arestas:%d\n",elements_ids.size(),hash_edge_ref->a.elem_count);
 		auto start = std::chrono::steady_clock::now( );
 		int edgecount = hash_edge_ref->a.elem_count;
 		IdentifyTemplate(mesh, elements_ids, hash_edge_ref);
 		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-		std::cout << "Time in IdentifyTemplate "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		//std::cout << "Time in IdentifyTemplate "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 		start = std::chrono::steady_clock::now( );
 		Edge_identification( mesh, elements_ids, hash_edge_ref);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-		std::cout << "Time in Edge_identification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		//std::cout << "Time in Edge_identification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		start = std::chrono::steady_clock::now( );
 		Edge_propagation (mesh, elements_ids, hash_edge_ref,hash_edge,hash_elem);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-		std::cout << "Time in Edge_propagation "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		//std::cout << "Time in Edge_propagation "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		start = std::chrono::steady_clock::now( );
 		Edge_comunication(mesh, elements_ids, hash_edge_ref);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-		std::cout << "Time in Edge_comunication "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		//std::cout << "Time in Edge_comunication "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		diff = hash_edge_ref->a.elem_count - edgecount;
 
-		if((iter_count % 20) == 0){
+		if((iter_count % 10) == 0){
 			printf("         Iteration number:%d; diff equals to:%d; number of edges in the hash:%d\n",iter_count,diff,hash_edge_ref->a.elem_count);
 		}
 
@@ -2412,6 +2502,41 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 	//sc_hash_array_rip(hash_edge_ref,&mesh->edges_ref);
 
 }
+
+void RedoNodeMapping(hexa_tree_t* mesh){
+
+	int factor = 12;
+	//just the multiplication
+	// it allow us add int points in the mesh
+	// keeping a structured mesh
+	for(int iel = 0; iel <mesh->elements.elem_count; iel++){
+		octant_t * elem = (octant_t*) sc_array_index (&mesh->elements, iel);
+		for(int ino = 0; ino < 8; ino++){
+			elem->nodes[ino].x = factor*elem->nodes[ino].x;
+			elem->nodes[ino].y = factor*elem->nodes[ino].y;
+			elem->nodes[ino].z = factor*elem->nodes[ino].z;
+		}
+		elem->x = 4*elem->x;
+		elem->y = 4*elem->y;
+		elem->z = 4*elem->z;
+	}
+
+	for(int ino = 0; ino <mesh->nodes.elem_count; ino++){
+		octant_node_t * node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		node->x = factor*node->x;
+		node->y = factor*node->y;
+		node->z = factor*node->z;
+	}
+	mesh->x_start = factor*mesh->x_start;
+	mesh->y_start = factor*mesh->y_start;
+	mesh->x_end = factor*mesh->x_end;
+	mesh->y_end = factor*mesh->y_end;
+
+	mesh->ncellx = 4*mesh->ncellx;
+	mesh->ncelly = 4*mesh->ncelly;
+	mesh->max_z = 4*mesh->max_z;
+}
+
 
 vector<int> RotateHex(int* rot, int* sym){
 
@@ -2643,19 +2768,129 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
 	elem1->father = id;
 	elem1->boundary = elem->boundary;
 
-	//TODO try to correct the index of the nodes and elements because of the 27-tree
-	for(int i=0; i<8; i++){
-		elem1->nodes[i].color = elem->nodes[i].color;
-		elem1->nodes[i].x = elem->nodes[i].x;
-		elem1->nodes[i].y = elem->nodes[i].y;
-		elem1->nodes[i].z = elem->nodes[i].z;
+	for(int ino = 0; ino < 8; ino++){
+		elem1->nodes[ino].color = elem->nodes[ino].color;
+		elem1->nodes[ino].fixed = elem->nodes[ino].fixed;
+		elem1->nodes[ino].x = elem->nodes[ino].x;
+		elem1->nodes[ino].y = elem->nodes[ino].y;
+		elem1->nodes[ino].z = elem->nodes[ino].z;
 	}
+
+	for(int iedge = 0; iedge < 12; iedge++){
+		elem1->edge[iedge].coord[0] = elem->edge[iedge].coord[0];
+		elem1->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
+		elem1->edge[iedge].id = elem->edge[iedge].id;
+		elem1->edge[iedge].ref = elem->edge[iedge].ref;
+	}
+
+	for(int isurf = 0; isurf < 6; isurf++){
+		elem1->surf[isurf].ext = elem->surf[isurf].ext;
+	}
+
 	elem1->x=elem->x;
 	elem1->y=elem->y;
 	elem1->z=elem->z;
 }
 
-void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int iel, int* id_node,
+		double* local_ref_x, double* local_ref_y, double* local_ref_z, std::vector<int>& ord, sc_hash_array_t* hash_nodes){
+
+	int conn_p[8];
+	GtsPoint* point[8]={NULL};
+	GtsPoint* ref_point[8]={NULL};
+
+	double cord_in_x[8],cord_in_y[8],cord_in_z[8];
+	double ref_in_x[8], ref_in_y[8], ref_in_z[8];
+	for (int ino = 0; ino < 8; ino++){
+		cord_in_x[ino]=coords[3*id_node[ino]+0] ;
+		cord_in_y[ino]=coords[3*id_node[ino]+1] ;
+		cord_in_z[ino]=coords[3*id_node[ino]+2] ;
+		octant_node_t* node = (octant_node_t*) sc_array_index(&mesh->nodes, id_node[ino]);
+		ref_in_x[ino] = node->x;
+		ref_in_y[ino] = node->y;
+		ref_in_z[ino] = node->z;
+	}
+
+
+	double cord_in_ref[3];
+	cord_in_ref[0] = 0;
+	cord_in_ref[1] = 0;
+	cord_in_ref[2] = 0;
+	for(int ino = 0; ino < 8; ino++){
+		cord_in_ref[0] = local_ref_x[ino];
+		cord_in_ref[1] = local_ref_y[ino];
+		cord_in_ref[2] = local_ref_z[ino];
+
+		ref_point[ino] = LinearMapHex(cord_in_ref, ref_in_x, ref_in_y, ref_in_z);
+		double auxx = ref_point[ino]->x;
+		double auxy = ref_point[ino]->y;
+		double auxz = ref_point[ino]->z;
+		int x = round(auxx);
+		int y = round(auxy);
+		int z = round(auxz);
+		point[ino] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
+
+		conn_p[ino] = -1;
+		conn_p[ino] = AddPoint( mesh, hash_nodes, point[ino], coords, x, y, z);
+	}
+
+	int aux[8];
+	for(int ino = 0; ino < 8; ino++){
+		aux[ino] = conn_p[ino];
+	}
+	for(int ino = 0; ino < 8; ino++){
+		conn_p[ord[ino]] = aux[ino];
+	}
+
+	if(iel == 0){
+		octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, id);
+
+		elem1->nodes[0].id = conn_p[0];
+		elem1->nodes[1].id = conn_p[1];
+		elem1->nodes[2].id = conn_p[2];
+		elem1->nodes[3].id = conn_p[3];
+
+		elem1->nodes[4].id = conn_p[4];
+		elem1->nodes[5].id = conn_p[5];
+		elem1->nodes[6].id = conn_p[6];
+		elem1->nodes[7].id = conn_p[7];
+
+		CopyPropEl(mesh,id,elem1);
+
+		for(int ino = 0; ino < 8; ino++){
+			octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, elem1->nodes[ino].id);
+			elem1->nodes[ino].x = node->x;
+			elem1->nodes[ino].y = node->y;
+			elem1->nodes[ino].z = node->z;
+		}
+
+	}else{
+		octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
+
+		elem2->id = mesh->elements.elem_count;
+
+		elem2->nodes[0].id = conn_p[0];
+		elem2->nodes[1].id = conn_p[1];
+		elem2->nodes[2].id = conn_p[2];
+		elem2->nodes[3].id = conn_p[3];
+
+		elem2->nodes[4].id = conn_p[4];
+		elem2->nodes[5].id = conn_p[5];
+		elem2->nodes[6].id = conn_p[6];
+		elem2->nodes[7].id = conn_p[7];
+
+		CopyPropEl(mesh,id,elem2);
+
+		for(int ino = 0; ino < 8; ino++){
+			octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, elem2->nodes[ino].id);
+			elem2->nodes[ino].x = node->x;
+			elem2->nodes[ino].y = node->y;
+			elem2->nodes[ino].z = node->z;
+		}
+	}
+}
+
+void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -2664,12 +2899,8 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
-
-	double cord_in_ref[3];
-	cord_in_ref[0] = 0;
-	cord_in_ref[1] = 0;
-	cord_in_ref[2] = 0;
 
 	//reference element edge 0
 	double local_ref[5][8][3];
@@ -3046,106 +3277,22 @@ void ApplyTemplate1(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<5;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 5; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 
 	sc_array_reset(&toto);
-
 }
 
-void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -3154,6 +3301,7 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -3325,105 +3473,21 @@ void ApplyTemplate2(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<3;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 3; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -3432,6 +3496,7 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -3780,106 +3845,21 @@ void ApplyTemplate3(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<4;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 4; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -3888,6 +3868,7 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -4270,102 +4251,21 @@ void ApplyTemplate4(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<5;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 5; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -4374,6 +4274,7 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -4853,7 +4754,7 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 		for(int node_id=0;node_id<8;node_id++){
 			id_node[node_id] = elem->nodes[ord[node_id]].id;
 		}
-	} else if(elem->pad==51 || elem->pad==63 || elem->pad==64 || elem->pad==65 || elem->pad==66
+	}else if(elem->pad==51 || elem->pad==63 || elem->pad==64 || elem->pad==65 || elem->pad==66
 			|| elem->pad==87 || elem->pad==88 || elem->pad==89 || elem->pad==90){
 		//edge 0 4 5 8
 		rot[0] = -1;
@@ -4924,107 +4825,21 @@ void ApplyTemplate5(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 
 
 
-	for(int i=0;i<13;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			////fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 13; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
-
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -5033,6 +4848,7 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -5580,106 +5396,21 @@ void ApplyTemplate6(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<10;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 10; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -5688,6 +5419,7 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -6072,106 +5804,21 @@ void ApplyTemplate7(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<7;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 7; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -6180,6 +5827,7 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -6548,106 +6196,21 @@ void ApplyTemplate8(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<9;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 9; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -6656,6 +6219,7 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -7798,107 +7362,21 @@ void ApplyTemplate9(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<
 	}
 
 
-	for(int i=0;i<31;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 31; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
-
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -7907,6 +7385,7 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 
 	double cord_in_ref[3];
@@ -8684,106 +8163,21 @@ void ApplyTemplate10(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 	}
 
 
-	for(int i=0;i<17;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 17; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		int aux[8];
-		for(int ino=0;ino<8;ino++){
-			aux[ino] = conn_p[ino];
-		}
-		for(int ino=0;ino<8;ino++){
-			conn_p[ord[ino]] = aux[ino];
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
 }
 
-void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes, double step){
+void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& elements_ids, int iel, sc_hash_array_t* hash_nodes){
 
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
@@ -8792,6 +8186,7 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 	octant_t * elem = (octant_t*) sc_array_push(&toto);
 	hexa_element_copy(elemOrig,elem);
 
+	double step = double(2)/double(3);
 	int id = elements_ids[iel];
 	double cord_in_ref[3];
 	cord_in_ref[0] = 0;
@@ -9694,107 +9089,24 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 	}
 
 	int id_node[8];
-	for(int ino=0;ino<8;ino++){
+	std::vector<int> ord;
+	for(int ino = 0; ino < 8;ino++){
 		id_node[ino] = elem->nodes[ino].id;
+		ord.push_back(ino);
 	}
 
-	for(int i=0;i<27;i++){
-		int conn_p[8];
-		GtsPoint* point[8]={NULL};
-
-		double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++){
-			cord_in_x[ii]=coords[3*id_node[ii]] ;
-			cord_in_y[ii]=coords[3*id_node[ii]+1] ;
-			cord_in_z[ii]=coords[3*id_node[ii]+2] ;
-			//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[ii],cord_in_y[ii],cord_in_z[ii],elem->nodes[ii].id);
+	for(int iel = 0; iel < 27; iel++){
+		double local_ref_x[8];
+		double local_ref_y[8];
+		double local_ref_z[8];
+		for(int ino = 0; ino < 8; ino++){
+			local_ref_x[ino] = local_ref[iel][ino][0];
+			local_ref_y[ino] = local_ref[iel][ino][1];
+			local_ref_z[ino] = local_ref[iel][ino][2];
 		}
-
-		//add the new nodes in the
-		for(int ii=0;ii<8;ii++){
-			conn_p[ii] = 0;
-
-			if((local_ref[i][ii][0]==1 || local_ref[i][ii][0]==-1) &&
-					(local_ref[i][ii][1]==1 || local_ref[i][ii][1]==-1) &&
-					(local_ref[i][ii][2]==1 || local_ref[i][ii][2]==-1)){
-
-				if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[0];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[1];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[2];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==-1){
-					conn_p[ii] = id_node[3];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[4];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==-1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[5];
-				}else if(local_ref[i][ii][0]==1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[6];
-				}else if(local_ref[i][ii][0]==-1 && local_ref[i][ii][1]==1 && local_ref[i][ii][2]==1){
-					conn_p[ii] = id_node[7];
-				}
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",coords[3*conn_p[ii]],coords[3*conn_p[ii]+1],coords[3*conn_p[ii]+2],conn_p[ii]);
-			}else{
-				cord_in_ref[0] = local_ref[i][ii][0];
-				cord_in_ref[1] = local_ref[i][ii][1];
-				cord_in_ref[2] = local_ref[i][ii][2];
-
-				point[ii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-				double var[3];
-				var[0] = point[ii]->x;
-				var[1] = point[ii]->y;
-				var[2] = point[ii]->z;
-				conn_p[ii] = AddPoint( mesh, hash_nodes, point[ii] , coords);
-				//fprintf(mesh->fdbg,"coord out: %f, %f, %f, in the node: %d\n",var[0],var[1],var[2],conn_p[ii]);
-
-			}
-		}
-
-		//add the new elements and make the connectivity
-		if(i==0){
-			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-			elem1->nodes[0].id = conn_p[0];
-			elem1->nodes[1].id = conn_p[1];
-			elem1->nodes[2].id = conn_p[2];
-			elem1->nodes[3].id = conn_p[3];
-
-			elem1->nodes[4].id = conn_p[4];
-			elem1->nodes[5].id = conn_p[5];
-			elem1->nodes[6].id = conn_p[6];
-			elem1->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem1);
-
-		}else{
-			octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-			elem2->nodes[0].id = conn_p[0];
-			elem2->nodes[1].id = conn_p[1];
-			elem2->nodes[2].id = conn_p[2];
-			elem2->nodes[3].id = conn_p[3];
-
-			elem2->nodes[4].id = conn_p[4];
-			elem2->nodes[5].id = conn_p[5];
-			elem2->nodes[6].id = conn_p[6];
-			elem2->nodes[7].id = conn_p[7];
-
-			CopyPropEl(mesh,id,elem2);
-
-		}
+		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
-
-
-
-
-
-
-
-
 
 	/*
 	int id = elements_ids[iel];
@@ -9905,26 +9217,33 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 	 */
 }
 
-
-
-
 void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 
 	bool clamped = true;
-	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
 
-	for(int ino = 0; ino<mesh->nodes.elem_count; ino++){
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
 		size_t position;
-		node_t *r;
-		node_t key;
+		octant_node_t *r;
+		octant_node_t key;
 		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
-		key.coord[0] = coords[3*node->id];
-		key.coord[1] = coords[3*node->id+1];
-		key.coord[2] = coords[3*node->id+2];
-		key.node_id = node->id;
-
-		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+		key.x = node->x;
+		key.y = node->y;
+		key.z = node->z;
+		r = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+		if(r!=NULL){
+			r->x = node->x;
+			r->y = node->y;
+			r->z = node->z;
+			r->id = node->id;
+		}else{
+			printf("Verificar o no numero %d\n",node->id);
+			octant_node_t* node_i = (octant_node_t*) sc_array_index (&hash_nodes->a, position);
+			printf("Ele foi confundido com o no %d\n", node_i->id);
+		}
 	}
+
+	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
 
 	std::vector<int> elements_ids;
 	//for(int ioc = 0; ioc <mesh->oct.elem_count; ioc++){
@@ -9936,83 +9255,78 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 		if(elem->pad!=0) elements_ids.push_back(elem->id);
 	}
 
-	double xs;
-	double xe;
-	double ys;
-	double ye;
-
-	for(int n = 0;n<mesh->nodes.elem_count;n++){
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
-		if(node->y == mesh->y_start){ys=coords[3*node->id+1];}
-		if(node->y == mesh->y_end)  {ye=coords[3*node->id+1];}
-		if(node->x == mesh->x_start)  {xs=coords[3*node->id];}
-		if(node->x == mesh->x_end)    {xe=coords[3*node->id];}
-	}
-
+	/////////////////////////////////////////////////////
+	//DEBUG
+	/////////////////////////////////////////////////////
+	//std::vector<int>().swap(elements_ids);
+	//elements_ids.push_back(0);
+	/////////////////////////////////////////////////////
+	//DEBUG
+	/////////////////////////////////////////////////////
 	for (int iel = 0; iel < elements_ids.size(); ++iel) {
 
-		double step = double(2)/double(3);
-
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-		int id = elements_ids[iel];
-
-		//fprintf(mesh->fdbg,"Element: %d\n", elements_ids[iel]);
-
-		//printf("Element: %d, pad: %d, temp: %d, level: %d\n",elements_ids[iel],elem->pad,elem->tem,elem->level);
-
+		/////////////////////////////////////////////////////
+		//DEBUG
+		/////////////////////////////////////////////////////
+		//elem->pad = 12;
+		//elem->tem = 1;
+		/////////////////////////////////////////////////////
+		//DEBUG
+		/////////////////////////////////////////////////////
 		//template 1
 		if(elem->tem==1){
-			ApplyTemplate1(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate1(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 2
 		else if(elem->tem==2){
-			ApplyTemplate2(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate2(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 3
 		else if(elem->tem==3){
-			ApplyTemplate3(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate3(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 4
 		else if(elem->tem==4){
-			ApplyTemplate4(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate4(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 5
 		else if(elem->tem==5){
-			ApplyTemplate5(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate5(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 6
 		else if(elem->tem==6){
-			ApplyTemplate6(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate6(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 7
 		else if(elem->tem==7){
-			ApplyTemplate7(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate7(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 8
 		else if(elem->tem==8){
-			ApplyTemplate8(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate8(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 9
 		else if(elem->tem==9){
-			ApplyTemplate9(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate9(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 10
 		else if(elem->tem==10){
-			ApplyTemplate10(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate10(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 		//template 11
 		else if(elem->tem==11){
-			ApplyTemplate11(mesh, coords, elements_ids,iel, hash_nodes, step);
+			ApplyTemplate11(mesh, coords, elements_ids, iel, hash_nodes);
 		}
 
 	}
@@ -10064,6 +9378,19 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 			hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[3]);
 		if(node->x == mesh->x_end)
 			hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[5]);
+	}
+
+	double xs;
+	double xe;
+	double ys;
+	double ye;
+
+	for(int n = 0;n<mesh->nodes.elem_count;n++){
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
+		if(node->y == mesh->y_start){ys=coords[3*node->id+1];}
+		if(node->y == mesh->y_end)  {ye=coords[3*node->id+1];}
+		if(node->x == mesh->x_start)  {xs=coords[3*node->id];}
+		if(node->x == mesh->x_end)    {xe=coords[3*node->id];}
 	}
 
 	double fy = (ye-ys)/1000;
@@ -10336,26 +9663,337 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 
 }
 
+void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
+
+	bool deb = true;
+	bool clamped = true;
+	//vertex hash
+	sc_hash_array_t*	  vertex_hash  = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
+
+	//fazendo vertex hash
+	for(int iel = 0; iel < mesh->elements.elem_count ; iel++){
+		size_t  position;
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for (int ino = 0; ino < 8; ino++){
+			octant_vertex_t key;
+			key.id = elem->nodes[ino].id;
+			octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique (vertex_hash, &key, &position);
+			if(vert != NULL){
+				vert->id = elem->nodes[ino].id;
+				vert->list_elem = 1;
+				vert->elem[vert->list_elem-1] = elem->id;
+			}else{
+				vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
+				vert->elem[vert->list_elem] = elem->id;
+				vert->list_elem++;
+			}
+		}
+	}
+
+	sc_array_init(&mesh->outsurf, sizeof(octant_t));
+
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++){
+		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, iel);
+		octant_t * elem = (octant_t*) sc_array_push(&toto);
+		//hexa_element_init(elem);
+		hexa_element_copy(elemOrig,elem);
+
+		if(elem->boundary){
+
+			if(true){
+				int isurf;
+				isurf = 0;
+				elem->surf[isurf].ext = false;
+				if(elem->nodes[FaceNodesMap[isurf][0]].x == 0 && elem->nodes[FaceNodesMap[isurf][1]].x == 0 &&
+						elem->nodes[FaceNodesMap[isurf][2]].x == 0 && elem->nodes[FaceNodesMap[isurf][3]].x == 0){
+					elem->surf[isurf].ext = true;
+					if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+				}
+
+				isurf = 1;
+				elem->surf[isurf].ext = false;
+				if(elem->nodes[FaceNodesMap[isurf][0]].x == 3*mesh->ncellx && elem->nodes[FaceNodesMap[isurf][1]].x == 3*mesh->ncellx &&
+						elem->nodes[FaceNodesMap[isurf][2]].x == 3*mesh->ncellx && elem->nodes[FaceNodesMap[isurf][3]].x == 3*mesh->ncellx){
+					elem->surf[isurf].ext = true;
+					if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+				}
+
+				isurf = 2;
+				elem->surf[isurf].ext = false;
+				if(elem->nodes[FaceNodesMap[isurf][0]].y == 0 && elem->nodes[FaceNodesMap[isurf][1]].y == 0 &&
+						elem->nodes[FaceNodesMap[isurf][2]].y == 0 && elem->nodes[FaceNodesMap[isurf][3]].y == 0){
+					elem->surf[isurf].ext = true;
+					if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+				}
+
+				isurf = 3;
+				elem->surf[isurf].ext = false;
+				if(elem->nodes[FaceNodesMap[isurf][0]].y == 3*mesh->ncelly && elem->nodes[FaceNodesMap[isurf][1]].y == 3*mesh->ncelly &&
+						elem->nodes[FaceNodesMap[isurf][2]].y == 3*mesh->ncelly && elem->nodes[FaceNodesMap[isurf][3]].y == 3*mesh->ncelly){
+					elem->surf[isurf].ext = true;
+					if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+				}
+
+				isurf = 4;
+				elem->surf[isurf].ext = false;
+				if(elem->nodes[FaceNodesMap[isurf][0]].z == 3*mesh->max_z && elem->nodes[FaceNodesMap[isurf][1]].z == 3*mesh->max_z &&
+						elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z && elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z){
+					elem->surf[isurf].ext = true;
+					if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+				}
+
+				isurf = 5;
+				elem->surf[isurf].ext = false;
+				if(elem->nodes[FaceNodesMap[isurf][0]].z == 0 && elem->nodes[FaceNodesMap[isurf][1]].z == 0 &&
+						elem->nodes[FaceNodesMap[isurf][2]].z == 0 && elem->nodes[FaceNodesMap[isurf][3]].z == 0){
+					elem->surf[isurf].ext = true;
+					if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+				}
+			}
+
+			bool aux = false;
+			for(int isurf = 0; isurf < 6; isurf++){
+				if(elem->surf[isurf].ext) aux = true;
+			}
+			if(aux){
+				octant_t* elem1 = (octant_t*) sc_array_push(&mesh->outsurf);
+				//hexa_element_init(elem1);
+
+				elem1->level = -1;
+				elem1->id = elem->id;
+				elem1->tem = elem->tem;
+				elem1->pad = elem->pad;
+				elem1->n_mat = elem->n_mat;
+				elem1->pml_id = elem->pml_id;
+				elem1->father = elem->id;
+				elem1->boundary = elem->boundary;
+				elem1->x=elem->x;
+				elem1->y=elem->y;
+				elem1->z=elem->z;
+
+				for(int ino = 0; ino < 8; ino++){
+					elem1->nodes[ino].color = elem->nodes[ino].color;
+					elem1->nodes[ino].fixed = 0;
+					elem1->nodes[ino].id = elem->nodes[ino].id;
+					elem1->nodes[ino].x = elem->nodes[ino].x;
+					elem1->nodes[ino].y = elem->nodes[ino].y;
+					elem1->nodes[ino].z = elem->nodes[ino].z;
+				}
+
+				for(int iedge = 0; iedge < 12; iedge++){
+					elem1->edge[iedge].coord[0] = elem->edge[iedge].coord[0];
+					elem1->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
+					elem1->edge[iedge].id = elem->edge[iedge].id;
+					elem1->edge[iedge].ref = false;
+				}
+
+				for(int isurf = 0; isurf < 6; isurf++){
+					elem1->surf[isurf].ext = elem->surf[isurf].ext;
+				}
+			}
+		}
+
+		sc_array_reset(&toto);
+	}
+
+	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
+		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+
+		//edge 0
+		int iedge;
+		iedge = 0;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 1;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 2;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 3;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 4;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 5;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 6;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 7;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 8;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 9;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 10;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 11;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0){
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z){
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+	}
+
+	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
+		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+		if(elem->edge[4].ref){
+			if(elem->nodes[0].z == 0) elem->nodes[0].fixed = -1;
+			if(deb && elem->nodes[0].z == 0) mesh->part_nodes[elem->nodes[0].id] = -1;
+			if(elem->nodes[4].z == 3*mesh->max_z) elem->nodes[4].fixed = -5;
+			if(deb && elem->nodes[4].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[4].id] = -5;
+		}
+		if(elem->edge[5].ref){
+			if(elem->nodes[1].z == 0) elem->nodes[1].fixed = -2;
+			if(deb && elem->nodes[1].z == 0) mesh->part_nodes[elem->nodes[1].id] = -2;
+			if(elem->nodes[5].z == 3*mesh->max_z) elem->nodes[5].fixed = -6;
+			if(deb && elem->nodes[5].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[5].id] = -6;
+		}
+		if(elem->edge[6].ref){
+			if(elem->nodes[2].z == 0) elem->nodes[2].fixed = -3;
+			if(deb && elem->nodes[2].z == 0) mesh->part_nodes[elem->nodes[2].id] = -3;
+			if(elem->nodes[6].z == 3*mesh->max_z) elem->nodes[6].fixed = -7;
+			if(deb && elem->nodes[6].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[6].id] = -7;
+		}
+		if(elem->edge[7].ref){
+			if(elem->nodes[3].z == 0) elem->nodes[3].fixed = -4;
+			if(deb && elem->nodes[3].z == 0) mesh->part_nodes[elem->nodes[3].id] = -4;
+			if(elem->nodes[7].z == 3*mesh->max_z) elem->nodes[7].fixed = -8;
+			if(deb && elem->nodes[7].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[7].id] = -8;
+		}
+	}
+
+	//debug
+	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
+		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+		for(int ino = 0; ino < 8; ino++){
+			//if(elem->nodes[ino].fixed == 1) mesh->part_nodes[elem->nodes[ino].id] = 1;
+		}
+
+	}
+	if(false){
+		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
+			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+
+			printf("Sou o elemento: %d\n",elem->id);
+			printf("Surface: \n",elem->id);
+			for(int isurf = 0; isurf < 6; isurf++) printf("%s ", elem->surf[isurf].ext ? "true" : "false");
+
+			printf("\nEdge: \n",elem->id);
+			for(int isurf = 0; isurf < 12; isurf++) printf("%d ",elem->edge[isurf].ref);
+
+			printf("\nNode: \n",elem->id);
+			for(int isurf = 0; isurf < 8; isurf++) printf("%d ",elem->nodes[isurf].fixed);
+			printf("\n",elem->id);
+
+		}
+	}
+	//printf("Numero de elementos de superficie %d\n", mesh->outsurf.elem_count);
+}
 
 void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 	int elem_old = mesh->elements.elem_count;
 	int nodes_old = mesh->nodes.elem_count;
 	bool clamped = true;
 
+	//redo the mapping in the nodes
 	auto start = std::chrono::steady_clock::now( );
+	printf("     Redo Node Mapping\n");
+	RedoNodeMapping(mesh);
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 
+	std::cout << "Redo the mapping in the nodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+
+	start = std::chrono::steady_clock::now( );
 	//criando a hash de nos para evitar nos duplicados no pillowing
-	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
-	//hash nodes nodes_b_mat
-	sc_hash_array_t*   hash_b_mat  = (sc_hash_array_t *)sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
 	//vertex hash
 	sc_hash_array_t*	  vertex_hash  = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
 	//edge hash
 	sc_hash_array_t* hash_edge_ref = sc_hash_array_new(sizeof (octant_edge_t), id_hash, id_equal, &clamped);
 
 	printf("     Building hashs\n");
-	BuildHash(mesh, coords, nodes_b_mat, hash_nodes, hash_b_mat, vertex_hash, hash_edge_ref);
-	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+	BuildHash(mesh, coords, nodes_b_mat, hash_edge_ref);
+	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 
 	std::cout << "Time in hash "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
@@ -10373,6 +10011,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 
 	std::cout << "Time apply "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
+	/*
 	FILE* bla;
 	char treta[80];
 	sprintf(treta,"edges_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
@@ -10381,6 +10020,31 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		for (int edge = 0; edge < 12; ++edge) {
 			fprintf(bla,"El:%d, edge:%d, coord[0]:%d, coord[1]:%d\n",iel,elem->edge[edge].id,elem->edge[edge].coord[0],elem->edge[edge].coord[1]);
+		}
+	}
+	fclose(bla);
+	 */
+
+	FILE* bla;
+	char treta[80];
+	sprintf(treta,"Elementos_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	bla = fopen(treta,"w");
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for (int ino = 0; ino < 8; ++ino) {
+			fprintf(bla,"El:%d, node:%d, x:%d, y:%d, z:%d\n",elem->id,elem->nodes[ino].id,elem->nodes[ino].x,elem->nodes[ino].y,elem->nodes[ino].z);
+		}
+	}
+	fclose(bla);
+
+	//FILE* bla;
+	//char treta[80];
+	sprintf(treta,"ElementosA_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	bla = fopen(treta,"w");
+	for (int ino = 0; ino < mesh->nodes.elem_count; ++ino) {
+		octant_node_t *nnode = (octant_node_t*) sc_array_index(&mesh->nodes, ino);
+		for (int ino = 0; ino < 8; ++ino) {
+			fprintf(bla,"x:%d, y:%d, z:%d\n",nnode->x,nnode->y,nnode->z);
 		}
 	}
 	fclose(bla);
@@ -10402,4 +10066,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
 		mesh->part_nodes[nodes_b_mat[ino]] = 1;
 	}
+
+	printf("     Surface Identification\n");
+	SurfaceIdentification(mesh, coords);
 }
