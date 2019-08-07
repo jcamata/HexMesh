@@ -54,12 +54,11 @@ bool is_point_over_surface(GtsPoint * p, GNode * tree) {
 }
 
 void Adjust_material(hexa_tree_t *mesh) {
-	sc_array_t *elements = &mesh->elements;
 
 	int min_n_mat = 100;
 	int tot_n_mat = 0;
 	int cdoub = 0;
-	for (int iel = 0; iel < elements->elem_count; ++iel) {
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		if (elem->n_mat>tot_n_mat){
 			tot_n_mat = elem->n_mat;
@@ -68,10 +67,11 @@ void Adjust_material(hexa_tree_t *mesh) {
 			min_n_mat = elem->n_mat;
 		}
 	}
+
 	tot_n_mat=tot_n_mat+1;
 	int idover[tot_n_mat];
 	fill_n(idover, tot_n_mat, -1); //all elements are under the bathymetry
-	for (int iel = 0; iel < elements->elem_count; ++iel) {
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		if (idover[elem->n_mat]==-1){
 			idover[elem->n_mat]=0;
@@ -86,7 +86,7 @@ void Adjust_material(hexa_tree_t *mesh) {
 			coff = coff+1;
 		}
 	}
-	for (int iel = 0; iel < elements->elem_count; ++iel) {
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		elem->n_mat=offsetdoub[elem->n_mat];
 	}
