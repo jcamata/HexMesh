@@ -2,6 +2,7 @@
 #include <gts.h>
 #include <gts.h>
 #include <glib.h>
+#include <cassert>
 #include <vector>
 #include <iostream>
 using namespace std;
@@ -13,14 +14,15 @@ using namespace std;
 #include "pml.h"
 #include "hilbert.h"
 
+/*
 int8_t SetNodePML(hexa_tree_t* tree, octant_node_t* node) {
 	int8_t pml_id = 0;
 	if (node->x == 0) pml_id |= PML_X0;
-	if (node->x == tree->ncellx) pml_id |= PML_X1;
+	if (node->x == 3*tree->ncellx) pml_id |= PML_X1;
 	if (node->y == 0) pml_id |= PML_Y0;
-	if (node->y == tree->ncelly) pml_id |= PML_Y1;
-	//if(node->z == 0)               pml_id |= PML_Z0;
-	if (node->z == tree->max_z) pml_id |= PML_Z1;
+	if (node->y == 3*tree->ncelly) pml_id |= PML_Y1;
+	if (node->z == 0)               pml_id |= PML_Z0;
+	if (node->z == 3*tree->max_z) pml_id |= PML_Z1;
 	return pml_id;
 }
 
@@ -159,6 +161,7 @@ inline void SetPMLMask_face(int8_t* mask, int8_t pml_id) {
 	mask[PML_FACE_Z1] = isZ1(pml_id);
 }
 
+ */
 unsigned edge_hash_fn(const void *v, const void *u) {
 	const node_t *q = (const node_t*) v;
 	uint64_t a, b, c;
@@ -181,97 +184,53 @@ int edge_equal_fn(const void *v, const void *u, const void *w) {
 			(e1->coord[2] == e2->coord[2]));
 }
 
-
-int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<double> &coords) {
-	size_t position;
-	node_t *r;
-	node_t key;
-
-	int a,b,c;
-	double factor = 1e2;
-	a = p->x*factor;
-	b = p->y*factor;
-	c = p->z*factor;
-	key.coord[0] = double(a/factor);
-	key.coord[1] = double(b/factor);
-	key.coord[2] = double(c/factor);
-
-	/*
-	key.coord[0] = p->x;
-	key.coord[1] = p->y;
-	key.coord[2] = p->z;
-	*/
-	r = (node_t*) sc_hash_array_insert_unique(hash, &key, &position);
-
-	if (r != NULL) {
-		r->coord[0] = key.coord[0];
-		r->coord[1] = key.coord[1];
-		r->coord[2] = key.coord[2];
-		r->node_id = mesh->nodes.elem_count;
-		octant_node_t* n = (octant_node_t*) sc_array_push(&mesh->nodes);
-		n->id = r->node_id;
-		n->x = -1;
-		n->y = -1;
-		n->z = -1;
-		//n->color = -1;
-		n->fixed = 0;
-		//mesh->part_nodes[n->id] = mesh->mpi_rank;
-
-		coords.push_back(key.coord[0]);
-		coords.push_back(key.coord[1]);
-		coords.push_back(key.coord[2]);
-		return r->node_id;
-	} else {
-		r = (node_t*) sc_array_index(&hash->a, position);
-		return r->node_id;
-	}
-}
-
-GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z){
-
-	double N[8];
-	GtsPoint* point;
-	double out[3];
-
-
-	N[0] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-	N[1] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-	N[2] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-	N[3] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1-cord_in_ref[2])/double(8);
-
-	N[4] = (1-cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-	N[5] = (1+cord_in_ref[0])*(1-cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-	N[6] = (1+cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-	N[7] = (1-cord_in_ref[0])*(1+cord_in_ref[1])*(1+cord_in_ref[2])/double(8);
-
-	out[0] = 0;
-	out[1] = 0;
-	out[2] = 0;
-
-	for(int i=0;i<8;i++){
-		out[0] = N[i]*cord_in_x[i] + out[0] ;
-		out[1] = N[i]*cord_in_y[i] + out[1];
-		out[2] = N[i]*cord_in_z[i] + out[2];
+void RedoMap(hexa_tree_t* mesh, int layers_x, int layers_y, int layers_z){
+	// add the number of PML layers in the mesh
+	// it allow us add int points in the mesh
+	// keeping a structured mesh
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++){
+		octant_t * elem = (octant_t*) sc_array_index (&mesh->elements, iel);
+		for(int ino = 0; ino < 8; ino++){
+			elem->nodes[ino].x = elem->nodes[ino].x + 12*layers_x;
+			elem->nodes[ino].y = elem->nodes[ino].y + 12*layers_y;
+			elem->nodes[ino].z = elem->nodes[ino].z + 12*layers_z;
+		}
+		elem->x = 4*elem->x + 4*layers_x;
+		elem->y = 4*elem->y + 4*layers_y;
+		elem->z = 4*elem->z + 4*layers_z;
 	}
 
-	point = gts_point_new(gts_point_class(),out[0],out[1],out[2]);
-
-	return point;
+	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
+		octant_t * elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+		for(int ino = 0; ino < 8; ino++){
+			elem->nodes[ino].x = elem->nodes[ino].x + 12*layers_x;
+			elem->nodes[ino].y = elem->nodes[ino].y + 12*layers_y;
+			elem->nodes[ino].z = elem->nodes[ino].z + 12*layers_z;
+		}
+		elem->x = 4*elem->x + 4*layers_x;
+		elem->y = 4*elem->y + 4*layers_y;
+		elem->z = 4*elem->z + 4*layers_z;
+	}
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
+		octant_node_t * node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		node->x = node->x + 12*layers_x;
+		node->y = node->y + 12*layers_y;;
+		node->z = node->z + 12*layers_z;
+	}
 }
 
 void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 
-	double X_pml = 8000;
-	double Y_pml = 8000;
-	double Z_pml = 8000;
-	//BUG here, if the number of layers is bigger than X the memory of elem cannot be read.
-	int layers_x = 10;
-	int layers_y = 10;
-	int layers_z = 20;
+	const double X_pml = 8e3;
+	const double Y_pml = 8e3;
+	const double Z_pml = 8e3;
+
+	const int layers_x = 2;
+	const int layers_y = 2;
+	const int layers_z = 2;
 	int mat_count = 25;
 	int n_layers = 2;
-	int8_t mask[NPML];
-	int32_t npmls[NPML] = {0};
+
 	//I should create a toto sc_array
 	//it avoid segmentation fault when we perform a
 	//push in mesh->elements sc_array due to the
@@ -279,72 +238,80 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
 
+	RedoMap(mesh,layers_x,layers_y,layers_z);
+
 	bool clamped = true;
-	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
 
-	for(int n = 0;n<mesh->nodes.elem_count;n++){
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
 		size_t position;
-		node_t *r;
-		node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, n);
-		key.coord[0] = coords[3*node->id+0];
-		key.coord[1] = coords[3*node->id+1];
-		key.coord[2] = coords[3*node->id+2];
-		key.node_id = node->id;
-
-		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+		octant_node_t *r;
+		octant_node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		key.x = node->x;
+		key.y = node->y;
+		key.z = node->z;
+		r = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
 		if(r!=NULL){
-			r->coord[0] = coords[3*node->id+0];
-			r->coord[1] = coords[3*node->id+1];
-			r->coord[2] = coords[3*node->id+2];
-			r->node_id = node->id;
+			r->x = node->x;
+			r->y = node->y;
+			r->z = node->z;
+			r->id = node->id;
 		}else{
 			printf("Verificar o no numero %d\n",node->id);
+			octant_node_t* node_i = (octant_node_t*) sc_array_index (&hash_nodes->a, position);
+			printf("Ele foi confundido com o no %d\n", node_i->id);
 		}
 	}
 
-	int n_el=mesh->elements.elem_count;
-	//printf("Numero de elementos %d\n",n_el);
+	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
+	bool edge, face, point;
+	point = true;
+	face = true;
+	edge = true;
 
-	for (int i = 0; i < n_el; ++i) {
-		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, i);
+	//mesh->outsurf.elem_count
+	for (int i = 0; i < mesh->outsurf.elem_count; ++i) {
+		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->outsurf, i);
 		octant_t * elem = (octant_t*) sc_array_push(&toto);
-		//hexa_element_init(elem);
-		hexa_element_copy(elemOrig,elem);
-		sc_array_reset(&toto);
-		elem->pml_id = 0;
-		bool edge, face, point;
-		point = true ;
-		face = true;
-		edge = true;
 
-		SetElemPML(mesh, elem);
-		SetPMLMask(mask, elem->pml_id);
+		hexa_element_copy(elemOrig,elem);
+
+		//for(int ino = 0; ino < 8; ino++) printf("%d %d %d %d\n",elem->nodes[ino].id,elem->nodes[ino].x,elem->nodes[ino].y,elem->nodes[ino].z);
+
 
 		if(face){
-
-			if(mask[PML_FACE_X0]){
-
+			if(elem->surf[0].ext){
 				for(int n_l = 0; n_l < layers_x; ++n_l ){
 
 					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
 					pml_e->id = mesh->elements.elem_count+1;
 
 					//nos de referencia
-					int node0 = elem->nodes[0].id;
-					int node1 = elem->nodes[3].id;
-					int node2 = elem->nodes[7].id;
-					int node3 = elem->nodes[4].id;
+					int aux[4] = {0,3,7,4};
+					int node0 = elem->nodes[aux[0]].id;
+					int node1 = elem->nodes[aux[1]].id;
+					int node2 = elem->nodes[aux[2]].id;
+					int node3 = elem->nodes[aux[3]].id;
 					double x[8],y[8],z[8];
 
-					x[0] = coords[3*node0+0]- n_l*X_pml/layers_x;
-					x[1] = coords[3*node1+0]- (n_l+1)*X_pml/layers_x;
-					x[2] = coords[3*node2+0]- (n_l+1)*X_pml/layers_x;
-					x[3] = coords[3*node3+0]- n_l*X_pml/layers_x;
-					x[4] = coords[3*node0+0] -n_l*X_pml/layers_x;
-					x[5] = coords[3*node1+0]- (n_l+1)*X_pml/layers_x;
-					x[6] = coords[3*node2+0]- (n_l+1)*X_pml/layers_x;
-					x[7] = coords[3*node3+0]- n_l*X_pml/layers_x;
+					x[0] = coords[3*node0+0] - n_l*X_pml/layers_x;
+					x[1] = coords[3*node1+0] - (n_l+1)*X_pml/layers_x;
+					x[2] = coords[3*node2+0] - (n_l+1)*X_pml/layers_x;
+					x[3] = coords[3*node3+0] - n_l*X_pml/layers_x;
+					x[4] = coords[3*node0+0] - n_l*X_pml/layers_x;
+					x[5] = coords[3*node1+0] - (n_l+1)*X_pml/layers_x;
+					x[6] = coords[3*node2+0] - (n_l+1)*X_pml/layers_x;
+					x[7] = coords[3*node3+0] - n_l*X_pml/layers_x;
+
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12*(n_l+0);
+					pml_e->nodes[1].x = elem->nodes[aux[1]].x - 12*(n_l+1);
+					pml_e->nodes[2].x = elem->nodes[aux[2]].x - 12*(n_l+1);
+					pml_e->nodes[3].x = elem->nodes[aux[3]].x - 12*(n_l+0);
+					pml_e->nodes[4].x = elem->nodes[aux[0]].x - 12*(n_l+0);
+					pml_e->nodes[5].x = elem->nodes[aux[1]].x - 12*(n_l+1);
+					pml_e->nodes[6].x = elem->nodes[aux[2]].x - 12*(n_l+1);
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x - 12*(n_l+0);
 
 					y[0] = coords[3*node0+1];
 					y[1] = coords[3*node0+1];
@@ -355,6 +322,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					y[6] = coords[3*node2+1];
 					y[7] = coords[3*node2+1];
 
+					pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[1].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[2].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[3].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[4].y = elem->nodes[aux[3]].y;
+					pml_e->nodes[5].y = elem->nodes[aux[3]].y;
+					pml_e->nodes[6].y = elem->nodes[aux[2]].y;
+					pml_e->nodes[7].y = elem->nodes[aux[2]].y;
+
 					z[0] = coords[3*node0+2];
 					z[1] = coords[3*node0+2];
 					z[2] = coords[3*node1+2];
@@ -364,41 +340,59 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					z[6] = coords[3*node2+2];
 					z[7] = coords[3*node2+2];
 
-					for(int j = 0; j <8 ; j++){
+					pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[2].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[3].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[4].z = elem->nodes[aux[3]].z;
+					pml_e->nodes[5].z = elem->nodes[aux[3]].z;
+					pml_e->nodes[6].z = elem->nodes[aux[2]].z;
+					pml_e->nodes[7].z = elem->nodes[aux[2]].z;
+
+					for(int ino = 0; ino < 8 ; ino++){
 						//definindo ponto p a ser adicionado
-						GtsPoint p;
-						gts_point_set(&p, x[j], y[j], z[j]);
+						GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 						//adicionando ponto p
-						pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+						int x = pml_e->nodes[ino].x;
+						int y = pml_e->nodes[ino].y;
+						int z = pml_e->nodes[ino].z;
+						pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 					}
-
 					pml_e->n_mat = elem->n_mat+2;
-
 				}
-
 			}
-			if(mask[PML_FACE_X1]){
 
+			if(elem->surf[1].ext){
 				for(int n_l = 0; n_l < layers_x; ++n_l ){
 
 					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
 					pml_e->id = mesh->elements.elem_count+1;
 
 					//nos de referencia
-					int node0 = elem->nodes[1].id;
-					int node1 = elem->nodes[2].id;
-					int node2 = elem->nodes[6].id;
-					int node3 = elem->nodes[5].id;
+					int aux[4] = {1,2,6,5};
+					int node0 = elem->nodes[aux[0]].id;
+					int node1 = elem->nodes[aux[1]].id;
+					int node2 = elem->nodes[aux[2]].id;
+					int node3 = elem->nodes[aux[3]].id;
 					double x[8],y[8],z[8];
 
-					x[0] = coords[3*node0+0]+ n_l*X_pml/layers_x;
-					x[1] = coords[3*node1+0]+ (n_l+1)*X_pml/layers_x;
-					x[2] = coords[3*node2+0]+ (n_l+1)*X_pml/layers_x;
-					x[3] = coords[3*node3+0]+ n_l*X_pml/layers_x;
-					x[4] = coords[3*node0+0]+ n_l*X_pml/layers_x;
-					x[5] = coords[3*node1+0]+ (n_l+1)*X_pml/layers_x;
-					x[6] = coords[3*node2+0]+ (n_l+1)*X_pml/layers_x;
-					x[7] = coords[3*node3+0]+ n_l*X_pml/layers_x;
+					x[0] = coords[3*node0+0] + n_l*X_pml/layers_x;
+					x[1] = coords[3*node1+0] + (n_l+1)*X_pml/layers_x;
+					x[2] = coords[3*node2+0] + (n_l+1)*X_pml/layers_x;
+					x[3] = coords[3*node3+0] + n_l*X_pml/layers_x;
+					x[4] = coords[3*node0+0] + n_l*X_pml/layers_x;
+					x[5] = coords[3*node1+0] + (n_l+1)*X_pml/layers_x;
+					x[6] = coords[3*node2+0] + (n_l+1)*X_pml/layers_x;
+					x[7] = coords[3*node3+0] + n_l*X_pml/layers_x;
+
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x + 12*(n_l+0);
+					pml_e->nodes[1].x = elem->nodes[aux[1]].x + 12*(n_l+1);
+					pml_e->nodes[2].x = elem->nodes[aux[2]].x + 12*(n_l+1);
+					pml_e->nodes[3].x = elem->nodes[aux[3]].x + 12*(n_l+0);
+					pml_e->nodes[4].x = elem->nodes[aux[0]].x + 12*(n_l+0);
+					pml_e->nodes[5].x = elem->nodes[aux[1]].x + 12*(n_l+1);
+					pml_e->nodes[6].x = elem->nodes[aux[2]].x + 12*(n_l+1);
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x + 12*(n_l+0);
 
 					y[0] = coords[3*node0+1];
 					y[1] = coords[3*node0+1];
@@ -409,6 +403,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					y[6] = coords[3*node2+1];
 					y[7] = coords[3*node2+1];
 
+					pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[1].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[2].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[3].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[4].y = elem->nodes[aux[3]].y;
+					pml_e->nodes[5].y = elem->nodes[aux[3]].y;
+					pml_e->nodes[6].y = elem->nodes[aux[2]].y;
+					pml_e->nodes[7].y = elem->nodes[aux[2]].y;
+
 					z[0] = coords[3*node0+2];
 					z[1] = coords[3*node0+2];
 					z[2] = coords[3*node1+2];
@@ -418,30 +421,42 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					z[6] = coords[3*node2+2];
 					z[7] = coords[3*node2+2];
 
-					for(int j = 0; j <8 ; j++){
+					pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[2].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[3].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[4].z = elem->nodes[aux[3]].z;
+					pml_e->nodes[5].z = elem->nodes[aux[3]].z;
+					pml_e->nodes[6].z = elem->nodes[aux[2]].z;
+					pml_e->nodes[7].z = elem->nodes[aux[2]].z;
+
+					for(int ino = 0; ino < 8 ; ino++){
 						//definindo ponto p a ser adicionado
-						GtsPoint p;
-						gts_point_set(&p, x[j], y[j], z[j]);
+						GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 						//adicionando ponto p
-						pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+						int x = pml_e->nodes[ino].x;
+						int y = pml_e->nodes[ino].y;
+						int z = pml_e->nodes[ino].z;
+						pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 					}
 
 					pml_e->n_mat = elem->n_mat+3;
 
 				}
 			}
-			if(mask[PML_FACE_Y0]){
 
+			if(elem->surf[2].ext){
 				for(int n_l = 0; n_l < layers_y; ++n_l ){
 
 					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
 					pml_e->id = mesh->elements.elem_count+1;
 
 					//nos de referencia
-					int node0 = elem->nodes[0].id;
-					int node1 = elem->nodes[1].id;
-					int node2 = elem->nodes[4].id;
-					int node3 = elem->nodes[5].id;
+					int aux[4] = {0,1,4,5};
+					int node0 = elem->nodes[aux[0]].id;
+					int node1 = elem->nodes[aux[1]].id;
+					int node2 = elem->nodes[aux[2]].id;
+					int node3 = elem->nodes[aux[3]].id;
 					double x[8],y[8],z[8];
 
 					x[0] = coords[3*node0+0];
@@ -452,6 +467,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					x[5] = coords[3*node2+0];
 					x[6] = coords[3*node3+0];
 					x[7] = coords[3*node3+0];
+
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[1].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[2].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[3].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[4].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[5].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[6].x = elem->nodes[aux[3]].x;
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x;
 
 					y[0] = coords[3*node0+1]- n_l*Y_pml/layers_y;
 					y[1] = coords[3*node1+1]- (n_l+1)*Y_pml/layers_y;
@@ -462,6 +486,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					y[6] = coords[3*node2+1]- (n_l+1)*Y_pml/layers_y;
 					y[7] = coords[3*node3+1]- n_l*Y_pml/layers_y;
 
+					pml_e->nodes[0].y = elem->nodes[aux[0]].y - 12*(n_l+0);
+					pml_e->nodes[1].y = elem->nodes[aux[1]].y - 12*(n_l+1);
+					pml_e->nodes[2].y = elem->nodes[aux[2]].y - 12*(n_l+1);
+					pml_e->nodes[3].y = elem->nodes[aux[3]].y - 12*(n_l+0);
+					pml_e->nodes[4].y = elem->nodes[aux[0]].y - 12*(n_l+0);
+					pml_e->nodes[5].y = elem->nodes[aux[1]].y - 12*(n_l+1);
+					pml_e->nodes[6].y = elem->nodes[aux[2]].y - 12*(n_l+1);
+					pml_e->nodes[7].y = elem->nodes[aux[3]].y - 12*(n_l+0);
+
 					z[0] = coords[3*node0+2];
 					z[1] = coords[3*node0+2];
 					z[2] = coords[3*node1+2];
@@ -471,30 +504,41 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					z[6] = coords[3*node3+2];
 					z[7] = coords[3*node3+2];
 
-					for(int j = 0; j <8 ; j++){
-						//definindo ponto p a ser adicionado
-						GtsPoint p;
-						gts_point_set(&p, x[j], y[j], z[j]);
-						//adicionando ponto p
-						pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-					}
+					pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[2].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[3].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[4].z = elem->nodes[aux[2]].z;
+					pml_e->nodes[5].z = elem->nodes[aux[2]].z;
+					pml_e->nodes[6].z = elem->nodes[aux[3]].z;
+					pml_e->nodes[7].z = elem->nodes[aux[3]].z;
 
+					for(int ino = 0; ino < 8 ; ino++){
+						//definindo ponto p a ser adicionado
+						GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+						//adicionando ponto p
+						int x = pml_e->nodes[ino].x;
+						int y = pml_e->nodes[ino].y;
+						int z = pml_e->nodes[ino].z;
+						pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+					}
 					pml_e->n_mat = elem->n_mat+5;
 
 				}
 			}
-			if(mask[PML_FACE_Y1]){
 
+			if(elem->surf[3].ext){
 				for(int n_l = 0; n_l < layers_y; ++n_l ){
 
 					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
 					pml_e->id = mesh->elements.elem_count+1;
 
 					//nos de referencia
-					int node0 = elem->nodes[3].id;
-					int node1 = elem->nodes[2].id;
-					int node2 = elem->nodes[7].id;
-					int node3 = elem->nodes[6].id;
+					int aux[4] = {3,2,7,6};
+					int node0 = elem->nodes[aux[0]].id;
+					int node1 = elem->nodes[aux[1]].id;
+					int node2 = elem->nodes[aux[2]].id;
+					int node3 = elem->nodes[aux[3]].id;
 					double x[8],y[8],z[8];
 
 					x[0] = coords[3*node0+0];
@@ -506,6 +550,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					x[6] = coords[3*node3+0];
 					x[7] = coords[3*node3+0];
 
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[1].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[2].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[3].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[4].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[5].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[6].x = elem->nodes[aux[3]].x;
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x;
+
 					y[0] = coords[3*node0+1]+ n_l*Y_pml/layers_y;
 					y[1] = coords[3*node1+1]+ (n_l+1)*Y_pml/layers_y;
 					y[2] = coords[3*node2+1]+ (n_l+1)*Y_pml/layers_y;
@@ -514,6 +567,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					y[5] = coords[3*node1+1]+ (n_l+1)*Y_pml/layers_y;
 					y[6] = coords[3*node2+1]+ (n_l+1)*Y_pml/layers_y;
 					y[7] = coords[3*node3+1]+ n_l*Y_pml/layers_y;
+
+					pml_e->nodes[0].y = elem->nodes[aux[0]].y + 12*(n_l+0);
+					pml_e->nodes[1].y = elem->nodes[aux[1]].y + 12*(n_l+1);
+					pml_e->nodes[2].y = elem->nodes[aux[2]].y + 12*(n_l+1);
+					pml_e->nodes[3].y = elem->nodes[aux[3]].y + 12*(n_l+0);
+					pml_e->nodes[4].y = elem->nodes[aux[0]].y + 12*(n_l+0);
+					pml_e->nodes[5].y = elem->nodes[aux[1]].y + 12*(n_l+1);
+					pml_e->nodes[6].y = elem->nodes[aux[2]].y + 12*(n_l+1);
+					pml_e->nodes[7].y = elem->nodes[aux[3]].y + 12*(n_l+0);
 
 					z[0] = coords[3*node0+2];
 					z[1] = coords[3*node0+2];
@@ -524,31 +586,42 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					z[6] = coords[3*node3+2];
 					z[7] = coords[3*node3+2];
 
-					for(int j = 0; j <8 ; j++){
+					pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+					pml_e->nodes[2].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[3].z = elem->nodes[aux[1]].z;
+					pml_e->nodes[4].z = elem->nodes[aux[2]].z;
+					pml_e->nodes[5].z = elem->nodes[aux[2]].z;
+					pml_e->nodes[6].z = elem->nodes[aux[3]].z;
+					pml_e->nodes[7].z = elem->nodes[aux[3]].z;
+
+					for(int ino = 0; ino < 8 ; ino++){
 						//definindo ponto p a ser adicionado
-						GtsPoint p;
-						gts_point_set(&p, x[j], y[j], z[j]);
+						GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 						//adicionando ponto p
-						pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+						int x = pml_e->nodes[ino].x;
+						int y = pml_e->nodes[ino].y;
+						int z = pml_e->nodes[ino].z;
+						pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 					}
 
 					pml_e->n_mat = elem->n_mat+7;
 
 				}
 			}
-			if(mask[PML_FACE_Z0]){
 
+			if(elem->surf[4].ext){
 				for(int n_l = 0; n_l < layers_z; ++n_l ){
 
 					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
 					pml_e->id = mesh->elements.elem_count+1;
 
-					//int node_id;
 					//nos de referencia
-					int node0 = elem->nodes[0].id;
-					int node1 = elem->nodes[1].id;
-					int node2 = elem->nodes[2].id;
-					int node3 = elem->nodes[3].id;
+					int aux[4] = {4,5,6,7};
+					int node0 = elem->nodes[aux[0]].id;
+					int node1 = elem->nodes[aux[1]].id;
+					int node2 = elem->nodes[aux[2]].id;
+					int node3 = elem->nodes[aux[3]].id;
 					double x[8],y[8],z[8];
 
 					x[0] = coords[3*node0+0];
@@ -560,62 +633,14 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					x[6] = coords[3*node2+0];
 					x[7] = coords[3*node3+0];
 
-					y[0] = coords[3*node0+1];
-					y[1] = coords[3*node1+1];
-					y[2] = coords[3*node2+1];
-					y[3] = coords[3*node3+1];
-					y[4] = coords[3*node0+1];
-					y[5] = coords[3*node1+1];
-					y[6] = coords[3*node2+1];
-					y[7] = coords[3*node3+1];
-
-					z[0] = coords[3*node0+2] + n_l*Z_pml/layers_z;
-					z[1] = coords[3*node1+2] + n_l*Z_pml/layers_z;
-					z[2] = coords[3*node2+2] + n_l*Z_pml/layers_z;
-					z[3] = coords[3*node3+2] + n_l*Z_pml/layers_z;
-					z[4] = coords[3*node0+2] + (n_l+1)*Z_pml/layers_z;
-					z[5] = coords[3*node1+2] + (n_l+1)*Z_pml/layers_z;
-					z[6] = coords[3*node2+2] + (n_l+1)*Z_pml/layers_z;
-					z[7] = coords[3*node3+2] + (n_l+1)*Z_pml/layers_z;
-
-					for(int j = 0; j <8 ; j++){
-						//definindo ponto p a ser adicionado
-						GtsPoint p;
-						gts_point_set(&p, x[j], y[j], z[j]);
-						//adicionando ponto p
-						pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-					}
-
-					pml_e->n_mat = elem->n_mat+9;
-
-				}
-
-
-
-			}
-			if(mask[PML_FACE_Z1]){
-
-				for(int n_l = 0; n_l < layers_z; ++n_l ){
-
-					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count+1;
-
-					//int node_id;
-					//nos de referencia
-					int node0 = elem->nodes[4].id;
-					int node1 = elem->nodes[5].id;
-					int node2 = elem->nodes[6].id;
-					int node3 = elem->nodes[7].id;
-					double x[8],y[8],z[8];
-
-					x[0] = coords[3*node0+0];
-					x[1] = coords[3*node1+0];
-					x[2] = coords[3*node2+0];
-					x[3] = coords[3*node3+0];
-					x[4] = coords[3*node0+0];
-					x[5] = coords[3*node1+0];
-					x[6] = coords[3*node2+0];
-					x[7] = coords[3*node3+0];
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[1].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[2].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[3].x = elem->nodes[aux[3]].x;
+					pml_e->nodes[4].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[5].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[6].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x;
 
 					y[0] = coords[3*node0+1];
 					y[1] = coords[3*node1+1];
@@ -625,6 +650,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					y[5] = coords[3*node1+1];
 					y[6] = coords[3*node2+1];
 					y[7] = coords[3*node3+1];
+
+					pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[1].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[2].y = elem->nodes[aux[2]].y;
+					pml_e->nodes[3].y = elem->nodes[aux[3]].y;
+					pml_e->nodes[4].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[5].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[6].y = elem->nodes[aux[2]].y;
+					pml_e->nodes[7].y = elem->nodes[aux[3]].y;
 
 					z[0] = coords[3*node0+2] - n_l*Z_pml/layers_z;
 					z[1] = coords[3*node1+2] - n_l*Z_pml/layers_z;
@@ -635,34 +669,1126 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					z[6] = coords[3*node2+2] - (n_l+1)*Z_pml/layers_z;
 					z[7] = coords[3*node3+2] - (n_l+1)*Z_pml/layers_z;
 
-					for(int j = 0; j <8 ; j++){
+					pml_e->nodes[0].z = elem->nodes[aux[0]].z + 12*(n_l+1);
+					pml_e->nodes[1].z = elem->nodes[aux[1]].z + 12*(n_l+1);
+					pml_e->nodes[2].z = elem->nodes[aux[2]].z + 12*(n_l+1);
+					pml_e->nodes[3].z = elem->nodes[aux[3]].z + 12*(n_l+1);
+					pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12*(n_l+0);
+					pml_e->nodes[5].z = elem->nodes[aux[1]].z + 12*(n_l+0);
+					pml_e->nodes[6].z = elem->nodes[aux[2]].z + 12*(n_l+0);
+					pml_e->nodes[7].z = elem->nodes[aux[3]].z + 12*(n_l+0);
+
+
+					for(int ino = 0; ino < 8 ; ino++){
 						//definindo ponto p a ser adicionado
-						GtsPoint p;
-						gts_point_set(&p, x[j], y[j], z[j]);
+						GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 						//adicionando ponto p
-						pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+						int x = pml_e->nodes[ino].x;
+						int y = pml_e->nodes[ino].y;
+						int z = pml_e->nodes[ino].z;
+						pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 					}
 
 					pml_e->n_mat = elem->n_mat+11;
 
 				}
+
+			}
+
+			//&& false
+			if(elem->surf[5].ext && false){
+				for(int n_l = 0; n_l < layers_z; ++n_l ){
+
+					octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+					pml_e->id = mesh->elements.elem_count+1;
+
+					//nos de referencia
+					int aux[4] = {0,1,2,3};
+					int node0 = elem->nodes[aux[0]].id;
+					int node1 = elem->nodes[aux[1]].id;
+					int node2 = elem->nodes[aux[2]].id;
+					int node3 = elem->nodes[aux[3]].id;
+					double x[8],y[8],z[8];
+
+
+					x[0] = coords[3*node0+0];
+					x[1] = coords[3*node1+0];
+					x[2] = coords[3*node2+0];
+					x[3] = coords[3*node3+0];
+					x[4] = coords[3*node0+0];
+					x[5] = coords[3*node1+0];
+					x[6] = coords[3*node2+0];
+					x[7] = coords[3*node3+0];
+
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[1].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[2].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[3].x = elem->nodes[aux[3]].x;
+					pml_e->nodes[4].x = elem->nodes[aux[0]].x;
+					pml_e->nodes[5].x = elem->nodes[aux[1]].x;
+					pml_e->nodes[6].x = elem->nodes[aux[2]].x;
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x;
+
+					y[0] = coords[3*node0+1];
+					y[1] = coords[3*node1+1];
+					y[2] = coords[3*node2+1];
+					y[3] = coords[3*node3+1];
+					y[4] = coords[3*node0+1];
+					y[5] = coords[3*node1+1];
+					y[6] = coords[3*node2+1];
+					y[7] = coords[3*node3+1];
+
+					pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[1].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[2].y = elem->nodes[aux[2]].y;
+					pml_e->nodes[3].y = elem->nodes[aux[3]].y;
+					pml_e->nodes[4].y = elem->nodes[aux[0]].y;
+					pml_e->nodes[5].y = elem->nodes[aux[1]].y;
+					pml_e->nodes[6].y = elem->nodes[aux[2]].y;
+					pml_e->nodes[7].y = elem->nodes[aux[3]].y;
+
+					z[0] = coords[3*node0+2] + n_l*Z_pml/layers_z;
+					z[1] = coords[3*node1+2] + n_l*Z_pml/layers_z;
+					z[2] = coords[3*node2+2] + n_l*Z_pml/layers_z;
+					z[3] = coords[3*node3+2] + n_l*Z_pml/layers_z;
+					z[4] = coords[3*node0+2] + (n_l+1)*Z_pml/layers_z;
+					z[5] = coords[3*node1+2] + (n_l+1)*Z_pml/layers_z;
+					z[6] = coords[3*node2+2] + (n_l+1)*Z_pml/layers_z;
+					z[7] = coords[3*node3+2] + (n_l+1)*Z_pml/layers_z;
+
+					pml_e->nodes[0].z = elem->nodes[aux[0]].z - 12*(n_l+1);
+					pml_e->nodes[1].z = elem->nodes[aux[1]].z - 12*(n_l+1);
+					pml_e->nodes[2].z = elem->nodes[aux[2]].z - 12*(n_l+1);
+					pml_e->nodes[3].z = elem->nodes[aux[3]].z - 12*(n_l+1);
+					pml_e->nodes[4].z = elem->nodes[aux[0]].z - 12*(n_l+0);
+					pml_e->nodes[5].z = elem->nodes[aux[1]].z - 12*(n_l+0);
+					pml_e->nodes[6].z = elem->nodes[aux[2]].z - 12*(n_l+0);
+					pml_e->nodes[7].z = elem->nodes[aux[3]].z - 12*(n_l+0);
+
+					for(int ino = 0; ino < 8 ; ino++){
+						//definindo ponto p a ser adicionado
+						GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+						//adicionando ponto p
+						int x = pml_e->nodes[ino].x;
+						int y = pml_e->nodes[ino].y;
+						int z = pml_e->nodes[ino].z;
+						pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+					}
+
+					pml_e->n_mat = elem->n_mat+9;
+
+				}
 			}
 		}
 
+		if(edge){
+			//&& false
+			if(elem->edge[0].ref && false){
+
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {0,1};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0];
+						x[1] = coords[3*node1+0];
+						x[2] = coords[3*node1+0];
+						x[3] = coords[3*node0+0];
+						x[4] = coords[3*node0+0];
+						x[5] = coords[3*node1+0];
+						x[6] = coords[3*node1+0];
+						x[7] = coords[3*node0+0];
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[1].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[7].x = elem->nodes[aux[0]].x;
+
+						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[1] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[2] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y - 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y - 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y - 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[0]].y - 12*(ny+1);
+
+						z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[1] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z - 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[0]].z - 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+29;
+					}
+				}
+
+			}
+
+			//&& false
+			if(elem->edge[1].ref && false){
+
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int nx = 0; nx < layers_x; nx++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {1,2};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node1+0] + nx*X_pml/layers_x;
+						x[4] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[5] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[1]].x + 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x + 12*(nx+0);
+
+						y[0] = coords[3*node0+1];
+						y[1] = coords[3*node0+1];
+						y[2] = coords[3*node1+1];
+						y[3] = coords[3*node1+1];
+						y[4] = coords[3*node0+1];
+						y[5] = coords[3*node0+1];
+						y[6] = coords[3*node1+1];
+						y[7] = coords[3*node1+1];
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[3].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[5].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y;
+
+						z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[1] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z - 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[0]].z - 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+27;
+					}
+				}
+
+			}
+
+			//&& false
+			if(elem->edge[2].ref && false){
+
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {3,2};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0];
+						x[1] = coords[3*node1+0];
+						x[2] = coords[3*node1+0];
+						x[3] = coords[3*node0+0];
+						x[4] = coords[3*node0+0];
+						x[5] = coords[3*node1+0];
+						x[6] = coords[3*node1+0];
+						x[7] = coords[3*node0+0];
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[1].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[7].x = elem->nodes[aux[0]].x;
+
+						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[1] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[2] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y + 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y + 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y + 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[0]].y + 12*(ny+1);
+
+						z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[1] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z - 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[0]].z - 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+31;
+					}
+				}
+
+			}
+
+			//&& false
+			if(elem->edge[3].ref && false){
+
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int nx = 0; nx < layers_x; nx++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {0,3};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node1+0] - nx*X_pml/layers_x;
+						x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[1]].x - 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x - 12*(nx+0);
+
+						y[0] = coords[3*node0+1];
+						y[1] = coords[3*node0+1];
+						y[2] = coords[3*node1+1];
+						y[3] = coords[3*node1+1];
+						y[4] = coords[3*node0+1];
+						y[5] = coords[3*node0+1];
+						y[6] = coords[3*node1+1];
+						y[7] = coords[3*node1+1];
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[3].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[5].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y;
+
+						z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[1] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] + nz*Z_pml/layers_z;
+						z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] + (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z - 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z - 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z - 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z - 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[0]].z - 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+25;
+					}
+				}
+
+
+			}
+
+
+			if(elem->edge[4].ref){
+				for(int nx = 0; nx < layers_x; nx++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {0,4};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[4] = coords[3*node1+0] - nx*X_pml/layers_x;
+						x[5] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[1]].x - 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x - 12*(nx+0);
+
+						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[0]].y - 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y - 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y - 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y - 12*(ny+1);
+
+						z[0] = coords[3*node0+2];
+						z[1] = coords[3*node0+2];
+						z[2] = coords[3*node0+2];
+						z[3] = coords[3*node0+2];
+						z[4] = coords[3*node1+2];
+						z[5] = coords[3*node1+2];
+						z[6] = coords[3*node1+2];
+						z[7] = coords[3*node1+2];
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[2].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[4].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[7].z = elem->nodes[aux[1]].z;
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+17;
+					}
+				}
+
+
+			}
+
+			if(elem->edge[5].ref){
+				for(int nx = 0; nx < layers_x; nx++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {1,5};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[4] = coords[3*node1+0] + nx*X_pml/layers_x;
+						x[5] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[1]].x + 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x + 12*(nx+0);
+
+						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[0]].y - 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y - 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y - 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y - 12*(ny+1);
+
+						z[0] = coords[3*node0+2];
+						z[1] = coords[3*node0+2];
+						z[2] = coords[3*node0+2];
+						z[3] = coords[3*node0+2];
+						z[4] = coords[3*node1+2];
+						z[5] = coords[3*node1+2];
+						z[6] = coords[3*node1+2];
+						z[7] = coords[3*node1+2];
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[2].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[4].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[7].z = elem->nodes[aux[1]].z;
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+21;
+					}
+				}
+			}
+
+			if(elem->edge[6].ref){
+				for(int nx = 0; nx < layers_x; nx++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {2,6};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[4] = coords[3*node1+0] + nx*X_pml/layers_x;
+						x[5] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[1]].x + 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x + 12*(nx+0);
+
+						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[0]].y + 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y + 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y + 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y + 12*(ny+1);
+
+						z[0] = coords[3*node0+2];
+						z[1] = coords[3*node0+2];
+						z[2] = coords[3*node0+2];
+						z[3] = coords[3*node0+2];
+						z[4] = coords[3*node1+2];
+						z[5] = coords[3*node1+2];
+						z[6] = coords[3*node1+2];
+						z[7] = coords[3*node1+2];
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[2].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[4].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[7].z = elem->nodes[aux[1]].z;
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+23;
+					}
+				}
+			}
+
+			if(elem->edge[7].ref){
+				for(int nx = 0; nx < layers_x; nx++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {3,7};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[4] = coords[3*node1+0] - nx*X_pml/layers_x;
+						x[5] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[1]].x - 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x - 12*(nx+0);
+
+						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[0]].y + 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y + 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y + 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y + 12*(ny+1);
+
+						z[0] = coords[3*node0+2];
+						z[1] = coords[3*node0+2];
+						z[2] = coords[3*node0+2];
+						z[3] = coords[3*node0+2];
+						z[4] = coords[3*node1+2];
+						z[5] = coords[3*node1+2];
+						z[6] = coords[3*node1+2];
+						z[7] = coords[3*node1+2];
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[1].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[2].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z;
+						pml_e->nodes[4].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z;
+						pml_e->nodes[7].z = elem->nodes[aux[1]].z;
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+19;
+					}
+				}
+			}
+
+
+			if(elem->edge[8].ref){
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {4,5};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0];
+						x[1] = coords[3*node1+0];
+						x[2] = coords[3*node1+0];
+						x[3] = coords[3*node0+0];
+						x[4] = coords[3*node0+0];
+						x[5] = coords[3*node1+0];
+						x[6] = coords[3*node1+0];
+						x[7] = coords[3*node0+0];
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[1].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[7].x = elem->nodes[aux[0]].x;
+
+						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[1] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[2] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node0+1] - ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y - 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y - 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y - 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y - 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y - 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[0]].y - 12*(ny+1);
+
+						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[1] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z + 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z + 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[0]].z + 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+29;
+					}
+				}
+			}
+
+			if(elem->edge[9].ref){
+
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int nx = 0; nx < layers_x; nx++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {5,6};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node1+0] + nx*X_pml/layers_x;
+						x[4] = coords[3*node0+0] + nx*X_pml/layers_x;
+						x[5] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[1]].x + 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x + 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[0]].x + 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x + 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x + 12*(nx+0);
+
+						y[0] = coords[3*node0+1];
+						y[1] = coords[3*node0+1];
+						y[2] = coords[3*node1+1];
+						y[3] = coords[3*node1+1];
+						y[4] = coords[3*node0+1];
+						y[5] = coords[3*node0+1];
+						y[6] = coords[3*node1+1];
+						y[7] = coords[3*node1+1];
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[3].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[5].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y;
+
+						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[3] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[0]].z + 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z + 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[1]].z + 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+27;
+					}
+				}
+			}
+
+			if(elem->edge[10].ref){
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int ny = 0; ny < layers_y; ny++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {7,6};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0];
+						x[1] = coords[3*node1+0];
+						x[2] = coords[3*node1+0];
+						x[3] = coords[3*node0+0];
+						x[4] = coords[3*node0+0];
+						x[5] = coords[3*node1+0];
+						x[6] = coords[3*node1+0];
+						x[7] = coords[3*node0+0];
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[1].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[3].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x;
+						pml_e->nodes[5].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x;
+						pml_e->nodes[7].x = elem->nodes[aux[0]].x;
+
+						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[1] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[2] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+						y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
+						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
+						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+						y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[1].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y + 12*(ny+1);
+						pml_e->nodes[3].y = elem->nodes[aux[0]].y + 12*(ny+1);
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y + 12*(ny+0);
+						pml_e->nodes[5].y = elem->nodes[aux[1]].y + 12*(ny+0);
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y + 12*(ny+1);
+						pml_e->nodes[7].y = elem->nodes[aux[0]].y + 12*(ny+1);
+
+						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[1] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[1]].z + 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z + 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[0]].z + 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+31;
+					}
+				}
+			}
+
+			if(elem->edge[11].ref){
+				for(int nz = 0; nz < layers_z; nz++){
+					for(int nx = 0; nx < layers_x; nx++){
+
+						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+						pml_e->id = mesh->elements.elem_count+1;
+
+						//nos de referencia
+						int aux[2] = {4,7};
+						int node0 = elem->nodes[aux[0]].id;
+						int node1 = elem->nodes[aux[1]].id;
+						double x[8],y[8],z[8];
+
+						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[2] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[3] = coords[3*node1+0] - nx*X_pml/layers_x;
+						x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
+						x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
+						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
+
+						pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[1].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[2].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[3].x = elem->nodes[aux[1]].x - 12*(nx+0);
+						pml_e->nodes[4].x = elem->nodes[aux[0]].x - 12*(nx+0);
+						pml_e->nodes[5].x = elem->nodes[aux[0]].x - 12*(nx+1);
+						pml_e->nodes[6].x = elem->nodes[aux[1]].x - 12*(nx+1);
+						pml_e->nodes[7].x = elem->nodes[aux[1]].x - 12*(nx+0);
+
+						y[0] = coords[3*node0+1];
+						y[1] = coords[3*node0+1];
+						y[2] = coords[3*node1+1];
+						y[3] = coords[3*node1+1];
+						y[4] = coords[3*node0+1];
+						y[5] = coords[3*node0+1];
+						y[6] = coords[3*node1+1];
+						y[7] = coords[3*node1+1];
+
+						pml_e->nodes[0].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[1].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[2].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[3].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[4].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[5].y = elem->nodes[aux[0]].y;
+						pml_e->nodes[6].y = elem->nodes[aux[1]].y;
+						pml_e->nodes[7].y = elem->nodes[aux[1]].y;
+
+						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
+						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[3] = coords[3*node1+2] - nz*Z_pml/layers_z;
+						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+						z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
+						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+						pml_e->nodes[0].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[1].z = elem->nodes[aux[0]].z + 12*(nz+1);
+						pml_e->nodes[2].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[3].z = elem->nodes[aux[1]].z + 12*(nz+1);
+						pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12*(nz+0);
+						pml_e->nodes[5].z = elem->nodes[aux[0]].z + 12*(nz+0);
+						pml_e->nodes[6].z = elem->nodes[aux[1]].z + 12*(nz+0);
+						pml_e->nodes[7].z = elem->nodes[aux[1]].z + 12*(nz+0);
+
+						for(int ino = 0; ino < 8 ; ino++){
+							//definindo ponto p a ser adicionado
+							GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+							//adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+						}
+
+						pml_e->n_mat = elem->n_mat+25;
+					}
+				}
+
+			}
+
+		}
+
 		if(point){
-			if(mask[PML_CORNER_X0Y0Z0]){
-
-			}
-			if(mask[PML_CORNER_X1Y0Z0]){
-
-			}
-			if(mask[PML_CORNER_X0Y1Z0]){
-
-			}
-			if(mask[PML_CORNER_X1Y1Z0]){
-
-			}
-			if(mask[PML_CORNER_X0Y0Z1]){
+			if(elem->nodes[0].fixed == -1  && false){
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
@@ -672,7 +1798,8 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							pml_e->id = mesh->elements.elem_count+1;
 
 							//nos de referencia
-							int node0 = elem->nodes[4].id;
+							int aux = 0;
+							int node0 = elem->nodes[aux].id;
 							double x[8],y[8],z[8];
 
 							x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
@@ -684,6 +1811,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							x[6] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
 							x[7] = coords[3*node0+0] - nx*X_pml/layers_x;
 
+							pml_e->nodes[0].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x - 12*(nx+0);
+
 							y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
 							y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
 							y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
@@ -693,31 +1829,50 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							y[6] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
 							y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
 
-							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							pml_e->nodes[0].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y - 12*(ny+1);
 
-							for(int j = 0; j <8 ; j++){
+							z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z - 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
 								//definindo ponto p a ser adicionado
-								GtsPoint p;
-								gts_point_set(&p, x[j], y[j], z[j]);
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 								//adicionando ponto p
-								pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 							}
 
 							pml_e->n_mat = elem->n_mat+12;
 						}
 					}
 				}
-
 			}
-			if(mask[PML_CORNER_X1Y0Z1]){
 
+			if(elem->nodes[1].fixed == -2 && false){
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
@@ -727,6 +1882,7 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							pml_e->id = mesh->elements.elem_count+1;
 
 							//nos de referencia
+							int aux = 1;
 							int node0 = elem->nodes[5].id;
 							double x[8],y[8],z[8];
 
@@ -739,6 +1895,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							x[6] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
 							x[7] = coords[3*node0+0] + nx*X_pml/layers_x;
 
+							pml_e->nodes[0].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x + 12*(nx+0);
+
 							y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
 							y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
 							y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
@@ -748,21 +1913,41 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							y[6] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
 							y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
 
-							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							pml_e->nodes[0].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y - 12*(ny+1);
 
-							for(int j = 0; j <8 ; j++){
+							z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z - 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
 								//definindo ponto p a ser adicionado
-								GtsPoint p;
-								gts_point_set(&p, x[j], y[j], z[j]);
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 								//adicionando ponto p
-								pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 							}
 
 							pml_e->n_mat = elem->n_mat+13;
@@ -770,9 +1955,10 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 					}
 				}
 
-
 			}
-			if(mask[PML_CORNER_X0Y1Z1]){
+
+			if(elem->nodes[2].fixed == -3  && false){
+
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
@@ -782,61 +1968,7 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							pml_e->id = mesh->elements.elem_count+1;
 
 							//nos de referencia
-							int node0 = elem->nodes[7].id;
-							double x[8],y[8],z[8];
-
-							x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
-							x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-							x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-							x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
-							x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
-							x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-							x[6] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-							x[7] = coords[3*node0+0] - nx*X_pml/layers_x;
-
-							y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
-							y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
-							y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-							y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-							y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
-							y[5] = coords[3*node0+1] + ny*Y_pml/layers_y;
-							y[6] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-							y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-
-							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
-							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-
-							for(int j = 0; j <8 ; j++){
-								//definindo ponto p a ser adicionado
-								GtsPoint p;
-								gts_point_set(&p, x[j], y[j], z[j]);
-								//adicionando ponto p
-								pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-							}
-
-							pml_e->n_mat = elem->n_mat+14;
-						}
-					}
-				}
-
-
-			}
-			if(mask[PML_CORNER_X1Y1Z1]){
-
-				for(int nx = 0; nx < layers_x; nx++){
-					for(int ny = 0; ny < layers_y; ny++){
-						for(int nz = 0; nz < layers_z; nz++){
-
-							octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count+1;
-
-							//nos de referencia
+							int aux = 2;
 							int node0 = elem->nodes[6].id;
 							double x[8],y[8],z[8];
 
@@ -849,6 +1981,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							x[6] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
 							x[7] = coords[3*node0+0] + nx*X_pml/layers_x;
 
+							pml_e->nodes[0].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x + 12*(nx+0);
+
 							y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
 							y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
 							y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
@@ -857,6 +1998,15 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							y[5] = coords[3*node0+1] + ny*Y_pml/layers_y;
 							y[6] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
 							y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+
+							pml_e->nodes[0].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y + 12*(ny+1);
 
 							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
 							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
@@ -867,464 +2017,471 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
 							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
 
-							for(int j = 0; j <8 ; j++){
+							z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z - 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
 								//definindo ponto p a ser adicionado
-								GtsPoint p;
-								gts_point_set(&p, x[j], y[j], z[j]);
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
 								//adicionando ponto p
-								pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
 							}
 
 							pml_e->n_mat = elem->n_mat+15;
 						}
 					}
+
 				}
-			}
-		}
 
-		if(edge){
-			if(mask[PML_EDGE_Z0_X0]){
 
 			}
-			if(mask[PML_EDGE_Z0_X1]){
 
-			}
-			if(mask[PML_EDGE_Z0_Y0]){
-
-			}
-			if(mask[PML_EDGE_Z0_Y1]){
-
-			}
-			if(mask[PML_EDGE_X0_Y0]){
+			if(elem->nodes[3].fixed == -4  && false){
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
+						for(int nz = 0; nz < layers_z; nz++){
 
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
+							octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+							pml_e->id = mesh->elements.elem_count+1;
 
-						//nos de referencia
-						int node0 = elem->nodes[0].id;
-						int node1 = elem->nodes[4].id;
-						double x[8],y[8],z[8];
+							//nos de referencia
+							int aux = 3;
+							int node0 = elem->nodes[aux].id;
+							double x[8],y[8],z[8];
 
-						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
-						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-						x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-						x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
-						x[4] = coords[3*node1+0] - nx*X_pml/layers_x;
-						x[5] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
-						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
-						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
+							x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[6] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[7] = coords[3*node0+0] - nx*X_pml/layers_x;
 
-						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
-						y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
-						y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
-						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
-						y[4] = coords[3*node1+1] - ny*Y_pml/layers_y;
-						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
-						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
-						y[7] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+							pml_e->nodes[0].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x - 12*(nx+0);
 
-						z[0] = coords[3*node0+2];
-						z[1] = coords[3*node0+2];
-						z[2] = coords[3*node0+2];
-						z[3] = coords[3*node0+2];
-						z[4] = coords[3*node1+2];
-						z[5] = coords[3*node1+2];
-						z[6] = coords[3*node1+2];
-						z[7] = coords[3*node1+2];
+							y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[5] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[6] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
 
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+							pml_e->nodes[0].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y + 12*(ny+1);
+
+							z[0] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] + nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] + (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z - 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z - 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z - 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
+								//definindo ponto p a ser adicionado
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+								//adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+							}
+
+							pml_e->n_mat = elem->n_mat+14;
 						}
-
-						pml_e->n_mat = elem->n_mat+17;
 					}
 				}
 
-			}
-			if(mask[PML_EDGE_X0_Y1]){
 
+			}
+
+			if(elem->nodes[4].fixed == -5){
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
+						for(int nz = 0; nz < layers_z; nz++){
 
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
+							octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+							pml_e->id = mesh->elements.elem_count+1;
 
-						//nos de referencia
-						int node0 = elem->nodes[3].id;
-						int node1 = elem->nodes[7].id;
-						double x[8],y[8],z[8];
+							//nos de referencia
+							int aux = 4;
+							int node0 = elem->nodes[aux].id;
+							double x[8],y[8],z[8];
 
-						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
-						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-						x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-						x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
-						x[4] = coords[3*node1+0] - nx*X_pml/layers_x;
-						x[5] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
-						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
-						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
+							x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[6] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[7] = coords[3*node0+0] - nx*X_pml/layers_x;
 
-						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
-						y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
-						y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-						y[4] = coords[3*node1+1] + ny*Y_pml/layers_y;
-						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
-						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
-						y[7] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+							pml_e->nodes[0].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x - 12*(nx+0);
 
-						z[0] = coords[3*node0+2];
-						z[1] = coords[3*node0+2];
-						z[2] = coords[3*node0+2];
-						z[3] = coords[3*node0+2];
-						z[4] = coords[3*node1+2];
-						z[5] = coords[3*node1+2];
-						z[6] = coords[3*node1+2];
-						z[7] = coords[3*node1+2];
+							y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							y[4] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[5] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[6] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
 
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+							pml_e->nodes[0].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y - 12*(ny+1);
+
+							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z + 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
+								//definindo ponto p a ser adicionado
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+								//adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+							}
+
+							pml_e->n_mat = elem->n_mat+12;
 						}
-
-						pml_e->n_mat = elem->n_mat+19;
 					}
 				}
 
-
 			}
-			if(mask[PML_EDGE_X1_Y0]){
+
+			if(elem->nodes[5].fixed == -6){
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
+						for(int nz = 0; nz < layers_z; nz++){
 
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
+							octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+							pml_e->id = mesh->elements.elem_count+1;
 
-						//nos de referencia
-						int node0 = elem->nodes[1].id;
-						int node1 = elem->nodes[5].id;
-						double x[8],y[8],z[8];
+							//nos de referencia
+							int aux = 5;
+							int node0 = elem->nodes[5].id;
+							double x[8],y[8],z[8];
 
-						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
-						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
-						x[2] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
-						x[3] = coords[3*node0+0] + nx*X_pml/layers_x;
-						x[4] = coords[3*node1+0] + nx*X_pml/layers_x;
-						x[5] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
-						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
-						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
+							x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
+							x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[2] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[3] = coords[3*node0+0] + nx*X_pml/layers_x;
+							x[4] = coords[3*node0+0] + nx*X_pml/layers_x;
+							x[5] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[6] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[7] = coords[3*node0+0] + nx*X_pml/layers_x;
 
-						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
-						y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
-						y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
-						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
-						y[4] = coords[3*node1+1] - ny*Y_pml/layers_y;
-						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
-						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
-						y[7] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
+							pml_e->nodes[0].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x + 12*(nx+0);
 
-						z[0] = coords[3*node0+2];
-						z[1] = coords[3*node0+2];
-						z[2] = coords[3*node0+2];
-						z[3] = coords[3*node0+2];
-						z[4] = coords[3*node1+2];
-						z[5] = coords[3*node1+2];
-						z[6] = coords[3*node1+2];
-						z[7] = coords[3*node1+2];
+							y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[1] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[2] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							y[4] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[5] = coords[3*node0+1] - ny*Y_pml/layers_y;
+							y[6] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
 
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+							pml_e->nodes[0].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y - 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y - 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y - 12*(ny+1);
+
+							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z + 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
+								//definindo ponto p a ser adicionado
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+								//adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+							}
+
+							pml_e->n_mat = elem->n_mat+13;
 						}
-
-						pml_e->n_mat = elem->n_mat+21;
 					}
 				}
-
-
 			}
-			if(mask[PML_EDGE_X1_Y1]){
+
+			if(elem->nodes[6].fixed == -7){
 
 				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
+						for(int nz = 0; nz < layers_z; nz++){
 
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
+							octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+							pml_e->id = mesh->elements.elem_count+1;
 
-						//nos de referencia
-						int node0 = elem->nodes[2].id;
-						int node1 = elem->nodes[6].id;
-						double x[8],y[8],z[8];
+							//nos de referencia
+							int aux = 6;
+							int node0 = elem->nodes[6].id;
+							double x[8],y[8],z[8];
 
-						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
-						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
-						x[2] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
-						x[3] = coords[3*node0+0] + nx*X_pml/layers_x;
-						x[4] = coords[3*node1+0] + nx*X_pml/layers_x;
-						x[5] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
-						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
-						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
+							x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
+							x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[2] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[3] = coords[3*node0+0] + nx*X_pml/layers_x;
+							x[4] = coords[3*node0+0] + nx*X_pml/layers_x;
+							x[5] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[6] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
+							x[7] = coords[3*node0+0] + nx*X_pml/layers_x;
 
-						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
-						y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
-						y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-						y[4] = coords[3*node1+1] + ny*Y_pml/layers_y;
-						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
-						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
-						y[7] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
+							pml_e->nodes[0].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x + 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x + 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x + 12*(nx+0);
 
-						z[0] = coords[3*node0+2];
-						z[1] = coords[3*node0+2];
-						z[2] = coords[3*node0+2];
-						z[3] = coords[3*node0+2];
-						z[4] = coords[3*node1+2];
-						z[5] = coords[3*node1+2];
-						z[6] = coords[3*node1+2];
-						z[7] = coords[3*node1+2];
+							y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[5] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[6] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
 
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+							pml_e->nodes[0].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y + 12*(ny+1);
+
+							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z + 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
+								//definindo ponto p a ser adicionado
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+								//adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+							}
+
+							pml_e->n_mat = elem->n_mat+15;
 						}
-
-						pml_e->n_mat = elem->n_mat+23;
 					}
-				}
 
-
-
-			}
-			if(mask[PML_EDGE_Z1_X0]){
-
-				for(int nz = 0; nz < layers_z; nz++){
-					for(int nx = 0; nx < layers_x; nx++){
-
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
-
-						//nos de referencia
-						int node0 = elem->nodes[4].id;
-						int node1 = elem->nodes[7].id;
-						double x[8],y[8],z[8];
-
-						x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
-						x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-						x[2] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
-						x[3] = coords[3*node1+0] - nx*X_pml/layers_x;
-						x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
-						x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
-						x[6] = coords[3*node1+0] - (nx+1)*X_pml/layers_x;
-						x[7] = coords[3*node1+0] - nx*X_pml/layers_x;
-
-						y[0] = coords[3*node0+1];
-						y[1] = coords[3*node0+1];
-						y[2] = coords[3*node1+1];
-						y[3] = coords[3*node1+1];
-						y[4] = coords[3*node0+1];
-						y[5] = coords[3*node0+1];
-						y[6] = coords[3*node1+1];
-						y[7] = coords[3*node1+1];
-
-						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[3] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-						z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
-						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-						}
-
-						pml_e->n_mat = elem->n_mat+25;
-					}
 				}
 
 			}
-			if(mask[PML_EDGE_Z1_X1]){
 
-				for(int nz = 0; nz < layers_z; nz++){
-					for(int nx = 0; nx < layers_x; nx++){
+			if(elem->nodes[7].fixed == -8){
 
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
-
-						//nos de referencia
-						int node0 = elem->nodes[5].id;
-						int node1 = elem->nodes[6].id;
-						double x[8],y[8],z[8];
-
-						x[0] = coords[3*node0+0] + nx*X_pml/layers_x;
-						x[1] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
-						x[2] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
-						x[3] = coords[3*node1+0] + nx*X_pml/layers_x;
-						x[4] = coords[3*node0+0] + nx*X_pml/layers_x;
-						x[5] = coords[3*node0+0] + (nx+1)*X_pml/layers_x;
-						x[6] = coords[3*node1+0] + (nx+1)*X_pml/layers_x;
-						x[7] = coords[3*node1+0] + nx*X_pml/layers_x;
-
-						y[0] = coords[3*node0+1];
-						y[1] = coords[3*node0+1];
-						y[2] = coords[3*node1+1];
-						y[3] = coords[3*node1+1];
-						y[4] = coords[3*node0+1];
-						y[5] = coords[3*node0+1];
-						y[6] = coords[3*node1+1];
-						y[7] = coords[3*node1+1];
-
-						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[3] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-						z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
-						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-						}
-
-						pml_e->n_mat = elem->n_mat+27;
-					}
-				}
-
-
-			}
-			if(mask[PML_EDGE_Z1_Y0]){
-
-				for(int nz = 0; nz < layers_z; nz++){
+				for(int nx = 0; nx < layers_x; nx++){
 					for(int ny = 0; ny < layers_y; ny++){
+						for(int nz = 0; nz < layers_z; nz++){
 
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
+							octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
+							pml_e->id = mesh->elements.elem_count+1;
 
-						//nos de referencia
-						int node0 = elem->nodes[4].id;
-						int node1 = elem->nodes[5].id;
-						double x[8],y[8],z[8];
+							//nos de referencia
+							int aux = 7;
+							int node0 = elem->nodes[aux].id;
+							double x[8],y[8],z[8];
 
-						x[0] = coords[3*node0+0];
-						x[1] = coords[3*node1+0];
-						x[2] = coords[3*node1+0];
-						x[3] = coords[3*node0+0];
-						x[4] = coords[3*node0+0];
-						x[5] = coords[3*node1+0];
-						x[6] = coords[3*node1+0];
-						x[7] = coords[3*node0+0];
+							x[0] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[1] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[2] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[3] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[4] = coords[3*node0+0] - nx*X_pml/layers_x;
+							x[5] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[6] = coords[3*node0+0] - (nx+1)*X_pml/layers_x;
+							x[7] = coords[3*node0+0] - nx*X_pml/layers_x;
 
-						y[0] = coords[3*node0+1] - ny*Y_pml/layers_y;
-						y[1] = coords[3*node1+1] - ny*Y_pml/layers_y;
-						y[2] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
-						y[3] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
-						y[4] = coords[3*node0+1] - ny*Y_pml/layers_y;
-						y[5] = coords[3*node1+1] - ny*Y_pml/layers_y;
-						y[6] = coords[3*node1+1] - (ny+1)*Y_pml/layers_y;
-						y[7] = coords[3*node0+1] - (ny+1)*Y_pml/layers_y;
+							pml_e->nodes[0].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[1].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[2].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[3].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[4].x = elem->nodes[aux].x - 12*(nx+0);
+							pml_e->nodes[5].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[6].x = elem->nodes[aux].x - 12*(nx+1);
+							pml_e->nodes[7].x = elem->nodes[aux].x - 12*(nx+0);
 
-						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[1] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-						z[5] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
-						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
-						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[1] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[2] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[5] = coords[3*node0+1] + ny*Y_pml/layers_y;
+							y[6] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
+							y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
 
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
+							pml_e->nodes[0].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[1].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[2].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[3].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[4].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[5].y = elem->nodes[aux].y + 12*(ny+0);
+							pml_e->nodes[6].y = elem->nodes[aux].y + 12*(ny+1);
+							pml_e->nodes[7].y = elem->nodes[aux].y + 12*(ny+1);
+
+							z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[1] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[2] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
+							z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[5] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[6] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+							z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
+
+							pml_e->nodes[0].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[1].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[2].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[3].z = elem->nodes[aux].z + 12*(nz+1);
+							pml_e->nodes[4].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[5].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[6].z = elem->nodes[aux].z + 12*(nz+0);
+							pml_e->nodes[7].z = elem->nodes[aux].z + 12*(nz+0);
+
+							for(int ino = 0; ino < 8 ; ino++){
+								//definindo ponto p a ser adicionado
+								GtsPoint* p = gts_point_new(gts_point_class(),x[ino], y[ino], z[ino]);
+								//adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint( mesh, hash_nodes, p, coords, x, y, z);
+							}
+
+							pml_e->n_mat = elem->n_mat+14;
 						}
-
-						pml_e->n_mat = elem->n_mat+29;
-					}
-				}
-			}
-			if(mask[PML_EDGE_Z1_Y1]){
-
-				for(int nz = 0; nz < layers_z; nz++){
-					for(int ny = 0; ny < layers_y; ny++){
-
-						octant_t* pml_e = (octant_t*) sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count+1;
-
-						//nos de referencia
-						int node0 = elem->nodes[7].id;
-						int node1 = elem->nodes[6].id;
-						double x[8],y[8],z[8];
-
-						x[0] = coords[3*node0+0];
-						x[1] = coords[3*node1+0];
-						x[2] = coords[3*node1+0];
-						x[3] = coords[3*node0+0];
-						x[4] = coords[3*node0+0];
-						x[5] = coords[3*node1+0];
-						x[6] = coords[3*node1+0];
-						x[7] = coords[3*node0+0];
-
-						y[0] = coords[3*node0+1] + ny*Y_pml/layers_y;
-						y[1] = coords[3*node1+1] + ny*Y_pml/layers_y;
-						y[2] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
-						y[3] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-						y[4] = coords[3*node0+1] + ny*Y_pml/layers_y;
-						y[5] = coords[3*node1+1] + ny*Y_pml/layers_y;
-						y[6] = coords[3*node1+1] + (ny+1)*Y_pml/layers_y;
-						y[7] = coords[3*node0+1] + (ny+1)*Y_pml/layers_y;
-
-						z[0] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[1] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[2] = coords[3*node1+2] - nz*Z_pml/layers_z;
-						z[3] = coords[3*node0+2] - nz*Z_pml/layers_z;
-						z[4] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-						z[5] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
-						z[6] = coords[3*node1+2] - (nz+1)*Z_pml/layers_z;
-						z[7] = coords[3*node0+2] - (nz+1)*Z_pml/layers_z;
-
-						for(int j = 0; j <8 ; j++){
-							//definindo ponto p a ser adicionado
-							GtsPoint p;
-							gts_point_set(&p, x[j], y[j], z[j]);
-							//adicionando ponto p
-							pml_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-						}
-
-						pml_e->n_mat = elem->n_mat+31;
 					}
 				}
 
 			}
 		}
+
+		sc_array_reset(&toto);
 	}
 
 	//update the vectors
@@ -1333,7 +2490,22 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords) {
 	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
 
+	mesh->ncellx = mesh->ncellx + 2*4*layers_x;
+	mesh->ncelly = mesh->ncelly + 2*4*layers_y;
+	mesh->max_z = mesh->max_z + 4*layers_y;
+
+	free(mesh->part_nodes);
+	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
+	for (int ino = 0; ino < mesh->local_n_nodes; ino++) {
+		mesh->part_nodes[ino]=mesh->mpi_rank;
+	}
+
 	printf(" Ajust material properties\n\n");
 	Adjust_material(mesh);
 
+	if(mesh->mpi_rank == 0)
+	{
+		printf("Total number of elements: %d\n", mesh->total_n_elements);
+		printf("Total number of nodes: %d\n", mesh->total_n_nodes);
+	}
 }
