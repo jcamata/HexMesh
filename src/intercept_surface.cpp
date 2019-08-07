@@ -54,54 +54,54 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 
 	sc_array_t *nodes = &mesh->nodes;
 
-	mesh->gdata.s = SurfaceRead(surface_topo);
+	mesh->tdata.s = SurfaceRead(surface_topo);
 
 	FILE *fout = fopen("surface.dat", "w");
-	gts_surface_print_stats(mesh->gdata.s, fout);
+	gts_surface_print_stats(mesh->tdata.s, fout);
 	fclose(fout);
 
 	// Get the surface bounding box
-	mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+	mesh->tdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->tdata.s);
 	if (mesh->mpi_rank == 0) {
 		printf("Bounding box: \n");
-		printf(" x ranges from %f to %f\n", mesh->gdata.bbox->x1, mesh->gdata.bbox->x2);
-		printf(" y ranges from %f to %f\n", mesh->gdata.bbox->y1, mesh->gdata.bbox->y2);
-		printf(" z ranges from %f to %f\n", mesh->gdata.bbox->z1, mesh->gdata.bbox->z2);
+		printf(" x ranges from %f to %f\n", mesh->tdata.bbox->x1, mesh->tdata.bbox->x2);
+		printf(" y ranges from %f to %f\n", mesh->tdata.bbox->y1, mesh->tdata.bbox->y2);
+		printf(" z ranges from %f to %f\n", mesh->tdata.bbox->z1, mesh->tdata.bbox->z2);
 	}
 
 	// Change the box size to cut the external elements
 	double factor = 0.05;
-	double x_factor = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1)*factor;
-	double y_factor = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1)*factor;
+	double x_factor = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1)*factor;
+	double y_factor = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1)*factor;
 
-	mesh->gdata.bbox->x1 += x_factor;
-	mesh->gdata.bbox->y1 += y_factor;
+	mesh->tdata.bbox->x1 += x_factor;
+	mesh->tdata.bbox->y1 += y_factor;
 
-	mesh->gdata.bbox->x2 -= x_factor;
-	mesh->gdata.bbox->y2 -= y_factor;
+	mesh->tdata.bbox->x2 -= x_factor;
+	mesh->tdata.bbox->y2 -= y_factor;
 
-	double Lx = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1);
-	double Ly = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1);
+	double Lx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1);
+	double Ly = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1);
 	double zmin = ((Lx < Ly) ? -Lx : -Ly);
 
 	// Get grid-spacing at x and y direction
-	dx = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1) / (double) mesh->ncellx;
-	dy = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1) / (double) mesh->ncelly;
+	dx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1) / (double) mesh->ncellx;
+	dy = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1) / (double) mesh->ncelly;
 
 	coords.resize(nodes->elem_count * 3);
 
 	// Build the bounding box tree
-	mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
+	mesh->tdata.bbt = gts_bb_tree_surface(mesh->tdata.s);
 
-	p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->gdata.bbox->z2);
+	p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->tdata.bbox->z2);
 
 	for (int i = 0; i < nodes->elem_count; ++i) {
 		octant_node_t* n = (octant_node_t*) sc_array_index(nodes, i);
-		p->x = mesh->gdata.bbox->x1 + n->x*dx;
-		p->y = mesh->gdata.bbox->y1 + n->y*dy;
+		p->x = mesh->tdata.bbox->x1 + n->x*dx;
+		p->y = mesh->tdata.bbox->y1 + n->y*dy;
 
-		d = gts_bb_tree_point_distance(mesh->gdata.bbt, p, distance, NULL);
-		zmax = mesh->gdata.bbox->z2 - d;
+		d = gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
+		zmax = mesh->tdata.bbox->z2 - d;
 
 		dz = (zmax - zmin) / (double) mesh->ncellz;
 		double z = zmax - (n->z) * dz;
