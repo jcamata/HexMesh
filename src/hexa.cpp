@@ -60,6 +60,8 @@ void hexa_element_copy(octant_t* elem, octant_t* elemCopy)
 	elemCopy->pml_id = elem->pml_id;
 	elemCopy->n_mat = elem->n_mat;
 	elemCopy->id = elem->id;
+	elemCopy->boundary = elem->boundary;
+	elemCopy->father = elem->id;
 
 	for(int ino = 0; ino <8; ino++){
 		elemCopy->nodes[ino].x = elem->nodes[ino].x;
@@ -77,6 +79,9 @@ void hexa_element_copy(octant_t* elem, octant_t* elemCopy)
 		elemCopy->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
 	}
 
+	for(int isurf = 0; isurf < 6; isurf++){
+		elemCopy->surf[isurf].ext = elem->surf[isurf].ext;
+	}
 	//return elemCopy;
 }
 
@@ -194,6 +199,10 @@ void hexa_transient_layer(hexa_tree_t* mesh, int nz, int coarse_step, int intern
 			if(!((ny + coarse_step) < mesh->y_end)) ext = 2;
 			if(nx == mesh->x_start) ext = 3;
 			if(!((nx + coarse_step) < mesh->x_end)) ext = 4;
+			if(ny == mesh->y_start && nx == mesh->x_start) ext = 5;
+			if(ny == mesh->y_start && !((nx + coarse_step) < mesh->x_end)) ext = 6;
+			if(!((nx + coarse_step) < mesh->x_end) && !((ny + coarse_step) < mesh->y_end)) ext = 7;
+			if(!((ny + coarse_step) < mesh->y_end) && nx == mesh->x_start) ext = 8;
 			hexa_transition_element(mesh,nx,ny,nz,internal_step,level,ext);
 			mesh->max_step = MAX(mesh->max_step,internal_step);
 		}

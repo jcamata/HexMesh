@@ -36,7 +36,7 @@ typedef struct
 
 typedef struct octant_surf
 {
-	int     pml;
+	//int     pml;
 	bool    ext;
 } octant_surf_t;
 
@@ -63,7 +63,7 @@ typedef struct octant_vertex
 {
 	uint64_t id;
 	int32_t  list_elem;
-	int32_t  elem[8]; // we must check this values
+	int32_t  elem[16]; // we must check this values
 } octant_vertex_t;
 
 typedef struct edge
@@ -193,6 +193,7 @@ typedef struct {
 	FILE* fdbg;
 #endif
 	GeometryData gdata;
+	GeometryData tdata;
 
 } hexa_tree_t;
 
@@ -269,6 +270,23 @@ int const FaceNodesMap_inv[6][4] = {
 		{5,4,7,6}
 };
 
+int const FaceNodesMapRef[6][4] = {
+		{3,0,4,7},
+		{2,1,5,6},
+		{0,1,5,4},
+		{3,2,6,7},
+		{7,4,5,6},
+		{3,0,1,2}
+};
+
+int const FaceNodesMapRef_inv[6][4] = {
+		{2,1,5,6},
+		{3,0,4,7},
+		{3,2,6,7},
+		{0,1,5,4},
+		{3,0,1,2},
+		{7,4,5,6}
+};
 
 int const vert_ord[4][3]= {
 		{0, 1, 3},
@@ -336,7 +354,7 @@ void ExtrudeToOctree(hexa_tree_t* mesh,std::vector<double>& coords);
 //octant_t * hexa_element_copy(hexa_tree_t *mesh,int iel);
 void hexa_element_init(octant_t *elem);
 void hexa_element_copy(octant_t * elem, octant_t * elemCopy);
-void UntagleMesh(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
+void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void hexa_mesh_write_msh(hexa_tree_t* mesh, const char* root_name, std::vector<double> *coords);
 void hexa_mesh_write_h5(hexa_tree_t* mesh, const char* root_name, std::vector<double> coords);
 int  hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords);
@@ -358,7 +376,12 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t);
 GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z);
 GtsSurface* SurfaceRead(const char* fname);
 gdouble distance(GtsPoint *p, gpointer bounded);
-int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash, GtsPoint *p, std::vector<double> &coords);
+int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash_nodes, GtsPoint *p, std::vector<double> &coords, int x, int y, int z);
+void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1);
+void SetElemPML(hexa_tree_t* tree, octant_t *elem);
+void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int iel, int* id_node,
+		double* local_ref_x, double* local_ref_y, double* local_ref_z, std::vector<int>& ord, sc_hash_array_t* hash_nodes);
+
 //void communicate_global_ids(hexa_tree_t* mesh);
 
 #endif	/* HEXA_H */

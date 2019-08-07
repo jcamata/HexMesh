@@ -27,7 +27,12 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->level = level;
 		if(ext == 1) h->boundary = true;
 		if(ext == 3) h->boundary = true;
+
+		if(ext == 5) h->boundary = true;
+		if(ext == 6) h->boundary = true;
+		if(ext == 8) h->boundary = true;
 		h->pad = 0;
+		h->tem = 5;
 		//SetElemPML(mesh,h,step);
 		//----------------------------
 
@@ -89,7 +94,11 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 1) h->boundary = true;
+
+		if(ext == 5) h->boundary = true;
+		if(ext == 6) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -112,7 +121,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 
 		//node 4
 		node = &h->nodes[3];
-		node->x = i+step      ;
+		node->x = i+step;
 		node->y = j+step;
 		node->z = k;
 
@@ -151,8 +160,13 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 1) h->boundary = true;
 		if(ext == 4) h->boundary = true;
+
+		if(ext == 5) h->boundary = true;
+		if(ext == 6) h->boundary = true;
+		if(ext == 7) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -175,7 +189,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 
 		//node 4
 		node = &h->nodes[3];
-		node->x = i+2*step      ;
+		node->x = i+2*step;
 		node->y = j+step;
 		node->z = k;
 
@@ -214,8 +228,11 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 3) h->boundary = true;
 
+		if(ext == 5) h->boundary = true;
+		if(ext == 8) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 		//node 1
 		node = &h->nodes[0];
@@ -237,7 +254,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 
 		//node 4
 		node = &h->nodes[3];
-		node->x = i      ;
+		node->x = i;
 		node->y = j+2*step;
 		node->z = k;
 
@@ -275,6 +292,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -297,7 +315,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 
 		//node 4
 		node = &h->nodes[3];
-		node->x = i+step      ;
+		node->x = i+step;
 		node->y = j+2*step;
 		node->z = k;
 
@@ -336,8 +354,11 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 4) h->boundary = true;
 
+		if(ext == 6) h->boundary = true;
+		if(ext == 7) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -360,7 +381,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 
 		//node 4
 		node = &h->nodes[3];
-		node->x = i+2*step      ;
+		node->x = i+2*step;
 		node->y = j+2*step;
 		node->z = k;
 
@@ -399,8 +420,13 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 3) h->boundary = true;
 		if(ext == 2) h->boundary = true;
+
+		if(ext == 5) h->boundary = true;
+		if(ext == 7) h->boundary = true;
+		if(ext == 8) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -462,7 +488,11 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 2) h->boundary = true;
+
+		if(ext == 7) h->boundary = true;
+		if(ext == 8) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -523,8 +553,13 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext == 2) h->boundary = true;
 		if(ext == 4) h->boundary = true;
+
+		if(ext == 6) h->boundary = true;
+		if(ext == 7) h->boundary = true;
+		if(ext == 8) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -586,6 +621,7 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k+step;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		//h->boundary = true;
 		//if(ext == 1) h->boundary = true;
 		//if(ext == 2) h->boundary = true;
@@ -652,7 +688,10 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k+2*step;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext==3) h->boundary = true;
+		if(ext==5) h->boundary = true;
+		if(ext==8) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -713,7 +752,10 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h->z = k+step;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext==4) h->boundary = true;
+		if(ext==6) h->boundary = true;
+		if(ext==7) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
@@ -771,11 +813,16 @@ void hexa_transition_element(hexa_tree_t* mesh, int i, int j, int k, int step, i
 		h = (octant_t*) sc_array_push(&mesh->elements);
 		hexa_element_init(h);
 		h->x = i+step;
-		h->y = j+step;
+		h->y = j;//+step
 		h->z = k+2*step;
 		h->level = level;
 		h->pad = 0;
+		h->tem = 5;
 		if(ext==2 || ext == 1) h->boundary = true;
+		if(ext==5) h->boundary = true;
+		if(ext==6) h->boundary = true;
+		if(ext==7) h->boundary = true;
+		if(ext==8) h->boundary = true;
 		//SetElemPML(mesh,h,step);
 
 		//node 1
