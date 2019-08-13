@@ -8,8 +8,8 @@ clc
 % l = [40 00 52 00   -5 00    8 00]; % France
 % l = [43 40 44 00    5 30    6 00]; % Cadarache, France
 % l = [47 00 48 00   -4 00   -3 00]; % Belle-Ile, France
-% l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
-l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
+l = [38 00 39 00   20 00   21 00]; % Kefalonia, Greece
+%l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 % l = [18 30 21 00 -157 00 -154 00]; % Mauna Loa, Hawai
 % l = [38 00 38 32 20 10 20 56]; % test small Kefalonia, Greece
 % l = [38 03 38 31 20 18 20 50]; % test small Kefalonia, Greece
@@ -19,15 +19,15 @@ l = [37 10 37 40  138 15  138 55]; % Kashiwazaki, Japan
 outdir = '.';
 
 %choose output name
-output_name = 'Japan';
+output_name = 'Kefalonia';
 
 % characteristic length over which details of the coastline are removed
 % put H<=0 if you want no smoothing (this is very expensive because many
 % small elements will be created)
-H = .03; % in units of lon/lat
+H = .00095; % in units of lon/lat
 
 % minimum water depth
-minwater = -10;
+minwater = -30;
 
 % set the path for wget function
 wget_path = '/opt/local/bin';
@@ -51,6 +51,7 @@ setenv('PATH', [getenv('PATH') ':',wget_path,':',dos2unix_path,':',stl2gts_path]
 % 1) vérifier que les interpolations des NaN sont bien faites
 % 2) changer la lecture des données pour que le rétrécissement soit bien
 %    pris en compte dans HexMesh
+% 3) refaire le changement de z dans la bathymétrie
 
 % transform coordinates
 latbnds = l(1):(l(3)+1);
@@ -60,9 +61,9 @@ loncrop = [l(5)+l(6)/60 l(7)+l(8)/60];
 
 % get topography and plot
 topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
-                     'crop', [latcrop loncrop]);
+    'crop', [latcrop loncrop]);
 topo = topographySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
-                     'crop', [latcrop loncrop]);
+    'crop', [latcrop loncrop]);
 nmax = 1e4;
 if length(topo.lon)>nmax || length(topo.lat)>nmax
     error('the STL file will be too large')
@@ -70,9 +71,9 @@ end
 
 % get bathymetry and plot
 bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
-                     'crop', [latcrop loncrop]);
+    'crop', [latcrop loncrop]);
 bathy = bathymetrySRTM(latbnds, lonbnds, outdir, 'interp', 'merge', ...
-                     'crop', [latcrop loncrop]);
+    'crop', [latcrop loncrop]);
 
 % get coastlines (for now only treating Ocean and Land)
 [x,y] = ndgrid(latbnds(1:end-1), lonbnds(1:end-1));
@@ -81,20 +82,20 @@ water = struct('Ocean',{[]},'River',{[]},'Lake',{[]}, 'Land',{[]},'Isle',{[]});
 for i1 = 1:length(x)
     wat = swbd_shore( [ y(i1) y(i1)+1 x(i1) x(i1)+1 ], outdir );
     if isempty(wat)
-        ocean = [ y(i1) y(i1) y(i1)+1 y(i1)+1 y(i1); 
-                  x(i1) x(i1)+1 x(i1)+1 x(i1) x(i1) ];
+        ocean = [ y(i1) y(i1) y(i1)+1 y(i1)+1 y(i1);
+            x(i1) x(i1)+1 x(i1)+1 x(i1) x(i1) ];
         water.Ocean = [water.Ocean; {ocean}];
     else
         water.Ocean = [water.Ocean; wat.Ocean];
-%        water.River = [water.River; wat.River];
-%        water.Lake = [water.Lake; wat.Lake];
+        %        water.River = [water.River; wat.River];
+        %        water.Lake = [water.Lake; wat.Lake];
         water.Land = [water.Land; wat.Land];
-%        water.Isle = [water.Isle; wat.Isle];
+        %        water.Isle = [water.Isle; wat.Isle];
     end
 end
 
 % smooth coastlines
-h = figure; 
+h = figure;
 plotCoastline( water.Ocean, 'k-', h );
 plotCoastline( water.Land, 'b-', h );
 water = smoothCurve(water,H);
@@ -109,33 +110,33 @@ z = bathy.Points(:,3);
 % replace positive values in water by default negative value
 ind = dist<0 & z>=0;
 z(ind) = minwater;
+
+ % replace the topography for a constant z
 ind = dist>0;
-z(ind) = 2000;
+z(ind) = 1.5*max(max(topo.z));
 
 % remove elements on land (depending on value at center of element)
 ind = distc>0;
 X = [ bathy.Points(:,1:2) z ];
 T = cleanFlatT( bathy.ConnectivityList(:,:), X, 1e-10 );
-% T = cleanFlatT( bathy.ConnectivityList(~ind,:), X, 1e-10 );
+%T = cleanFlatT( bathy.ConnectivityList(~ind,:), X, 1e-10 );
 bathy = triangulation( T, X(:,1), X(:,2), X(:,3) );
 
 % add vertical elements to make sure the STL crosses the z=0 surface
-% altz = 2000;
-% ind = abs(bathy.Points(:,3))<1e-8;
-% bnd = freeBoundary(bathy);
-% bnd = bnd(all(ind(bnd),2),:);
-% [bndnodes,~,indnodes] = unique(bnd);
-% indnodes = reshape(indnodes, size(bnd)) + size(bathy.Points,1);
-% newnodes = [bathy.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
-% Nodes = [bathy.Points; newnodes];
-% newelts = [ [bnd indnodes(:,1)]; 
-%             [bnd(:,2) indnodes(:,2) indnodes(:,1)] ];
-% newelts = cleanFlatT( newelts, Nodes, 1e-10 );
-% Elts = [bathy.ConnectivityList; newelts];
-% %clear trib
-% bathy = triangulation( Elts, Nodes );
+altz = double(1.5*max(max(topo.z)));
+ind = abs(bathy.Points(:,3))<1e-8;
+bnd = freeBoundary(bathy);
+bnd = bnd(all(ind(bnd),2),:);
+[bndnodes,~,indnodes] = unique(bnd);
+indnodes = reshape(indnodes, size(bnd)) + size(bathy.Points,1);
+newnodes = [bathy.Points(bndnodes,1:2) altz*ones(length(bndnodes),1)];
+Nodes = [bathy.Points; newnodes];
+newelts = [ [bnd indnodes(:,1)];
+    [bnd(:,2) indnodes(:,2) indnodes(:,1)] ];
+newelts = cleanFlatT( newelts, Nodes, 1e-10 );
+Elts = [bathy.ConnectivityList; newelts];
+bathy = triangulation( Elts, Nodes );
 figure; trisurf( bathy );
-
 
 % integrate topography with coastline
 topo = altimetryCoastline( topo, water );
@@ -167,8 +168,8 @@ if ~isempty(bathy)
     [xbathy,ybathy] = lonlat2m(bathy.Points(:,1),bathy.Points(:,2));
     xbathy = xbathy - min(xbathy); ybathy = ybathy - min(ybathy);
     write_stl( fullfile(outdir,[output_name,'_bathy.stl']), ...
-                 [xbathy ybathy bathy.Points(:,3)], bathy.ConnectivityList');
-end         
+        [xbathy ybathy bathy.Points(:,3)], bathy.ConnectivityList');
+end
 
 system(['dos2unix ',output_name,'_topo.stl']);
 system(['dos2unix ',output_name,'_bathy.stl']);
