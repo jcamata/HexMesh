@@ -2426,16 +2426,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 		}
 	}
 
-	//auto start = std::chrono::steady_clock::now( );
-
-
-
-	//for(int iel= 0; iel < elements_ids.size(); iel++ ){
-
-	//}
-	//auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-	//std::cout << "Time in hash elements_ids "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-
+	auto start = std::chrono::steady_clock::now( );
 	//TODO trocar o hashid e fn...
 	sc_hash_array_t* hash_edge  = (sc_hash_array_t *)sc_hash_array_new(sizeof(edge_t), edget_id_hash, edget_id_equal, &clamped);
 	/////////////////
@@ -2462,28 +2453,35 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 		}
 	}
 
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+	fprintf(mesh->profile,"        Time in create the edge structure %lld millisecond(s).\n",elapsed.count());
 
 	int iter_count = 0;
 	int diff = 50;
 	while(iter_count < 1000 && diff != 0){
 		//printf("Numero de elementos:%d numero de arestas:%d\n",elements_ids.size(),hash_edge_ref->a.elem_count);
-		auto start = std::chrono::steady_clock::now( );
+		fprintf(mesh->profile,"        Number of Elements:%d Number of edges:%d\n",elements_ids.size(),hash_edge_ref->a.elem_count);
+		start = std::chrono::steady_clock::now( );
 		int edgecount = hash_edge_ref->a.elem_count;
 		IdentifyTemplate(mesh, elements_ids, hash_edge_ref);
-		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh->profile,"        Time in IdentifyTemplate %lld millisecond(s).\n",elapsed.count());
 		//std::cout << "Time in IdentifyTemplate "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 		start = std::chrono::steady_clock::now( );
 		Edge_identification( mesh, elements_ids, hash_edge_ref);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh->profile,"        Time in Edge_identification %lld millisecond(s).\n",elapsed.count());
 		//std::cout << "Time in Edge_identification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		start = std::chrono::steady_clock::now( );
 		Edge_propagation (mesh, elements_ids, hash_edge_ref,hash_edge,hash_elem);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh->profile,"        Time in Edge_propagation %lld millisecond(s).\n",elapsed.count());
 		//std::cout << "Time in Edge_propagation "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		start = std::chrono::steady_clock::now( );
 		Edge_comunication(mesh, elements_ids, hash_edge_ref);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh->profile,"        Time in Edge_comunication %lld millisecond(s).\n",elapsed.count());
 		//std::cout << "Time in Edge_comunication "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		diff = hash_edge_ref->a.elem_count - edgecount;
 
@@ -2492,7 +2490,7 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 		}
 
 		if(diff == 0){
-			printf("         %d iteractions to propagate the edge contamination\n",iter_count);
+			printf("         The code used %d iteractions to propagate the edge contamination\n",iter_count);
 		}
 		iter_count++;
 	}
@@ -9107,114 +9105,6 @@ void ApplyTemplate11(hexa_tree_t* mesh, std::vector<double>& coords, std::vector
 		ApplyElement(mesh, coords,  id,  iel,  id_node,  local_ref_x, local_ref_y, local_ref_z,  ord,  hash_nodes);
 	}
 	sc_array_reset(&toto);
-
-	/*
-	int id = elements_ids[iel];
-	int conn_p[64];
-	GtsPoint* point[64]={NULL};
-
-	double cord_in_x[8],cord_in_y[8],cord_in_z[8];
-	double cord_in_ref[3];
-	cord_in_ref[0] = -1;
-	cord_in_ref[1] = -1;
-	cord_in_ref[2] = -1;
-
-	//add the nodes in the coord vector
-	for (int i = 0; i < 8; i++){
-		cord_in_x[i]=coords[3*elem->nodes[i].id] ;
-		cord_in_y[i]=coords[3*elem->nodes[i].id+1] ;
-		cord_in_z[i]=coords[3*elem->nodes[i].id+2] ;
-		//fprintf(mesh->fdbg,"coord in: %f, %f, %f, in the node: %d\n",cord_in_x[i],cord_in_y[i],cord_in_z[i],i);
-	}
-
-	for (int i = 0; i < 4; ++i) {
-		cord_in_ref[1] = -1;
-		for (int ii = 0; ii < 4; ++ii) {
-			cord_in_ref[2] = -1;
-			for (int iii = 0; iii < 4; ++iii) {
-
-				//fprintf(mesh->fdbg,"coord ref: %f, %f, %f\n",cord_in_ref[0],cord_in_ref[1],cord_in_ref[2]);
-
-				if((i==0 || i==3) && (ii==0 || ii==3) && (iii==0 || iii==3) ){
-					if(i==0 && ii==0 && iii==0){
-						conn_p[i*16+ii*4+iii] = elem->nodes[0].id;
-					}else if(i==3 && ii==0 && iii==0){
-						conn_p[i*16+ii*4+iii] = elem->nodes[1].id;
-					}else if(i==0 && ii==3 && iii==0){
-						conn_p[i*16+ii*4+iii] = elem->nodes[3].id;
-					}else if(i==3 && ii==3 && iii==0){
-						conn_p[i*16+ii*4+iii] = elem->nodes[2].id;
-					}else if(i==0 && ii==0 && iii==3){
-						conn_p[i*16+ii*4+iii] = elem->nodes[4].id;
-					}else if(i==3 && ii==0 && iii==3){
-						conn_p[i*16+ii*4+iii] = elem->nodes[5].id;
-					}else if(i==0 && ii==3 && iii==3){
-						conn_p[i*16+ii*4+iii] = elem->nodes[7].id;
-					}else if(i==3 && ii==3 && iii==3){
-						conn_p[i*16+ii*4+iii] = elem->nodes[6].id;
-					}
-				}else{
-					point[i*16+ii*4+iii] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-					double var[3];
-					var[0] = point[i*16+ii*4+iii]->x;
-					var[1] = point[i*16+ii*4+iii]->y;
-					var[2] = point[i*16+ii*4+iii]->z;
-					conn_p[i*16+ii*4+iii] = AddPoint( mesh, hash_nodes, point[i*16+ii*4+iii] , coords);
-				}
-
-				//fprintf(mesh->fdbg,"id do no: %d\n",conn_p[i*16+ii*4+iii]);
-				//double xxx = coords[3*conn_p[i*16+ii*4+iii]];
-				//double yyy = coords[3*conn_p[i*16+ii*4+iii]+1];
-				//double zzz = coords[3*conn_p[i*16+ii*4+iii]+2];
-				//fprintf(mesh->fdbg,"no vetor Coords x: %f, y:%f, z:%f\n", xxx, yyy, zzz );
-				cord_in_ref[2] = cord_in_ref[2] + step;
-			}
-			cord_in_ref[1] = cord_in_ref[1] + step;
-		}
-		cord_in_ref[0] = cord_in_ref[0] + step;
-	}
-
-	//add the elements in the octants
-	for (int i = 0; i < 3; ++i) {
-		for (int ii = 0; ii < 3; ++ii) {
-			for (int iii = 0; iii < 3; ++iii) {
-
-				if(i==0 && ii==0 && iii==0 ){
-
-					octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
-					elem1->nodes[0].id = conn_p[i*16+ii*4+iii];
-					elem1->nodes[1].id = conn_p[(i+1)*16+ii*4+iii];
-					elem1->nodes[2].id = conn_p[(i+1)*16+(ii+1)*4+iii];
-					elem1->nodes[3].id = conn_p[i*16+(ii+1)*4+iii];
-
-					elem1->nodes[4].id = conn_p[i*16+ii*4+iii+1];
-					elem1->nodes[5].id = conn_p[(i+1)*16+ii*4+iii+1];
-					elem1->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
-					elem1->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
-
-					CopyPropEl(mesh,id,elem1);
-				} else{
-
-					octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
-
-					elem2->nodes[0].id = conn_p[i*16+ii*4+iii];
-					elem2->nodes[1].id = conn_p[(i+1)*16+ii*4+iii];
-					elem2->nodes[2].id = conn_p[(i+1)*16+(ii+1)*4+iii];
-					elem2->nodes[3].id = conn_p[i*16+(ii+1)*4+iii];
-
-					elem2->nodes[4].id = conn_p[i*16+ii*4+iii+1];
-					elem2->nodes[5].id = conn_p[(i+1)*16+ii*4+iii+1];
-					elem2->nodes[6].id = conn_p[(i+1)*16+(ii+1)*4+iii+1];
-					elem2->nodes[7].id = conn_p[i*16+(ii+1)*4+iii+1];
-
-					CopyPropEl(mesh,id,elem2);
-				}
-			}
-		}
-	}
-	sc_array_reset(&toto);
-	 */
 }
 
 void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
@@ -9667,6 +9557,7 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 
 	bool deb = true;
 	bool clamped = true;
+	//TODO remove vertex hash
 	//vertex hash
 	sc_hash_array_t*	  vertex_hash  = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
 
@@ -9974,14 +9865,15 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	int elem_old = mesh->elements.elem_count;
 	int nodes_old = mesh->nodes.elem_count;
 	bool clamped = true;
+	fprintf(mesh->profile,"Time inside PillowingInterface\n");
 
 	//redo the mapping in the nodes
 	auto start = std::chrono::steady_clock::now( );
 	printf("     Redo Node Mapping\n");
 	RedoNodeMapping(mesh);
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-
-	std::cout << "Redo the mapping in the nodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	fprintf(mesh->profile,"    Redo the mapping in the nodes %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Redo the mapping in the nodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	start = std::chrono::steady_clock::now( );
 	//criando a hash de nos para evitar nos duplicados no pillowing
@@ -9994,22 +9886,22 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	printf("     Building hashs\n");
 	BuildHash(mesh, coords, nodes_b_mat, hash_edge_ref);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-
-	std::cout << "Time in hash "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	fprintf(mesh->profile,"    Time in hash %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Time in hash "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	start = std::chrono::steady_clock::now( );
 	printf("     Check octree template\n");
 	CheckOctreeTemplate(mesh, hash_edge_ref);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-
-	std::cout << "Time check "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	fprintf(mesh->profile,"    Time in CheckOctreeTemplate %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Time check "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	start = std::chrono::steady_clock::now( );
 	printf("     Apply octree template\n");
 	ApplyOctreeTemplate(mesh, coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-
-	std::cout << "Time apply "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	fprintf(mesh->profile,"    Time in ApplyOctreeTemplate %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Time apply "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	/*
 	FILE* bla;
@@ -10023,7 +9915,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		}
 	}
 	fclose(bla);
-	 */
+
 
 	FILE* bla;
 	char treta[80];
@@ -10037,8 +9929,6 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	}
 	fclose(bla);
 
-	//FILE* bla;
-	//char treta[80];
 	sprintf(treta,"ElementosA_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
 	bla = fopen(treta,"w");
 	for (int ino = 0; ino < mesh->nodes.elem_count; ++ino) {
@@ -10048,6 +9938,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		}
 	}
 	fclose(bla);
+	 */
 
 	//update the vectors
 	mesh->local_n_elements = mesh->elements.elem_count;
@@ -10067,6 +9958,9 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 		mesh->part_nodes[nodes_b_mat[ino]] = 1;
 	}
 
+	start = std::chrono::steady_clock::now( );
 	printf("     Surface Identification\n");
 	SurfaceIdentification(mesh, coords);
+	fprintf(mesh->profile,"    Time in SurfaceIdentification %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 }

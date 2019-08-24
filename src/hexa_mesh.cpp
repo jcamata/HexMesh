@@ -460,12 +460,6 @@ void hexa_mesh(hexa_tree_t* mesh){
 		printf("Total number of nodes: %lld\n", mesh->total_n_nodes);
 	}
 
-	//edges
-	//add edge_identification
-	//int nedges = 0;
-	//initialization for the edge id
-	//TODO MEMORY and TIME consumption are insane...
-	//printf("edges\n");
 	int edge_count = 0;
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 

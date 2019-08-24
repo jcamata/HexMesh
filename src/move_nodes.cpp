@@ -112,6 +112,7 @@ GtsPoint* FoundInterception(hexa_tree_t* mesh,std::vector<double>& coords,int no
 
 void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
+	bool deb = false;
 	int Edge2GNode[12][2]={0};
 	GtsSegment * segments[12]={0};
 	GtsPoint * point[12]={NULL};
@@ -406,7 +407,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 		//TODO add a element counter to avoid redo the coords change
 		//Changing the coords vector
-		for(int iel = coord_count ; iel<(aux.size()/4); iel++){
+		for(int iel = 0 ; iel<(aux.size()/4); iel++){
 			int node = aux[4*iel+0];
 			nodes_b_mat.push_back(node);
 			coords[3*node+0] = aux[4*iel+1];
@@ -881,25 +882,22 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 		octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
 		for(int iel = 0; iel<8; iel++){
-			if(oct->id[iel]!=-1){
-				octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
-				for(int ino = 0; ino<8; ino++){
-					elem->nodes[ino].fixed = 2;
-					//elem->nodes[ino].color = 0;
-					int node = elem->nodes[ino].id;
-					key.coord[0] = coords[3*node+0];
-					key.coord[1] = coords[3*node+1];
-					key.coord[2] = coords[3*node+2];
-					key.node_id = node;
-					bool tre = sc_hash_array_lookup(hash_FixedNodes, &key, &position);
-					if(tre){
-						elem->nodes[ino].fixed = 1;
-					}
+			octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
+			for(int ino = 0; ino<8; ino++){
+				elem->nodes[ino].fixed = 2;
+				//elem->nodes[ino].color = 0;
+				int node = elem->nodes[ino].id;
+				key.coord[0] = coords[3*node+0];
+				key.coord[1] = coords[3*node+1];
+				key.coord[2] = coords[3*node+2];
+				key.node_id = node;
+				bool tre = sc_hash_array_lookup(hash_FixedNodes, &key, &position);
+				if(tre){
+					elem->nodes[ino].fixed = 1;
 				}
 			}
 		}
 	}
-
 
 	nodes_b_mat.clear();
 	for(int ii = 0;ii < hash_FixedNodes->a.elem_count ;ii++){
@@ -908,6 +906,39 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 	}
 	printf(" Total of %d fixed nodes\n",nodes_b_mat.size());
 
+	//add the color of the node (help in the material selection)
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc){
+		octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
+		octant_t *elem[8];
+		for(int iel = 0; iel < 8; iel++){
+			elem[iel] = (octant_t *)sc_array_index(&mesh->elements,oct->id[iel]);
+		}
+		if(deb){
+			for(int iedge = 0; iedge < 12; iedge++){
+				if(oct->edge[iedge]) printf("Para o octree %d a aresta %d foi interceptada\n",ioc,iedge);
+			}
+		}
+		for(int ino = 0; ino < 8; ino++){
+			for(int iedge = 0; iedge < 3; iedge++){
+				if(!oct->edge[VertexEdgeMap[ino][iedge]]){
+					if(elem[ino]->nodes[ino].color == -1) elem[ino]->nodes[ino].color = 1;
+					elem[OctNeighbourMap[ino][iedge]]->nodes[OctNeighbourMap[ino][iedge]].color = elem[ino]->nodes[ino].color;
+				}else{
+					if(deb)printf("No %d, iedge %d (aresta %d)\n",ino,iedge,VertexEdgeMap[ino][iedge]);
+					if(elem[ino]->nodes[ino].color == 2){
+
+					}else{
+						if(elem[OctNeighbourMap[ino][iedge]]->nodes[OctNeighbourMap[ino][iedge]].color == -1) elem[OctNeighbourMap[ino][iedge]]->nodes[OctNeighbourMap[ino][iedge]].color = 2;
+					}
+				}
+			}
+		}
+		if(deb){
+			for(int iel = 0; iel < 8; iel++){
+				printf("Node %d color %d\n",iel, elem[iel]->nodes[iel].color);
+			}
+		}
+	}
 }
 
 void FreeMovableNodes(hexa_tree_t* mesh){
@@ -1149,6 +1180,8 @@ void FreeMovableNodes(hexa_tree_t* mesh){
 
 void IdentifyMovableNodes(hexa_tree_t* mesh){
 
+	bool deb = false;
+
 	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
 		octant_node_t * node = (octant_node_t *) sc_array_index(&mesh->nodes, ino);
 		node->fixed = 2;
@@ -1158,239 +1191,241 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 
 		for(int iel=0; iel<8; iel++){
-			if(oct->id[iel]!=-1){
-				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 
-				elem->pad = oct->id[0]+1;
+			elem->pad = oct->id[0]+1;
 
-				//fix all the nodes
-				//TODO add the color of the node (help in the material selection)
-				for(int ino = 0; ino <8; ino++){
-					elem->nodes[ino].fixed = 2;
-					elem->nodes[ino].color = 0;
-				}
+			//fix all the nodes
+			for(int ino = 0; ino <8; ino++){
+				elem->nodes[ino].fixed = 2;
+				elem->nodes[ino].color = -1;
+			}
 
 
-				//printf("Sou o elemento %d, o numero %d do octree\n",elem->id,iel);
-				//identificando as arestas interceptadas and liberando os nos a serem movidos
+			//printf("Sou o elemento %d, o numero %d do octree\n",elem->id,iel);
+			//identificando as arestas interceptadas and liberando os nos a serem movidos
 
-				//face superior
-				if(iel==0 || iel ==1){
-					if(elem->edge[0].ref && iel == 0){
-						oct->edge[0]=true;
-						elem->nodes[1].fixed = 0;
-					}else if(elem->edge[0].ref && iel == 1){
-						oct->edge[0]=true;
-						elem->nodes[0].fixed = 0;
-					}
+			//face superior
+			if(iel==0 || iel ==1){
+				if(elem->edge[0].ref && iel == 0){
+					oct->edge[0]=true;
+					elem->nodes[1].fixed = 0;
+				}else if(elem->edge[0].ref && iel == 1){
+					oct->edge[0]=true;
+					elem->nodes[0].fixed = 0;
 				}
-				if(iel==1 || iel ==2){
-					if(elem->edge[1].ref && iel == 1){
-						oct->edge[1]=true;
-						elem->nodes[2].fixed = 0;
-					}else if(elem->edge[1].ref  && iel == 2){
-						oct->edge[1]=true;
-						elem->nodes[1].fixed = 0;
-					}
+			}
+			if(iel==1 || iel ==2){
+				if(elem->edge[1].ref && iel == 1){
+					oct->edge[1]=true;
+					elem->nodes[2].fixed = 0;
+				}else if(elem->edge[1].ref  && iel == 2){
+					oct->edge[1]=true;
+					elem->nodes[1].fixed = 0;
 				}
-				if(iel==2 || iel ==3){
-					if(elem->edge[2].ref && iel == 2){
-						oct->edge[2]=true;
-						elem->nodes[3].fixed = 0;
-					}else if(elem->edge[2].ref && iel == 3){
-						oct->edge[2]=true;
-						elem->nodes[2].fixed = 0;
-					}
+			}
+			if(iel==2 || iel ==3){
+				if(elem->edge[2].ref && iel == 2){
+					oct->edge[2]=true;
+					elem->nodes[3].fixed = 0;
+				}else if(elem->edge[2].ref && iel == 3){
+					oct->edge[2]=true;
+					elem->nodes[2].fixed = 0;
 				}
-				if(iel==3 || iel ==0){
-					if(elem->edge[3].ref && iel == 3){
-						oct->edge[3]=true;
-						elem->nodes[0].fixed = 0;
-					}else if(elem->edge[3].ref && iel == 0){
-						oct->edge[3]=true;
-						elem->nodes[3].fixed = 0;
-					}
+			}
+			if(iel==3 || iel ==0){
+				if(elem->edge[3].ref && iel == 3){
+					oct->edge[3]=true;
+					elem->nodes[0].fixed = 0;
+				}else if(elem->edge[3].ref && iel == 0){
+					oct->edge[3]=true;
+					elem->nodes[3].fixed = 0;
 				}
+			}
 
-				//face inferior
-				if(iel==4 || iel ==5){
-					if(elem->edge[8].ref && iel == 4){
-						oct->edge[8]=true;
-						elem->nodes[5].fixed = 0;
-					}else if(elem->edge[8].ref && iel == 5){
-						oct->edge[8]=true;
-						elem->nodes[4].fixed = 0;
-					}
+			//face inferior
+			if(iel==4 || iel ==5){
+				if(elem->edge[8].ref && iel == 4){
+					oct->edge[8]=true;
+					elem->nodes[5].fixed = 0;
+				}else if(elem->edge[8].ref && iel == 5){
+					oct->edge[8]=true;
+					elem->nodes[4].fixed = 0;
 				}
-				if(iel==5 || iel ==6){
-					if(elem->edge[9].ref && iel == 5){
-						oct->edge[9]=true;
-						elem->nodes[6].fixed = 0;
-					}else if(elem->edge[9].ref && iel == 6){
-						oct->edge[9]=true;
-						elem->nodes[5].fixed = 0;
-					}
+			}
+			if(iel==5 || iel ==6){
+				if(elem->edge[9].ref && iel == 5){
+					oct->edge[9]=true;
+					elem->nodes[6].fixed = 0;
+				}else if(elem->edge[9].ref && iel == 6){
+					oct->edge[9]=true;
+					elem->nodes[5].fixed = 0;
 				}
-				if(iel==6 || iel ==7){
-					if(elem->edge[10].ref && iel == 6){
-						oct->edge[10]=true;
-						elem->nodes[7].fixed = 0;
-					}else if(elem->edge[10].ref && iel == 7){
-						oct->edge[10]=true;
-						elem->nodes[6].fixed = 0;
-					}
+			}
+			if(iel==6 || iel ==7){
+				if(elem->edge[10].ref && iel == 6){
+					oct->edge[10]=true;
+					elem->nodes[7].fixed = 0;
+				}else if(elem->edge[10].ref && iel == 7){
+					oct->edge[10]=true;
+					elem->nodes[6].fixed = 0;
 				}
-				if(iel==7 || iel ==4){
-					if(elem->edge[11].ref && iel == 7){
-						oct->edge[11]=true;
-						elem->nodes[4].fixed = 0;
-					}else if(elem->edge[11].ref && iel == 4){
-						oct->edge[11]=true;
-						elem->nodes[7].fixed = 0;
-					}
+			}
+			if(iel==7 || iel ==4){
+				if(elem->edge[11].ref && iel == 7){
+					oct->edge[11]=true;
+					elem->nodes[4].fixed = 0;
+				}else if(elem->edge[11].ref && iel == 4){
+					oct->edge[11]=true;
+					elem->nodes[7].fixed = 0;
 				}
+			}
 
-				//arestas verticais
-				if(iel==0 || iel ==4){
-					if(elem->edge[4].ref && iel == 0){
-						oct->edge[4]=true;
-						elem->nodes[4].fixed = 0;
-					}else if(elem->edge[4].ref && iel == 4){
-						oct->edge[4]=true;
-						elem->nodes[0].fixed = 0;
-					}
+			//arestas verticais
+			if(iel==0 || iel ==4){
+				if(elem->edge[4].ref && iel == 0){
+					oct->edge[4]=true;
+					elem->nodes[4].fixed = 0;
+				}else if(elem->edge[4].ref && iel == 4){
+					oct->edge[4]=true;
+					elem->nodes[0].fixed = 0;
 				}
-				if(iel==1 || iel ==5){
-					if(elem->edge[5].ref && iel == 1){
-						oct->edge[5]=true;
-						elem->nodes[5].fixed = 0;
-					}else if(elem->edge[5].ref && iel == 5){
-						oct->edge[5]=true;
-						elem->nodes[1].fixed = 0;
-					}
+			}
+			if(iel==1 || iel ==5){
+				if(elem->edge[5].ref && iel == 1){
+					oct->edge[5]=true;
+					elem->nodes[5].fixed = 0;
+				}else if(elem->edge[5].ref && iel == 5){
+					oct->edge[5]=true;
+					elem->nodes[1].fixed = 0;
 				}
-				if(iel==2 || iel ==6){
-					if(elem->edge[6].ref && iel == 2){
-						oct->edge[6]=true;
-						elem->nodes[6].fixed = 0;
-					}else if(elem->edge[6].ref && iel == 6){
-						oct->edge[6]=true;
-						elem->nodes[2].fixed = 0;
-					}
+			}
+			if(iel==2 || iel ==6){
+				if(elem->edge[6].ref && iel == 2){
+					oct->edge[6]=true;
+					elem->nodes[6].fixed = 0;
+				}else if(elem->edge[6].ref && iel == 6){
+					oct->edge[6]=true;
+					elem->nodes[2].fixed = 0;
 				}
-				if(iel==3 || iel ==7){
-					if(elem->edge[7].ref && iel == 3){
-						oct->edge[7]=true;
-						elem->nodes[7].fixed = 0;
-					}else if(elem->edge[7].ref && iel == 7){
-						oct->edge[7]=true;
-						elem->nodes[3].fixed = 0;
-					}
+			}
+			if(iel==3 || iel ==7){
+				if(elem->edge[7].ref && iel == 3){
+					oct->edge[7]=true;
+					elem->nodes[7].fixed = 0;
+				}else if(elem->edge[7].ref && iel == 7){
+					oct->edge[7]=true;
+					elem->nodes[3].fixed = 0;
 				}
+			}
 
-				//printf("%s\n", oct->edge[0] ? "true" : "false");
-				//identificando as faces
-				//x-
-				if(oct->edge[4] || oct->edge[11] || oct->edge[7] || oct->edge[3]){
-					oct->face[0]=true;
-					if(iel == 0){
-						elem->nodes[7].fixed = 0;
-					}else if(iel == 3){
-						elem->nodes[4].fixed = 0;
-					}else if(iel == 4){
-						elem->nodes[3].fixed = 0;
-					}else if(iel == 7){
-						elem->nodes[0].fixed = 0;
-					}
+			//printf("%s\n", oct->edge[0] ? "true" : "false");
+			//identificando as faces
+			//x-
+			if(oct->edge[4] || oct->edge[11] || oct->edge[7] || oct->edge[3]){
+				oct->face[0]=true;
+				if(iel == 0){
+					elem->nodes[7].fixed = 0;
+				}else if(iel == 3){
+					elem->nodes[4].fixed = 0;
+				}else if(iel == 4){
+					elem->nodes[3].fixed = 0;
+				}else if(iel == 7){
+					elem->nodes[0].fixed = 0;
 				}
-				//x+
-				if(oct->edge[5] || oct->edge[1] || oct->edge[6] || oct->edge[9]){
-					oct->face[1]=true;
-					if(iel == 1){
-						elem->nodes[6].fixed = 0;
-					}else if(iel == 2){
-						elem->nodes[5].fixed = 0;
-					}else if(iel == 5){
-						elem->nodes[2].fixed = 0;
-					}else if(iel == 6){
-						elem->nodes[1].fixed = 0;
-					}
+			}
+			//x+
+			if(oct->edge[5] || oct->edge[1] || oct->edge[6] || oct->edge[9]){
+				oct->face[1]=true;
+				if(iel == 1){
+					elem->nodes[6].fixed = 0;
+				}else if(iel == 2){
+					elem->nodes[5].fixed = 0;
+				}else if(iel == 5){
+					elem->nodes[2].fixed = 0;
+				}else if(iel == 6){
+					elem->nodes[1].fixed = 0;
 				}
-				//y-
-				if(oct->edge[0] || oct->edge[5] || oct->edge[8] || oct->edge[4]){
-					oct->face[2]=true;
-					if(iel == 0){
-						elem->nodes[5].fixed = 0;
-					}else if(iel == 1){
-						elem->nodes[4].fixed = 0;
-					}else if(iel == 4){
-						elem->nodes[1].fixed = 0;
-					}else if(iel == 5){
-						elem->nodes[0].fixed = 0;
-					}
+			}
+			//y-
+			if(oct->edge[0] || oct->edge[5] || oct->edge[8] || oct->edge[4]){
+				oct->face[2]=true;
+				if(iel == 0){
+					elem->nodes[5].fixed = 0;
+				}else if(iel == 1){
+					elem->nodes[4].fixed = 0;
+				}else if(iel == 4){
+					elem->nodes[1].fixed = 0;
+				}else if(iel == 5){
+					elem->nodes[0].fixed = 0;
 				}
-				//y+
-				if(oct->edge[2] || oct->edge[6] || oct->edge[10] || oct->edge[7]){
-					oct->face[3]=true;
-					if(iel == 2){
-						elem->nodes[7].fixed = 0;
-					}else if(iel == 3){
-						elem->nodes[6].fixed = 0;
-					}else if(iel == 6){
-						elem->nodes[3].fixed = 0;
-					}else if(iel == 7){
-						elem->nodes[2].fixed = 0;
-					}
+			}
+			//y+
+			if(oct->edge[2] || oct->edge[6] || oct->edge[10] || oct->edge[7]){
+				oct->face[3]=true;
+				if(iel == 2){
+					elem->nodes[7].fixed = 0;
+				}else if(iel == 3){
+					elem->nodes[6].fixed = 0;
+				}else if(iel == 6){
+					elem->nodes[3].fixed = 0;
+				}else if(iel == 7){
+					elem->nodes[2].fixed = 0;
 				}
-				//z-
-				if(oct->edge[8] || oct->edge[9] || oct->edge[10] || oct->edge[11]){
-					oct->face[4]=true;
-					if(iel == 4){
-						elem->nodes[6].fixed = 0;
-					}else if(iel == 5){
-						elem->nodes[7].fixed = 0;
-					}else if(iel == 6){
-						elem->nodes[4].fixed = 0;
-					}else if(iel == 7){
-						elem->nodes[5].fixed = 0;
-					}
+			}
+			//z-
+			if(oct->edge[8] || oct->edge[9] || oct->edge[10] || oct->edge[11]){
+				oct->face[4]=true;
+				if(iel == 4){
+					elem->nodes[6].fixed = 0;
+				}else if(iel == 5){
+					elem->nodes[7].fixed = 0;
+				}else if(iel == 6){
+					elem->nodes[4].fixed = 0;
+				}else if(iel == 7){
+					elem->nodes[5].fixed = 0;
 				}
-				//z+
-				if(oct->edge[0] || oct->edge[1] || oct->edge[2] || oct->edge[3]){
-					oct->face[5]=true;
-					if(iel == 0){
-						elem->nodes[2].fixed = 0;
-					}else if(iel == 1){
-						elem->nodes[3].fixed = 0;
-					}else if(iel == 2){
-						elem->nodes[0].fixed = 0;
-					}else if(iel == 3){
-						elem->nodes[1].fixed = 0;
-					}
+			}
+			//z+
+			if(oct->edge[0] || oct->edge[1] || oct->edge[2] || oct->edge[3]){
+				oct->face[5]=true;
+				if(iel == 0){
+					elem->nodes[2].fixed = 0;
+				}else if(iel == 1){
+					elem->nodes[3].fixed = 0;
+				}else if(iel == 2){
+					elem->nodes[0].fixed = 0;
+				}else if(iel == 3){
+					elem->nodes[1].fixed = 0;
 				}
+			}
 
-				//free the central node
-				if(iel == 0) elem->nodes[6].fixed = 0;
+			//free the central node
+			if(iel == 0) elem->nodes[6].fixed = 0;
 
-				for(int ino = 0; ino < 8; ino++){
-					octant_node_t * node = (octant_node_t *) sc_array_index(&mesh->nodes, elem->nodes[ino].id);
-					if(node->fixed == 2){
-						node->fixed = elem->nodes[ino].fixed;
-					}
+			for(int ino = 0; ino < 8; ino++){
+				octant_node_t * node = (octant_node_t *) sc_array_index(&mesh->nodes, elem->nodes[ino].id);
+				if(node->fixed == 2){
+					node->fixed = elem->nodes[ino].fixed;
 				}
 			}
 		}
+
 	}
-	int count =0;
-	for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
-		octant_node_t * node = (octant_node_t *) sc_array_index(&mesh->nodes, ino);
-		mesh->part_nodes[ino] = node->fixed;
-		if(node->fixed != 1){
-			//printf("no:%d \n",node->id);
-			count++;
+
+	if(deb){
+		int count =0;
+		for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
+			octant_node_t * node = (octant_node_t *) sc_array_index(&mesh->nodes, ino);
+			mesh->part_nodes[ino] = node->fixed;
+			if(node->fixed != 1){
+				printf("no:%d \n",node->id);
+				count++;
+			}
 		}
+		printf("achei %d nos fixos\n",count);
 	}
-	//printf("achei %d nos fixos\n",count);
+
 }
 
 void DoOctree(hexa_tree_t* mesh){
@@ -1680,187 +1715,11 @@ void DoOctree(hexa_tree_t* mesh){
 	}
 }
 
-void ExtrudeToOctree(hexa_tree_t* mesh,std::vector<double>& coords){
-
-	bool clamped = true;
-	sc_hash_array_t* hash_nodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
-
-	for(int ino = 0; ino<mesh->nodes.elem_count; ino++){
-		size_t position;
-		node_t *r;
-		node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
-		key.coord[0] = coords[3*node->id+0];
-		key.coord[1] = coords[3*node->id+1];
-		key.coord[2] = coords[3*node->id+2];
-		key.node_id = node->id;
-
-		r = (node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
-		if(r!=NULL){
-			r->coord[0] = coords[3*node->id+0];
-			r->coord[1] = coords[3*node->id+1];
-			r->coord[2] = coords[3*node->id+2];
-			r->node_id = node->id;
-		}else{
-			printf("Verificar o no numero %d\n",node->id);
-		}
-	}
-
-	sc_array_t toto;
-	sc_array_init(&toto, sizeof(octant_t));
-
-	for (int iel = 0; iel < mesh->elements.elem_count; ++iel){
-		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, iel);
-		octant_t* elem = (octant_t*) sc_array_push(&toto);
-		//hexa_element_init(elem);
-		hexa_element_copy(elemOrig,elem);
-		sc_array_reset(&toto);
-		elem->pml_id = 0;
-		bool edge, face, point;
-		point = true ;
-		face = true;
-		edge = true;
-
-		if(face){
-			if(elem->x == (mesh->ncellx-1)){
-
-				//octant_t* oct_e = (octant_t*) sc_array_push(&mesh->elements);
-				//oct_e->id = mesh->elements.elem_count+1;
-				//fazendo uma redução do elemento na direcao x
-				int node0, node1, node2, node3;
-				double cord_in_x[8], cord_in_y[8], cord_in_z[8];
-				double cord_in_ref[3];
-				GtsPoint * point_coord;
-
-				//nos de referencia
-				node0 = elem->nodes[1].id;
-				node1 = elem->nodes[2].id;
-				node2 = elem->nodes[6].id;
-				node3 = elem->nodes[5].id;
-
-				//gerando o mapping linear e mudando o vetor de coordenadas
-
-				//add the nodes in the coord vector
-				for (int ii = 0; ii < 8; ii++) {
-					cord_in_x[ii] = coords[3 * elem->nodes[ii].id];
-					cord_in_y[ii] = coords[3 * elem->nodes[ii].id + 1];
-					cord_in_z[ii] = coords[3 * elem->nodes[ii].id + 2];
-				}
-
-				double X = cord_in_x[6];
-
-				cord_in_ref[0] = 1;
-				cord_in_ref[1] = -1;
-				cord_in_ref[2] = -1;
-				point_coord = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
-				coords[3 * node0 + 0] = point_coord->x;
-				coords[3 * node0 + 1] = point_coord->y;
-				coords[3 * node0 + 2] = point_coord->z;
-
-				cord_in_ref[0] = 1;
-				cord_in_ref[1] = 1;
-				cord_in_ref[2] = -1;
-				point_coord = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
-				coords[3 * node1 + 0] = point_coord->x;
-				coords[3 * node1 + 1] = point_coord->y;
-				coords[3 * node1 + 2] = point_coord->z;
-
-				cord_in_ref[0] = 1;
-				cord_in_ref[1] = 1;
-				cord_in_ref[2] = 1;
-				point_coord = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
-				coords[3 * node2 + 0] = point_coord->x;
-				coords[3 * node2 + 1] = point_coord->y;
-				coords[3 * node2 + 2] = point_coord->z;
-
-				cord_in_ref[0] = 1;
-				cord_in_ref[1] = -1;
-				cord_in_ref[2] = 1;
-				point_coord = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
-				coords[3 * node3 + 0] = point_coord->x;
-				coords[3 * node3 + 1] = point_coord->y;
-				coords[3 * node3 + 2] = point_coord->z;
-
-
-				double x[8],y[8],z[8];
-
-				x[0] = coords[3*node0+0];
-				x[1] = X;
-				x[2] = X;
-				x[3] = coords[3*node3+0];
-				x[4] = coords[3*node0+0];
-				x[5] = X;
-				x[6] = X;
-				x[7] = coords[3*node3+0];
-
-				y[0] = coords[3*node0+1];
-				y[1] = coords[3*node0+1];
-				y[2] = coords[3*node1+1];
-				y[3] = coords[3*node1+1];
-				y[4] = coords[3*node3+1];
-				y[5] = coords[3*node3+1];
-				y[6] = coords[3*node2+1];
-				y[7] = coords[3*node2+1];
-
-				z[0] = coords[3*node0+2];
-				z[1] = coords[3*node0+2];
-				z[2] = coords[3*node1+2];
-				z[3] = coords[3*node1+2];
-				z[4] = coords[3*node3+2];
-				z[5] = coords[3*node3+2];
-				z[6] = coords[3*node2+2];
-				z[7] = coords[3*node2+2];
-
-				for(int j = 0; j <8 ; j++){
-					//definindo ponto p a ser adicionado
-					GtsPoint p;
-					gts_point_set(&p, x[j], y[j], z[j]);
-					//adicionando ponto p
-					//oct_e->nodes[j].id = AddPoint(mesh, hash_nodes, &p, coords);
-				}
-/*
-				oct_e->n_mat = elem->n_mat;
-				oct_e->x = elem->x+1;
-				oct_e->y = elem->y;
-				oct_e->z = elem->z;
-				oct_e->pad = elem->pad;
-				oct_e->pml_id = elem->pml_id;
-
-				 *
-				 */
-			}
-
-			if(elem->y == mesh->ncelly){
-
-			}
-
-			if(elem->z == mesh->ncellz){
-
-			}
-		}
-
-	}
-	mesh->ncellx = mesh->ncellx+1;
-	//update the vectors
-	mesh->local_n_elements = mesh->elements.elem_count;
-	mesh->local_n_nodes = mesh->nodes.elem_count;
-	MPI_Allreduce(&mesh->local_n_elements, &mesh->total_n_elements, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-	MPI_Allreduce(&mesh->local_n_nodes, &mesh->total_n_nodes, 1, MPI_LONG, MPI_SUM, MPI_COMM_WORLD);
-}
-
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface) {
 
-	int8_t* flag_nodes = (int8_t*) malloc(sizeof (int8_t) * mesh->local_n_nodes);
+	bool deb = false;
 
 	time_t tstart, tend;
-
-	memset(flag_nodes, 0, sizeof (int8_t) * mesh->local_n_nodes);
-
-	//tstart = time(0);
-	//printf("    Extrude a new layer of elements...\n");
-	//ExtrudeToOctree(mesh,coords);
-	//tend = time(0);
-	//	cout << "Time in ExtrudeToOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 	tstart = time(0);
 	printf("    Building the octree structure...\n");
@@ -1874,7 +1733,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	tend = time(0);
 	//cout << "Time in IdentifyMovableNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
-	if(false){
+	if(deb){
 		char fdname[80];
 		sprintf(fdname,"nos_livres_%04d.txt", mesh->mpi_rank);
 		FILE* treta = fopen(fdname,"w");
@@ -1888,7 +1747,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		fclose(treta);
 	}
 
-	if(false){
+	if(deb){
 		char fdname[80];
 		sprintf(fdname,"debug_edges_%04d.txt", mesh->mpi_rank);
 		FILE* treta = fopen(fdname,"w");
@@ -1923,12 +1782,16 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	tend = time(0);
 	//cout << "Time in ProjectFreeNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
-	for (int i = 0; i < mesh->local_n_nodes; i++) {
-		flag_nodes[i]=0;
-	}
+	if(deb){
+		int8_t* flag_nodes = (int8_t*) malloc(sizeof (int8_t) * mesh->local_n_nodes);
+		memset(flag_nodes, 0, sizeof (int8_t) * mesh->local_n_nodes);
 
-	//verifica a criacao os nos livres e fixos na criacao dos octrees
-	if(false){
+		for (int i = 0; i < mesh->local_n_nodes; i++) {
+			flag_nodes[i]=0;
+		}
+
+		//verifica a criacao os nos livres e fixos na criacao dos octrees
+
 		//std::cout <<  mesh->elements.elem_count << " coisinhas para mover" << std::endl;
 		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
@@ -1940,20 +1803,12 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 				}
 			}
 		}
-
 		for (int i = 0; i < mesh->local_n_nodes; i++) {
-			//mesh->part_nodes[i] = flag_nodes[i];
+			mesh->part_nodes[i] = flag_nodes[i];
+		}
+		free(flag_nodes);
+		for(int i = 0; i<nodes_b_mat.size();i++){
+			mesh->part_nodes[nodes_b_mat[i]] = 1;
 		}
 	}
-
-	//verifica se os nos movidos estao fixos...
-	for(int i = 0; i<nodes_b_mat.size();i++){
-		//	mesh->part_nodes[nodes_b_mat[i]] = 1;
-	}
-
-	//gts_bb_tree_destroy(bbt_bathymetry, TRUE);
-
-	//gts_object_destroy(GTS_OBJECT(bathymetry));
-
-	free(flag_nodes);
 }

@@ -192,6 +192,7 @@ typedef struct {
 #ifdef HEXA_DEBUG_
 	FILE* fdbg;
 #endif
+	FILE* profile;
 	GeometryData gdata;
 	GeometryData tdata;
 
@@ -210,6 +211,32 @@ int const EdgeVerticesMap[12][2] = {
 		{5, 6}, // Edge 9
 		{6, 7}, // Edge 10
 		{7, 4}  // Edge 11
+};
+
+int const EdgeElemOctMap[12][2] = {
+		{0, 1}, // Edge 0
+		{1, 2}, // Edge 1
+		{2, 3}, // Edge 2
+		{3, 0}, // Edge 3
+		{0, 4}, // Edge 4
+		{1, 5}, // Edge 5
+		{2, 6}, // Edge 6
+		{3, 7}, // Edge 7
+		{4, 5}, // Edge 8
+		{5, 6}, // Edge 9
+		{6, 7}, // Edge 10
+		{7, 4}  // Edge 11
+};
+
+int const OctNeighbourMap[8][3] = {
+		{1, 3, 4}, //El 0
+		{2, 0, 5}, //El 1
+		{3, 1, 6}, //El 2
+		{0, 2, 7}, //El 3
+		{5, 7, 0}, //El 4
+		{6, 4, 1}, //El 5
+		{7, 5, 2}, //El 6
+		{4, 6, 3}  //El 7
 };
 
 int const EdgeVerticesMap_surf_diagonal[12][2] = {
@@ -297,13 +324,13 @@ int const vert_ord[4][3]= {
 
 int const VertexEdgeMap[8][3] = {
 		{0,3,4}, //Vertex 0
-		{0,1,5}, //Vertex 1
-		{1,2,6}, //Vertex 2
-		{2,3,7}, //Vertex 3
-		{4,8,11}, //Vertex 4
-		{5,8,9}, //Vertex 5
-		{6,9,10}, //Vertex 6
-		{7,10,11}  //Vertex 7
+		{1,0,5}, //Vertex 1
+		{2,1,6}, //Vertex 2
+		{3,2,7}, //Vertex 3
+		{8,11,4}, //Vertex 4
+		{9,8,5}, //Vertex 5
+		{10,9,6}, //Vertex 6
+		{11,10,7}  //Vertex 7
 };
 
 int const VertexVertexMap[8][3] = {
