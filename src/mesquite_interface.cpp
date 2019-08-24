@@ -1,9 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 #include <sstream>
 #include <vector>
 #include <mpi.h>
@@ -906,58 +900,41 @@ void RedoCoords(hexa_tree_t* mesh, std::vector<double>& coords){
 	double d;
 	double zmax;
 
-	sc_array_t *nodes = &mesh->nodes;
-
 	// Get the surface bounding box
 	mesh->tdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->tdata.s);
 	if (mesh->mpi_rank == 0) {
-		printf("Bounding box: \n");
-		printf(" x ranges from %f to %f\n", mesh->tdata.bbox->x1, mesh->tdata.bbox->x2);
-		printf(" y ranges from %f to %f\n", mesh->tdata.bbox->y1, mesh->tdata.bbox->y2);
-		printf(" z ranges from %f to %f\n", mesh->tdata.bbox->z1, mesh->tdata.bbox->z2);
+		printf("         Bounding box: \n");
+		printf("         x ranges from %f to %f\n", mesh->tdata.bbox->x1, mesh->tdata.bbox->x2);
+		printf("         y ranges from %f to %f\n", mesh->tdata.bbox->y1, mesh->tdata.bbox->y2);
+		printf("         z ranges from %f to %f\n", mesh->tdata.bbox->z1, mesh->tdata.bbox->z2);
 	}
-
-	// Change the box size to cut the external elements
-	double factor = 0.05;
-	double x_factor = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1)*factor;
-	double y_factor = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1)*factor;
-
-	mesh->tdata.bbox->x1 += x_factor;
-	mesh->tdata.bbox->y1 += y_factor;
-
-	mesh->tdata.bbox->x2 -= x_factor;
-	mesh->tdata.bbox->y2 -= y_factor;
 
 	double Lx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1);
 	double Ly = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1);
 	double zmin = ((Lx < Ly) ? -Lx : -Ly);
 
 	// Get grid-spacing at x and y direction
-	dx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1) / (double) mesh->ncellx;
-	dy = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1) / (double) mesh->ncelly;
-
+	dx = 4*(mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1) / (double) mesh->ncellx;
+	dy = 4*(mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1) / (double) mesh->ncelly;
 
 	// Build the bounding box tree
 	mesh->tdata.bbt = gts_bb_tree_surface(mesh->tdata.s);
 
 	p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->tdata.bbox->z2);
 
-	for (int i = 0; i < nodes->elem_count; ++i) {
-		octant_node_t* n = (octant_node_t*) sc_array_index(nodes, i);
-		p->x = mesh->tdata.bbox->x1 + n->x*dx/12;
-		p->y = mesh->tdata.bbox->y1 + n->y*dy/12;
+	for (int i = 0; i < mesh->nodes.elem_count; ++i) {
+		octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes, i);
+		if(n->z <= 24){
+			p->x = mesh->tdata.bbox->x1 + (n->x/12)*dx;
+			p->y = mesh->tdata.bbox->y1 + (n->y/12)*dy;
 
-		d = gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
-		zmax = mesh->tdata.bbox->z2 - d;
+			d = gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
+			zmax = mesh->tdata.bbox->z2 - d;
 
-		dz = (zmax - zmin) / (double) mesh->ncellz;
-		double z = zmax - (n->z/12) * dz;
-
-		//coords[i * 3 + 0] = p->x;
-		//coords[i * 3 + 1] = p->y;
-		coords[i * 3 + 2] = z;
+			dz = (zmax - zmin) / (double) mesh->ncellz;
+			coords[i * 3 + 2] = zmax - (n->z/12) * dz;
+		}
 	}
-
 }
 
 void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
@@ -975,25 +952,21 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 	int c = 0;
 	int tmp[8];
 	for(int  iel = 0; iel < mesh->elements.elem_count; iel++){
-	//for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++){
-	//	octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
-	//for(int  iel =0; iel < 8; iel++){
-			//octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-			octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-			mid[iel] = elem->n_mat;
-			for(int j = 0; j < 8; j++){
-				tmp[j] = elem->nodes[j].id;
-			}
-			conn[c] = tmp[4]; c++;
-			conn[c] = tmp[5]; c++;
-			conn[c] = tmp[6]; c++;
-			conn[c] = tmp[7]; c++;
-			conn[c] = tmp[0]; c++;
-			conn[c] = tmp[1]; c++;
-			conn[c] = tmp[2]; c++;
-			conn[c] = tmp[3]; c++;
+		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		mid[iel] = elem->n_mat;
+		for(int j = 0; j < 8; j++){
+			tmp[j] = elem->nodes[j].id;
 		}
-	//}
+		conn[c] = tmp[4]; c++;
+		conn[c] = tmp[5]; c++;
+		conn[c] = tmp[6]; c++;
+		conn[c] = tmp[7]; c++;
+		conn[c] = tmp[0]; c++;
+		conn[c] = tmp[1]; c++;
+		conn[c] = tmp[2]; c++;
+		conn[c] = tmp[3]; c++;
+	}
+
 	assert(mesh->nodes.elem_count == mesh->local_n_nodes);
 
 	int bnd_nodes = 0;
@@ -1016,44 +989,16 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		fixed_nodes[node->node_id] = true;
 	}
 
+	//TODO try to set all the "useless" nodes as fixed...
+	//it maybe can reduce the time waste...
+
+
 	//for(int ino = 0; ino < mesh->shared_nodes.elem_count; ino++){
 	//	shared_node_t * node = (shared_node_t*) sc_array_index(&mesh->shared_nodes, ino);
 	//	fixed_nodes[node->id] = true;
 	//}
 
 	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
-
-	if(true){
-		// creates an intruction queue
-		InstructionQueue queue1;
-
-		// creates a mean ratio quality metric ...
-		ConditionNumberQualityMetric shape_metric;
-		EdgeLengthQualityMetric lapl_met;
-		lapl_met.set_averaging_method(QualityMetric::RMS);
-
-		// creates the laplacian smoother  procedures
-		LaplacianSmoother lapl1;
-		QualityAssessor stop_qa=QualityAssessor(&shape_metric);
-		stop_qa.add_quality_assessment(&lapl_met);
-		stop_qa.disable_printing_results();
-
-		//**************Set stopping criterion****************
-		TerminationCriterion sc2;
-		sc2.add_iteration_limit( 10 );
-		sc2.add_relative_vertex_movement(1e-5);
-		lapl1.set_outer_termination_criterion(&sc2);
-
-		// adds 1 pass of pass1 to mesh_set1
-		queue1.add_quality_assessor(&stop_qa,err);
-		queue1.set_master_quality_improver(&lapl1, err);
-		queue1.add_quality_assessor(&stop_qa,err);
-		// adds 1 passes of pass2 to mesh_set1
-		//  mesh_set1.add_quality_pass(pass2);
-
-		// launches optimization on mesh_set1
-		queue1.run_instructions(&mesq_mesh, err);
-	}
 
 	if(false){
 		// creates an intruction queue
@@ -1120,7 +1065,43 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 	UntangleWrapper un_wrapper0 (metric0);
 	un_wrapper0.set_vertex_movement_limit_factor( 0.005 );
 	un_wrapper0.set_outer_iteration_limit(10);
-	//un_wrapper0.run_instructions( &mesq_mesh, err );
+	//run_wrapper0.run_instructions( &mesq_mesh, err );
+
+	if(true){
+		// creates an intruction queue
+		InstructionQueue queue1;
+
+		// creates a mean ratio quality metric ...
+		ConditionNumberQualityMetric shape_metric;
+		EdgeLengthQualityMetric lapl_met;
+		lapl_met.set_averaging_method(QualityMetric::RMS);
+
+		// creates the laplacian smoother  procedures
+		//Here we use SmartLaplacianSmoother
+		//it tries to avoid the inversion of the element...
+		//SmartLaplacianSmoother lapl1;
+		LaplacianSmoother lapl1;
+		QualityAssessor stop_qa=QualityAssessor(&shape_metric);
+		stop_qa.add_quality_assessment(&lapl_met);
+		stop_qa.disable_printing_results();
+
+		//**************Set stopping criterion****************
+		TerminationCriterion sc2;
+		sc2.add_iteration_limit( 30 );
+		sc2.add_cpu_time(120);
+		//sc2.add_relative_vertex_movement(1e-5);
+		lapl1.set_outer_termination_criterion(&sc2);
+
+		// adds 1 pass of pass1 to mesh_set1
+		queue1.add_quality_assessor(&stop_qa,err);
+		queue1.set_master_quality_improver(&lapl1, err);
+		queue1.add_quality_assessor(&stop_qa,err);
+		// adds 1 passes of pass2 to mesh_set1
+		//  mesh_set1.add_quality_pass(pass2);
+
+		// launches optimization on mesh_set1
+		queue1.run_instructions(&mesq_mesh, err);
+	}
 
 	std::vector<MeshImpl::VertexHandle> vertices;
 	mesq_mesh.get_all_vertices(vertices, err);
@@ -1135,10 +1116,19 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 	}
 
 	free(fixed_nodes);
+	free(gid);
+	free(mid);
+	free(pid);
 
 }
 
 void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
+
+	//TODO list
+	// create a global id for every id (element, surface, edge, node)
+	// generate the mesh with the ghost elements
+	// run in serial and local the optimization
+	// run again in paralell
 
 	//hash of the fixed nodes
 	bool clamped = true;
@@ -1177,150 +1167,13 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	printf("     Line Optimization\n");
 	OptLine(mesh, coords, hash_FixedNodes);
 
-	printf("     Surface Optimization\n");
-	OptSurface(mesh, coords, hash_FixedNodes);
+	//printf("     Surface Optimization\n");
+	//OptSurface(mesh, coords, hash_FixedNodes);
 
 	//TODO error here... this procedure "kill" the topo...
 	//printf("     Redo coords\n");
 	//RedoCoords(mesh, coords);
 
-	//printf("     Volume Optimization\n");
-	//OptVolume(mesh, coords, hash_FixedNodes);
+	printf("     Volume Optimization\n");
+	OptVolume(mesh, coords, hash_FixedNodes);
 }
-
-void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
-	Mesquite::MsqPrintError err(std::cout);
-
-	int nvertices = mesh->local_n_nodes;
-	int nelem     = mesh->local_n_elements;
-
-	std::vector<int> conn(8*nelem);
-	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
-	size_t *gid         = (size_t*) malloc(nvertices*sizeof(size_t));
-	int    *pid         = (int*) malloc (nvertices*sizeof(int));
-	int    *mid         = (int*) malloc (nelem*sizeof(int));
-
-	int c = 0;
-	int tmp[8];
-	for(int  i =0; i < mesh->elements.elem_count; i++)
-	{
-		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, i);
-		mid[i] = elem->n_mat;
-		for(int j = 0; j < 8; j++)
-		{
-			tmp[j] = elem->nodes[j].id;
-			//c++;
-		}
-		conn[c] = tmp[4]; c++;
-		conn[c] = tmp[5]; c++;
-		conn[c] = tmp[6]; c++;
-		conn[c] = tmp[7]; c++;
-		conn[c] = tmp[0]; c++;
-		conn[c] = tmp[1]; c++;
-		conn[c] = tmp[2]; c++;
-		conn[c] = tmp[3]; c++;
-	}
-
-	assert(mesh->nodes.elem_count == mesh->local_n_nodes);
-
-
-	int node_z = mesh->ncellz -1;
-	if(mesh->max_levels>3){
-		node_z = mesh->ncellz-2;
-	}
-
-	int bnd_nodes = 0;
-	for(int i = 0; i < mesh->nodes.elem_count; i++)
-	{
-		fixed_nodes[i] = false;
-		gid[i] = (size_t) mesh->global_id[i];
-		pid[i] = mesh->part_nodes[i];
-		octant_node_t * node = (octant_node_t*) sc_array_index(&mesh->nodes, i);
-		assert(node != NULL);
-
-		if(node->x == 0 || node->y == 0 || node->z == 0 ||
-				node->x == mesh->ncellx || node->y == mesh->ncelly || node->z == node_z )
-			//if(node->z == 0 || node->z == (mesh->ncellz-1) )
-		{
-			fixed_nodes[i] = true;
-			bnd_nodes++;
-		}
-
-		//if(node->z == mesh->ncellz)
-		//std::cout<<"Nodes: " << node->id << std::endl;
-	}
-
-	//std::cout<<"BND Nodes: " << bnd_nodes << std::endl;
-
-	for(int i = 0; i < material_fixed_nodes.size(); i++)
-	{
-		int id = material_fixed_nodes[i];
-		fixed_nodes[id] = true;
-	}
-
-
-	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
-
-	int default_gid = -1;
-	int default_pid = 0;
-	int defaut_mat = 0;
-	mesq_mesh.tag_create("GLOBAL_ID"   ,Mesquite::Mesh::HANDLE,1,&default_gid, err);
-	mesq_mesh.tag_create("PROCESSOR_ID",Mesquite::Mesh::INT   ,1,&default_pid, err);
-	mesq_mesh.tag_create("MAT_ID",Mesquite::Mesh::INT   ,1,&defaut_mat, err);
-
-	TagHandle tag_processor_id = mesq_mesh.tag_get("PROCESSOR_ID", err);
-	TagHandle tag_global_id    = mesq_mesh.tag_get("GLOBAL_ID", err);
-	TagHandle tag_mat_id    = mesq_mesh.tag_get("MAT_ID", err);
-	std::vector<MeshImpl::VertexHandle> vertices;
-	std::vector<MeshImpl::ElementHandle>	elem_array;
-
-	mesq_mesh.get_all_vertices(vertices, err);
-	mesq_mesh.get_all_elements(elem_array,err);
-	mesq_mesh.tag_set_vertex_data(tag_global_id   ,vertices.size(),&vertices[0], gid, err);
-	mesq_mesh.tag_set_vertex_data(tag_processor_id,vertices.size(),&vertices[0], pid, err);
-	mesq_mesh.tag_set_element_data(tag_mat_id,nelem,&elem_array[0],mid,err);
-
-	{
-		std::ostringstream out_name;
-		out_name << "original_mesh." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
-		mesq_mesh.write_vtk(out_name.str().c_str(), err);
-	}
-
-	// do Laplacian smooth
-	Mesquite::LaplaceWrapper optimizer;
-	optimizer.set_vertex_movement_limit_factor(1.e-5);
-	optimizer.set_iteration_limit(20);
-	optimizer.enable_culling(false);
-	optimizer.run_instructions(&mesq_mesh, err);
-	if (err) {std::cerr << err << std::endl; }
-	{
-		std::ostringstream out_name;
-		out_name << "smoothed_mesh." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
-		mesq_mesh.write_vtk(out_name.str().c_str(), err);
-	}
-
-	for (int ino = 0; ino < vertices.size() ; ino++){
-		Mesh::VertexHandle vertex = vertices[ino];
-		MsqVertex aux;
-		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
-		coords[3*ino+0] = aux[0];
-		coords[3*ino+1] = aux[1];
-		coords[3*ino+2] = aux[2];
-	}
-
-
-	//TODO procurando os elementos invalidos
-	/*
-	//procurando os elementos invalidos...
-	for (int iel = 0; iel < elem_array.size() ; iel++){
-		mesq_mesh->
-		inverted_element_tag_name
-	}
-	 */
-
-	free(fixed_nodes);
-	free(pid);
-	free(gid);
-	free(mid);
-}
-
