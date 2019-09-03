@@ -31,7 +31,7 @@ typedef struct
 {
 	uint64_t id;
 	bool ref;
-	bitmask_t coord[2];
+	uint64_t coord[2];
 } octant_edge_t;
 
 typedef struct octant_surf
@@ -169,6 +169,7 @@ typedef struct {
 	sc_array_t      shared_edges;
 
 	int64_t *global_id;
+	int64_t *global_edge_id;
 
 	int32_t *part_nodes;
 	int32_t ncellx;
@@ -376,6 +377,7 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface);
 void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void PillowingInterface(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat);
+void PillowingInterfaceNew(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat);
 void Adjust_material(hexa_tree_t *mesh);
 void ExtrudeToOctree(hexa_tree_t* mesh,std::vector<double>& coords);
 //octant_t * hexa_element_copy(hexa_tree_t *mesh,int iel);

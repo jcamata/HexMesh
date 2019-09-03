@@ -70,6 +70,7 @@ void edge_add(uint64_t id, sc_hash_array_t* hash_edge_ref) {
 	}
 }
 
+/*
 template<typename F>
 F trunc_decs(const F& f,
 		int decs){
@@ -81,7 +82,7 @@ F trunc_decs(const F& f,
 	return i1 + f1;
 	//return f;
 }
-
+ */
 int AddPoint(hexa_tree_t* mesh, sc_hash_array_t* hash_nodes, GtsPoint *p, std::vector<double> &coords, int x, int y, int z) {
 	size_t position;
 	octant_node_t *r;
@@ -276,7 +277,7 @@ void BuildHash(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 				edge_add(id, hash_edge_ref);
 			}
 
-			if(ncount != 1 || true){
+			if(ncount != 1){
 				std::vector<int> listaux;
 				std::vector<int> list;
 				//printf("vetor auxiliar: ");
@@ -342,12 +343,16 @@ void IdentifyTemplate(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 	int el_11 = 0;
 
 	//update the element information
-	for (int iel = 0; iel < elements_ids.size(); ++iel) {
+	for (int iel = 0; iel < elements_ids.size(); ++iel)
+	{
 		size_t position;
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-		for(int edge=0; edge<12; edge++){
-			bool out = sc_hash_array_lookup(hash_edge_ref, &elem->edge[edge].id, &position);
-			elem->edge[edge].ref = out;
+		for(int iedge = 0; iedge < 12; iedge++)
+		{
+			octant_edge_t key;
+			key.id = elem->edge[iedge].id;
+			bool out = sc_hash_array_lookup(hash_edge_ref, &key, &position);
+			elem->edge[iedge].ref = out;
 		}
 	}
 
@@ -1507,86 +1512,109 @@ void IdentifyTemplate(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 #endif
 }
 
-void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref) {
+void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref)
+{
 
-	for (int iel = 0; iel < elements_ids.size(); ++iel) {
+	for (int iel = 0; iel < elements_ids.size(); ++iel)
+	{
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, elements_ids[iel]);
-
 		//template 11
-		if(elem->pad==144){
-			for (int edge = 0; edge < 12; ++edge) {
-				edge_add(elem->edge[edge].id, hash_edge_ref );
-			}
+		if(elem->pad==144)
+		{
+			for (int edge = 0; edge < 12; ++edge) edge_add(elem->edge[edge].id, hash_edge_ref );
 		}
 		//template 10
-		else if(elem->pad==143){
+		else if(elem->pad==143)
+		{
 			edge_add(elem->edge[4].id, hash_edge_ref );
 			edge_add(elem->edge[7].id, hash_edge_ref );
 			edge_add(elem->edge[8].id, hash_edge_ref );
 			edge_add(elem->edge[10].id, hash_edge_ref );
 			edge_add(elem->edge[11].id, hash_edge_ref );
-		}else if(elem->pad==142){
+		}
+		else if(elem->pad==142)
+		{
 			edge_add(elem->edge[6].id, hash_edge_ref );
 			edge_add(elem->edge[7].id, hash_edge_ref );
 			edge_add(elem->edge[9].id, hash_edge_ref );
 			edge_add(elem->edge[10].id, hash_edge_ref );
 			edge_add(elem->edge[11].id, hash_edge_ref );
-		}else if(elem->pad==141){
+		}
+		else if(elem->pad==141)
+		{
 			edge_add(elem->edge[5].id, hash_edge_ref );
 			edge_add(elem->edge[6].id, hash_edge_ref );
 			edge_add(elem->edge[8].id, hash_edge_ref );
 			edge_add(elem->edge[9].id, hash_edge_ref );
 			edge_add(elem->edge[10].id, hash_edge_ref );
-		}else if(elem->pad==140){
+		}
+		else if(elem->pad==140)
+		{
 			edge_add(elem->edge[4].id, hash_edge_ref );
 			edge_add(elem->edge[5].id, hash_edge_ref );
 			edge_add(elem->edge[8].id, hash_edge_ref );
 			edge_add(elem->edge[9].id, hash_edge_ref );
 			edge_add(elem->edge[11].id, hash_edge_ref );
-		}else if(elem->pad==139){
+		}
+		else if(elem->pad==139)
+		{
 			edge_add(elem->edge[2].id, hash_edge_ref );
 			edge_add(elem->edge[3].id, hash_edge_ref );
 			edge_add(elem->edge[7].id, hash_edge_ref );
 			edge_add(elem->edge[10].id, hash_edge_ref );
 			edge_add(elem->edge[11].id, hash_edge_ref );
-		}else if(elem->pad==138){
+		}
+		else if(elem->pad==138)
+		{
 			edge_add(elem->edge[1].id, hash_edge_ref );
 			edge_add(elem->edge[2].id, hash_edge_ref );
 			edge_add(elem->edge[6].id, hash_edge_ref );
 			edge_add(elem->edge[9].id, hash_edge_ref );
 			edge_add(elem->edge[10].id, hash_edge_ref );
-		}else if(elem->pad==137){
+		}
+		else if(elem->pad==137)
+		{
 			edge_add(elem->edge[0].id, hash_edge_ref );
 			edge_add(elem->edge[1].id, hash_edge_ref );
 			edge_add(elem->edge[5].id, hash_edge_ref );
 			edge_add(elem->edge[8].id, hash_edge_ref );
 			edge_add(elem->edge[9].id, hash_edge_ref );
-		}else if(elem->pad==136){
+		}
+		else if(elem->pad==136)
+		{
 			edge_add(elem->edge[0].id, hash_edge_ref );
 			edge_add(elem->edge[3].id, hash_edge_ref );
 			edge_add(elem->edge[4].id, hash_edge_ref );
 			edge_add(elem->edge[8].id, hash_edge_ref );
 			edge_add(elem->edge[11].id, hash_edge_ref );
-		}else if(elem->pad==135){
+		}
+		else if(elem->pad==135)
+		{
 			edge_add(elem->edge[0].id, hash_edge_ref );
 			edge_add(elem->edge[2].id, hash_edge_ref );
 			edge_add(elem->edge[3].id, hash_edge_ref );
 			edge_add(elem->edge[4].id, hash_edge_ref );
 			edge_add(elem->edge[7].id, hash_edge_ref );
-		}else if(elem->pad==134){
+		}
+		else if(elem->pad==134)
+		{
 			edge_add(elem->edge[1].id, hash_edge_ref );
 			edge_add(elem->edge[2].id, hash_edge_ref );
 			edge_add(elem->edge[3].id, hash_edge_ref );
 			edge_add(elem->edge[6].id, hash_edge_ref );
 			edge_add(elem->edge[7].id, hash_edge_ref );
-		}else if(elem->pad==133){
+		}
+		else if(elem->pad==133)
+		{
 			edge_add(elem->edge[0].id, hash_edge_ref );
 			edge_add(elem->edge[1].id, hash_edge_ref );
 			edge_add(elem->edge[2].id, hash_edge_ref );
 			edge_add(elem->edge[5].id, hash_edge_ref );
 			edge_add(elem->edge[6].id, hash_edge_ref );
-		}else if(elem->pad==132){
+		}
+		else if(elem->pad==132)
+		{
 			edge_add(elem->edge[0].id, hash_edge_ref );
 			edge_add(elem->edge[1].id, hash_edge_ref );
 			edge_add(elem->edge[3].id, hash_edge_ref );
@@ -2143,20 +2171,24 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
 		}
 	}
 
-	size_t position;
-	for (int iedge = 0; iedge< mesh->shared_edges.elem_count; iedge++){
 
+	for (int iedge = 0; iedge< mesh->shared_edges.elem_count; iedge++)
+	{
+		size_t position;
 		octant_edge_t* shared_ed = (octant_edge_t*) sc_array_index(&mesh->shared_edges, iedge);
-
-		bool out =  sc_hash_array_lookup(hash_edge_ref, &shared_ed->id, &position);
+		octant_edge_t key;
+		key.id = shared_ed->id;
+		bool out =  sc_hash_array_lookup(hash_edge_ref, &key, &position);
 		shared_ed->ref = out;
 	}
 
 #ifdef HEXA_DEBUG_
-	if(0){
+	if(false)
+	{
 		fprintf(mesh->fdbg ,"shared edges status\n");
 		fprintf(mesh->fdbg ,"shared edges number:%d\n",mesh->shared_edges.elem_count);
-		for (int iedge = 0; iedge< mesh->shared_edges.elem_count; iedge++){
+		for (int iedge = 0; iedge< mesh->shared_edges.elem_count; iedge++)
+		{
 			octant_edge_t* shared_ed = (octant_edge_t*) sc_array_index(&mesh->shared_edges, iedge);
 			fprintf(mesh->fdbg ,"id: %d  ref:%d  rank:%d\n",shared_ed->id,shared_ed->ref,mesh->mpi_rank);
 		}
@@ -2165,7 +2197,219 @@ void Edge_identification(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_h
 
 }
 
-void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref){
+void Edge_comunicationNew(hexa_tree_t* mesh, sc_hash_array_t* hash_edge_ref, sc_hash_array_t* hash_edge_ref_old)
+{
+
+	bool clamped=true;
+	sc_hash_array_t* SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+	sc_hash_array_t* RecvFrom   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+
+	//rank [n+1] to [n]
+	//prepare the buffer
+	for(int iedge = 0; iedge < mesh->shared_edges.elem_count; ++iedge)
+	{
+		shared_edge_t* se = (shared_edge_t*) sc_array_index(&mesh->shared_edges,iedge);
+		octant_edge_t key;
+		key.id = se->id;
+		size_t position;
+		bool lse = sc_hash_array_lookup(hash_edge_ref, &key, &position);
+		bool lseold = sc_hash_array_lookup(hash_edge_ref_old, &key, &position);
+
+		if(lse)
+		{
+			for(int j = 0; j < se->listSz; j++)
+			{
+				if(se->rankList[j] < mesh->mpi_rank)
+				{
+					message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint64_t));
+						uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+					}
+					else
+					{
+						message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
+						uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+					}
+				}
+				else if(se->rankList[j] > mesh->mpi_rank)
+				{
+					message_t* m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+					}
+				}
+			}
+		}
+	}
+
+	int max_SendBuffer = 0;
+	for(int i = 0; i < SendTo->a.elem_count; i++)
+	{
+		message_t* m = (message_t*) sc_array_index(&SendTo->a, i);
+		max_SendBuffer+= m->idxs.elem_count;
+	}
+	long long* sendbuf    = (long long*)malloc(max_SendBuffer*sizeof(long long));
+	int offset = 0;
+
+	// rank[n+1] send to rank[n]
+	for(int i = 0; i < SendTo->a.elem_count; i++)
+	{
+		//printf("Estou montando o buffer do proc %d\n",mesh->mpi_rank);
+		message_t* m = (message_t*) sc_array_index(&SendTo->a, i);
+		for(int j = 0; j< m->idxs.elem_count;j++)
+		{
+			long long *mm = (long long*) sc_array_index(&m->idxs, j);
+			sendbuf[offset+j] = (long long) *mm;
+		}
+		//printf("Estou enviando do proc %d\n",mesh->mpi_rank);
+		MPI_Send(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD);
+		offset += m->idxs.elem_count;
+	}
+
+	offset = 0;
+	for(int i = 0; i < RecvFrom->a.elem_count; i++){
+		message_t* m = (message_t*) sc_array_index(&RecvFrom->a, i);
+
+		//printf("Fazendo a probe do proc %d\n",m->rank);
+		MPI_Status status;
+		// Probe for an incoming message from process mesh->mpi_rank
+		MPI_Probe(m->rank, 0, MPI_COMM_WORLD, &status);
+		//printf("Fiz a probe do proc %d\n",m->rank);
+
+		//printf("Descobrindo quantos elementos vem proc %d para o proc %d\n",mesh->mpi_rank,m->rank);
+		int number_amount;
+		// When probe returns, the status object has the size and other
+		// attributes of the incoming message. Get the message size
+		MPI_Get_count(&status, MPI_INT, &number_amount);
+
+		// Allocate a buffer to hold the incoming numbers
+		long long* number_buf = (long long*)malloc(sizeof(long long) * number_amount);
+		//printf("Recebendo os elementos do proc %d para o proc %d\n",mesh->mpi_rank,m->rank);
+		// Now receive the message with the allocated buffer
+		MPI_Recv(number_buf, number_amount, MPI_LONG_LONG, m->rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		//printf("I dynamically received %d numbers from %d.\n", number_amount,m->rank);
+		for(int j = 0; j < number_amount; ++j)
+		{
+			edge_add(number_buf[j], hash_edge_ref );
+		}
+		free(number_buf);
+	}
+	//clean
+	sc_hash_array_truncate (SendTo);
+	sc_hash_array_truncate (RecvFrom);
+	free(sendbuf);
+
+	//rank [n] to [n+1]
+	//prepare the buffer
+	for(int iedge = 0; iedge < mesh->shared_edges.elem_count; ++iedge)
+	{
+		shared_edge_t* se = (shared_edge_t*) sc_array_index(&mesh->shared_edges,iedge);
+		octant_edge_t key;
+		key.id = se->id;
+		size_t position;
+		bool lse = sc_hash_array_lookup(hash_edge_ref, &key, &position);
+		bool lseold = sc_hash_array_lookup(hash_edge_ref_old, &key, &position);
+
+		if(lse)
+		{
+			for(int j = 0; j < se->listSz; j++)
+			{
+				if(se->rankList[j] > mesh->mpi_rank)
+				{
+					message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint64_t));
+						uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+					}
+					else
+					{
+						message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
+						uint64_t* p = (uint64_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+					}
+				}
+				else if(se->rankList[j] < mesh->mpi_rank)
+				{
+					message_t* m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+					}
+				}
+			}
+		}
+	}
+
+	max_SendBuffer = 0;
+	for(int i = 0; i < SendTo->a.elem_count; i++)
+	{
+		message_t* m = (message_t*) sc_array_index(&SendTo->a, i);
+		max_SendBuffer+= m->idxs.elem_count;
+	}
+	sendbuf    = (long long*)malloc(max_SendBuffer*sizeof(long long));
+	offset = 0;
+
+	// rank[n+1] send to rank[n]
+	for(int i = 0; i < SendTo->a.elem_count; i++)
+	{
+		//printf("Estou montando o buffer do proc %d\n",mesh->mpi_rank);
+		message_t* m = (message_t*) sc_array_index(&SendTo->a, i);
+		for(int j = 0; j< m->idxs.elem_count;j++)
+		{
+			long long *mm = (long long*) sc_array_index(&m->idxs, j);
+			sendbuf[offset+j] = (long long) *mm;
+		}
+		//printf("Estou enviando do proc %d\n",mesh->mpi_rank);
+		MPI_Send(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD);
+		offset += m->idxs.elem_count;
+	}
+
+	offset = 0;
+	for(int i = 0; i < RecvFrom->a.elem_count; i++){
+		message_t* m = (message_t*) sc_array_index(&RecvFrom->a, i);
+
+		//printf("Fazendo a probe do proc %d\n",m->rank);
+		MPI_Status status;
+		// Probe for an incoming message from process mesh->mpi_rank
+		MPI_Probe(m->rank, 0, MPI_COMM_WORLD, &status);
+		//printf("Fiz a probe do proc %d\n",m->rank);
+
+		//printf("Descobrindo quantos elementos vem proc %d para o proc %d\n",mesh->mpi_rank,m->rank);
+		int number_amount;
+		// When probe returns, the status object has the size and other
+		// attributes of the incoming message. Get the message size
+		MPI_Get_count(&status, MPI_INT, &number_amount);
+
+		// Allocate a buffer to hold the incoming numbers
+		long long* number_buf = (long long*)malloc(sizeof(long long) * number_amount);
+		//printf("Recebendo os elementos do proc %d para o proc %d\n",mesh->mpi_rank,m->rank);
+		// Now receive the message with the allocated buffer
+		MPI_Recv(number_buf, number_amount, MPI_LONG_LONG, m->rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		//printf("1 dynamically received %d numbers from 0.\n", number_amount);
+		for(int j = 0; j < number_amount; ++j)
+		{
+			edge_add(number_buf[j], hash_edge_ref );
+		}
+		free(number_buf);
+	}
+	//clean
+	sc_hash_array_truncate (SendTo);
+	sc_hash_array_truncate (RecvFrom);
+	free(sendbuf);
+
+}
+
+void Edge_comunication(hexa_tree_t* mesh, sc_hash_array_t* hash_edge_ref)
+{
 
 	size_t position;
 	bool clamped=true;
@@ -2188,10 +2432,12 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 	int max_recvbuf_size = 2*mesh->comm_map_edge.max_recvbuf_size;
 	int max_sendbuf_size = 2*mesh->comm_map_edge.max_sendbuf_size;
 
+	printf("max_recvbuf_size:%d max_sendbuf_size:%d n_requests:%d proc:%d\n",max_recvbuf_size,max_sendbuf_size,n_requests,mesh->mpi_rank);
 	int offset = 0;
 
 	// post all non-blocking receives
-	for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i) {
+	for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i)
+	{
 		message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
 		MPI_Irecv(&recvbuf[offset], 2*m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
 		offset += 2*m->idxs.elem_count;
@@ -2201,9 +2447,11 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 
 
 	offset = 0;
-	for(int i=0; i < mesh->comm_map_edge.SendTo.elem_count; i++){
+	for(int i=0; i < mesh->comm_map_edge.SendTo.elem_count; i++)
+	{
 		message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
-		for(int j = 0; j< m->idxs.elem_count;j++){
+		for(int j = 0; j< m->idxs.elem_count;j++)
+		{
 			long long* mm = (long long*) sc_array_index(&m->idxs, j);
 
 			octant_edge_t key;
@@ -2226,9 +2474,11 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 
 	offset =0;
 	//spread the information
-	for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i) {
+	for(int i = 0; i < mesh->comm_map_edge.RecvFrom.elem_count; ++i)
+	{
 		message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
-		for(int j = 0; j < m->idxs.elem_count; ++j){
+		for(int j = 0; j < m->idxs.elem_count; ++j)
+		{
 			if(recvbuf[2*j+offset+1]){
 				edge_add(recvbuf[2*j+offset], hash_edge_ref );
 			}
@@ -2255,7 +2505,8 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 	offset = 0;
 
 	// post all non-blocking receives
-	for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i) {
+	for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i)
+	{
 		message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
 		MPI_Irecv(&recvbuf[offset], 2*m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
 		offset += 2*m->idxs.elem_count;
@@ -2264,9 +2515,11 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 	assert(offset == max_recvbuf_size);
 
 	offset = 0;
-	for(int i=0; i < mesh->comm_map_edge.RecvFrom.elem_count; i++){
+	for(int i=0; i < mesh->comm_map_edge.RecvFrom.elem_count; i++)
+	{
 		message_t* m = (message_t*) sc_array_index(&mesh->comm_map_edge.RecvFrom, i);
-		for(int j = 0; j< m->idxs.elem_count;j++){
+		for(int j = 0; j< m->idxs.elem_count;j++)
+		{
 			long long* mm = (long long*) sc_array_index(&m->idxs, j);
 			octant_edge_t key;
 			key.id = *mm;
@@ -2287,7 +2540,8 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 
 	offset =0;
 	//add the information in the hash_edge_ref
-	for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i) {
+	for(int i = 0; i < mesh->comm_map_edge.SendTo.elem_count; ++i)
+	{
 		message_t *m = (message_t*) sc_array_index(&mesh->comm_map_edge.SendTo, i);
 		for(int j = 0; j < m->idxs.elem_count; ++j){
 			if(recvbuf[2*j+offset+1]){
@@ -2301,52 +2555,31 @@ void Edge_comunication(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_has
 	free(&sendbuf[0]);
 	free(requests);
 	free(statuses);
-
 }
 
-void Edge_propagationOld(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref) {
+void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref, sc_hash_array_t* hash_edge, sc_hash_array_t* hash_elem)
+{
 
-	size_t position;
-
-	for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-
-		for (int edge = 0; edge < 12; ++edge){
-			bool out = false;
-			out =  sc_hash_array_lookup(hash_edge_ref, &elem->edge[edge].id, &position);
-
-			if(out){
-				elem->edge[edge].ref=true;
-				elem->pad = -1;
-				elements_ids.push_back(iel);
-			}
-		}
-	}
-	//cleaning the element vector
-	std::sort( elements_ids.begin(), elements_ids.end() );
-	elements_ids.erase( std::unique( elements_ids.begin(), elements_ids.end() ), elements_ids.end() );
-}
-
-void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash_array_t* hash_edge_ref, sc_hash_array_t* hash_edge, sc_hash_array_t* hash_elem) {
-
-	/*
-	for(int iedgeref = 0; iedgeref < hash_edge_ref->a.elem_count; iedgeref++){
+	for(int iedgeref = 0; iedgeref < hash_edge_ref->a.elem_count; iedgeref++)
+	{
 		octant_edge_t *edgeref = (octant_edge_t*) sc_array_index(&hash_edge_ref->a, iedgeref);
-
 		size_t position;
 		edge_t key;
-
 		key.id = edgeref->id;
-		edgeref->ref = true;
+		//edgeref->ref = true;
 		bool out =  sc_hash_array_lookup(hash_edge, &key, &position);
-		if(out){
+		if(out)
+		{
 			edge_t *edge = (edge_t*) sc_array_index(&hash_edge->a, position);
 			edge->ref = true;
-			for(int iel = 0; iel< edge->list_elem; iel++){
+			for(int iel = 0; iel< edge->list_elem; iel++)
+			{
 				octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, edge->elem[iel]);
 
-				for(int iedge = 0; iedge < 12; iedge++){
-					if(elem->edge[iedge].id == edgeref->id){
+				for(int iedge = 0; iedge < 12; iedge++)
+				{
+					if(elem->edge[iedge].id == edgeref->id)
+					{
 						elem->edge[iedge].ref = true;
 					}
 				}
@@ -2355,38 +2588,45 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 				octant_t *r;
 				key.id = elem->id;
 				r = (octant_t*) sc_hash_array_insert_unique(hash_elem, &key, &position);
-				if(r!=NULL){
+				if(r!=NULL)
+				{
 					r->id = elem->id;
 				}
 			}
 		}
 	}
 
-
 	//elements_ids.clear();
 	for(int iel= elements_ids.size(); iel < hash_elem->a.elem_count; iel++ ){
 		octant_t *elem = (octant_t*) sc_array_index(&hash_elem->a, iel);
 		elements_ids.push_back(elem->id);
 	}
-	 */
+
+
+	/*
 	size_t position;
 	octant_t key;
 
-	for(int iel= 0; iel < mesh->elements.elem_count; iel++ ){
+	for(int iel= 0; iel < mesh->elements.elem_count; iel++ )
+	{
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-		for (int edge = 0; edge < 12; ++edge){
+		for (int iedge = 0; iedge < 12; ++iedge)
+		{
 			bool out = false;
-			out =  sc_hash_array_lookup(hash_edge_ref, &elem->edge[edge].id, &position);
-
-			if(out){
+			octant_edge_t key;
+			key.id = elem->edge[iedge].id;
+			out =  sc_hash_array_lookup(hash_edge_ref, &key, &position);
+			if(out)
+			{
 				octant_t *r;
 				key.id = elem->id;
 				r = (octant_t*) sc_hash_array_insert_unique(hash_elem, &key, &position);
-				if(r!=NULL){
+				if(r!=NULL)
+				{
 					r->id = elem->id;
 				}
-				elem->edge[edge].ref=true;
+				elem->edge[iedge].ref=true;
 				elem->pad = -1;
 				//elements_ids.push_back(iel);
 			}
@@ -2394,14 +2634,16 @@ void Edge_propagation(hexa_tree_t* mesh, std::vector<int>& elements_ids, sc_hash
 	}
 
 	//elements_ids.clear();
-	for(int iel= elements_ids.size(); iel < hash_elem->a.elem_count; iel++ ){
+	for(int iel= elements_ids.size(); iel < hash_elem->a.elem_count; iel++ )
+	{
 		octant_t *elem = (octant_t*) sc_array_index(&hash_elem->a, iel);
 		elements_ids.push_back(elem->id);
 	}
-
+	 */
 }
 
-void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
+void CheckOctreeTemplate(hexa_tree_t* mesh, sc_hash_array_t* hash_edge_ref)
+{
 
 	bool clamped = true;
 	//criando a hash de elementos afetados
@@ -2410,16 +2652,21 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 	octant_t key;
 	std::vector<int> elements_ids;
 
-	for(int ioc = 0; ioc <mesh->oct.elem_count; ioc++){
+	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++)
+	{
 		octree_t * oc = (octree_t*) sc_array_index (&mesh->oct, ioc);
-		for(int iel = 0; iel<8; iel++){
+		for(int iel = 0; iel < 8; iel++)
+		{
 			elements_ids.push_back(oc->id[iel]);
 			octant_t *r;
 			key.id = oc->id[iel];
 			r = (octant_t*) sc_hash_array_insert_unique(hash_elem, &key, &position);
-			if(r!=NULL){
+			if(r!=NULL)
+			{
 				r->id = elements_ids[iel];
-			}else{
+			}
+			else
+			{
 				printf("Verificar o elemento numero %d\n",elements_ids[iel]);
 				printf("CheckOctreeTemplate in Pillow Interface\n");
 			}
@@ -2431,21 +2678,25 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 	sc_hash_array_t* hash_edge  = (sc_hash_array_t *)sc_hash_array_new(sizeof(edge_t), edget_id_hash, edget_id_equal, &clamped);
 	/////////////////
 	// create the edge structure
-	//mesh->elements.elem_count
-	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
+	for (int iel = 0; iel < mesh->elements.elem_count; ++iel)
+	{
 
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-		for (int iedge = 0; iedge < 12; iedge++){
+		for (int iedge = 0; iedge < 12; iedge++)
+		{
 			edge_t key;
 			key.id = elem->edge[iedge].id;
 			edge_t* edge = (edge_t*) sc_hash_array_insert_unique (hash_edge, &key, &position);
-			if(edge != NULL){
-				edge->id = elem->edge[iedge].id;
+			if(edge != NULL)
+			{
+				edge->id = key.id;
 				edge->list_elem = 1;
 				edge->elem[edge->list_elem-1] = elem->id;
 				edge->ref = elem->edge[iedge].ref;
-			}else{
+			}
+			else
+			{
 				edge = (edge_t*) sc_array_index(&hash_edge->a, position);
 				edge->elem[edge->list_elem] = elem->id;
 				edge->list_elem++;
@@ -2458,7 +2709,11 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 
 	int iter_count = 0;
 	int diff = 50;
-	while(iter_count < 1000 && diff != 0){
+	int global_diff = 10;
+	while(iter_count < 100 && global_diff != 0)
+	{
+
+		sc_hash_array_t* hash_edge_ref_old  = (sc_hash_array_t *) hash_edge_ref;
 		//printf("Numero de elementos:%d numero de arestas:%d\n",elements_ids.size(),hash_edge_ref->a.elem_count);
 		fprintf(mesh->profile,"        Number of Elements:%d Number of edges:%d\n",elements_ids.size(),hash_edge_ref->a.elem_count);
 		start = std::chrono::steady_clock::now( );
@@ -2466,30 +2721,41 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 		IdentifyTemplate(mesh, elements_ids, hash_edge_ref);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 		fprintf(mesh->profile,"        Time in IdentifyTemplate %lld millisecond(s).\n",elapsed.count());
-		//std::cout << "Time in IdentifyTemplate "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		if(mesh->mpi_rank==0) std::cout << "Time in IdentifyTemplate "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 		start = std::chrono::steady_clock::now( );
 		Edge_identification( mesh, elements_ids, hash_edge_ref);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 		fprintf(mesh->profile,"        Time in Edge_identification %lld millisecond(s).\n",elapsed.count());
-		//std::cout << "Time in Edge_identification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		if(mesh->mpi_rank==0) std::cout << "Time in Edge_identification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+
 		start = std::chrono::steady_clock::now( );
 		Edge_propagation (mesh, elements_ids, hash_edge_ref,hash_edge,hash_elem);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 		fprintf(mesh->profile,"        Time in Edge_propagation %lld millisecond(s).\n",elapsed.count());
-		//std::cout << "Time in Edge_propagation "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		if(mesh->mpi_rank==0)  std::cout << "Time in Edge_propagation "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+
 		start = std::chrono::steady_clock::now( );
-		Edge_comunication(mesh, elements_ids, hash_edge_ref);
+		//TODO add a copy of hash_edge and send only the new
+		//edges added to the hash...
+		Edge_comunicationNew(mesh, hash_edge_ref,hash_edge_ref_old);
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 		fprintf(mesh->profile,"        Time in Edge_comunication %lld millisecond(s).\n",elapsed.count());
-		//std::cout << "Time in Edge_comunication "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+		if(mesh->mpi_rank==0)  std::cout << "Time in Edge_comunication "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 		diff = hash_edge_ref->a.elem_count - edgecount;
 
-		if((iter_count % 10) == 0){
-			printf("         Iteration number:%d; diff equals to:%d; number of edges in the hash:%d\n",iter_count,diff,hash_edge_ref->a.elem_count);
+		int loc_hash = hash_edge_ref->a.elem_count;
+		int glob_hash = 0;
+		MPI_Allreduce(&diff, &global_diff, 1, MPI_INT, MPI_SUM,MPI_COMM_WORLD);
+		MPI_Allreduce(&loc_hash, &glob_hash, 1, MPI_INT, MPI_SUM,MPI_COMM_WORLD);
+
+		if((iter_count % 1) == 0 && mesh->mpi_rank == 0)
+		{
+			printf("         Iteration number:%d; diff equals to:%d; number of edges in the hash:%d\n",iter_count,global_diff,glob_hash);
 		}
 
-		if(diff == 0){
+		if(global_diff == 0 && mesh->mpi_rank == 0)
+		{
 			printf("         The code used %d iteractions to propagate the edge contamination\n",iter_count);
 		}
 		iter_count++;
@@ -2498,18 +2764,20 @@ void CheckOctreeTemplate(hexa_tree_t* mesh,sc_hash_array_t*hash_edge_ref) {
 	IdentifyTemplate(mesh, elements_ids, hash_edge_ref);
 
 	//sc_hash_array_rip(hash_edge_ref,&mesh->edges_ref);
-
 }
 
-void RedoNodeMapping(hexa_tree_t* mesh){
+void RedoNodeMapping(hexa_tree_t* mesh)
+{
 
 	int factor = 12;
 	//just the multiplication
 	// it allow us add int points in the mesh
 	// keeping a structured mesh
-	for(int iel = 0; iel <mesh->elements.elem_count; iel++){
+	for(int iel = 0; iel <mesh->elements.elem_count; iel++)
+	{
 		octant_t * elem = (octant_t*) sc_array_index (&mesh->elements, iel);
-		for(int ino = 0; ino < 8; ino++){
+		for(int ino = 0; ino < 8; ino++)
+		{
 			elem->nodes[ino].x = factor*elem->nodes[ino].x;
 			elem->nodes[ino].y = factor*elem->nodes[ino].y;
 			elem->nodes[ino].z = factor*elem->nodes[ino].z;
@@ -2519,7 +2787,8 @@ void RedoNodeMapping(hexa_tree_t* mesh){
 		elem->z = 4*elem->z;
 	}
 
-	for(int ino = 0; ino <mesh->nodes.elem_count; ino++){
+	for(int ino = 0; ino <mesh->nodes.elem_count; ino++)
+	{
 		octant_node_t * node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
 		node->x = factor*node->x;
 		node->y = factor*node->y;
@@ -2536,20 +2805,18 @@ void RedoNodeMapping(hexa_tree_t* mesh){
 }
 
 
-vector<int> RotateHex(int* rot, int* sym){
+vector<int> RotateHex(int* rot, int* sym)
+																																																																																																																																														{
 
 	vector<int> order;
 	int aux[8];
 
-	for(int k = 0;k<8;k++){
-		order.push_back(k);
-	}
+	for(int k = 0;k<8;k++) order.push_back(k);
 
-	if(rot[0]==-1){
+	if(rot[0]==-1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {3,2,6,7,0,1,5,4};
 		order.clear();
@@ -2566,11 +2833,10 @@ vector<int> RotateHex(int* rot, int* sym){
 
 	}
 
-	if(rot[0]==1){
+	if(rot[0]==1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {4,0,7,3,5,1,2,6};
 		order.clear();
@@ -2587,11 +2853,10 @@ vector<int> RotateHex(int* rot, int* sym){
 
 	}
 
-	if(rot[1]==1){
+	if(rot[1]==1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {1,5,6,2,0,4,7,3};
 		order.clear();
@@ -2609,11 +2874,10 @@ vector<int> RotateHex(int* rot, int* sym){
 
 	}
 
-	if(rot[1]==-1){
+	if(rot[1]==-1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {4,5,1,0,7,6,2,3};
 		order.clear();
@@ -2630,11 +2894,10 @@ vector<int> RotateHex(int* rot, int* sym){
 
 	}
 
-	if(rot[2]==1){
+	if(rot[2]==1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {3,0,1,2,7,4,5,6};
 		order.clear();
@@ -2651,11 +2914,10 @@ vector<int> RotateHex(int* rot, int* sym){
 
 	}
 
-	if(rot[2]==-1){
+	if(rot[2]==-1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {1,2,3,0,5,6,7,4};
 		order.clear();
@@ -2672,11 +2934,10 @@ vector<int> RotateHex(int* rot, int* sym){
 
 	}
 
-	if(sym[0]==1){
+	if(sym[0]==1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {aux[1],aux[0],aux[3],aux[2],aux[5],aux[4],aux[7],aux[6]};
 		order.clear();
@@ -2692,11 +2953,10 @@ vector<int> RotateHex(int* rot, int* sym){
 		order.push_back(aux[6]);
 	}
 
-	if(sym[1]==1){
+	if(sym[1]==1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {aux[3],aux[2],aux[6],aux[7],aux[0],aux[1],aux[5],aux[6]};
 		order.clear();
@@ -2712,11 +2972,10 @@ vector<int> RotateHex(int* rot, int* sym){
 		order.push_back(aux[4]);
 	}
 
-	if(sym[2]==1){
+	if(sym[2]==1)
+	{
 
-		for(int i=0;i<8;i++){
-			aux[i]=order[i];
-		}
+		for(int i=0;i<8;i++) aux[i]=order[i];
 
 		//order = {aux[4],aux[5],aux[6],aux[7],aux[0],aux[1],aux[2],aux[3]};
 		order.clear();
@@ -2733,9 +2992,10 @@ vector<int> RotateHex(int* rot, int* sym){
 	}
 
 	return order;
-}
+																																																																																																																																														}
 
-unsigned node_shared_hash_fn(const void *v, const void *u) {
+unsigned node_shared_hash_fn(const void *v, const void *u)
+{
 	const shared_node_t *q = (const shared_node_t*) v;
 	uint32_t a, b, c;
 
@@ -2747,14 +3007,16 @@ unsigned node_shared_hash_fn(const void *v, const void *u) {
 	return (unsigned) c;
 }
 
-int node_shared_equal_fn(const void *v, const void *u, const void *w) {
+int node_shared_equal_fn(const void *v, const void *u, const void *w)
+{
 	const shared_node_t *e1 = (const shared_node_t*) v;
 	const shared_node_t *e2 = (const shared_node_t*) u;
 
 	return (unsigned) (e1->id == e2->id);
 }
 
-void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
+void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1)
+{
 
 	octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, id);
 
@@ -2766,7 +3028,8 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
 	elem1->father = id;
 	elem1->boundary = elem->boundary;
 
-	for(int ino = 0; ino < 8; ino++){
+	for(int ino = 0; ino < 8; ino++)
+	{
 		elem1->nodes[ino].color = elem->nodes[ino].color;
 		elem1->nodes[ino].fixed = elem->nodes[ino].fixed;
 		elem1->nodes[ino].x = elem->nodes[ino].x;
@@ -2774,14 +3037,16 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
 		elem1->nodes[ino].z = elem->nodes[ino].z;
 	}
 
-	for(int iedge = 0; iedge < 12; iedge++){
+	for(int iedge = 0; iedge < 12; iedge++)
+	{
 		elem1->edge[iedge].coord[0] = elem->edge[iedge].coord[0];
 		elem1->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
 		elem1->edge[iedge].id = elem->edge[iedge].id;
 		elem1->edge[iedge].ref = elem->edge[iedge].ref;
 	}
 
-	for(int isurf = 0; isurf < 6; isurf++){
+	for(int isurf = 0; isurf < 6; isurf++)
+	{
 		elem1->surf[isurf].ext = elem->surf[isurf].ext;
 	}
 
@@ -2791,7 +3056,8 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1){
 }
 
 void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int iel, int* id_node,
-		double* local_ref_x, double* local_ref_y, double* local_ref_z, std::vector<int>& ord, sc_hash_array_t* hash_nodes){
+		double* local_ref_x, double* local_ref_y, double* local_ref_z, std::vector<int>& ord, sc_hash_array_t* hash_nodes)
+{
 
 	int conn_p[8];
 	GtsPoint* point[8]={NULL};
@@ -2799,7 +3065,8 @@ void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int ie
 
 	double cord_in_x[8],cord_in_y[8],cord_in_z[8];
 	double ref_in_x[8], ref_in_y[8], ref_in_z[8];
-	for (int ino = 0; ino < 8; ino++){
+	for (int ino = 0; ino < 8; ino++)
+	{
 		cord_in_x[ino]=coords[3*id_node[ino]+0] ;
 		cord_in_y[ino]=coords[3*id_node[ino]+1] ;
 		cord_in_z[ino]=coords[3*id_node[ino]+2] ;
@@ -2814,7 +3081,8 @@ void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int ie
 	cord_in_ref[0] = 0;
 	cord_in_ref[1] = 0;
 	cord_in_ref[2] = 0;
-	for(int ino = 0; ino < 8; ino++){
+	for(int ino = 0; ino < 8; ino++)
+	{
 		cord_in_ref[0] = local_ref_x[ino];
 		cord_in_ref[1] = local_ref_y[ino];
 		cord_in_ref[2] = local_ref_z[ino];
@@ -2827,20 +3095,16 @@ void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int ie
 		int y = round(auxy);
 		int z = round(auxz);
 		point[ino] = LinearMapHex(cord_in_ref, cord_in_x,cord_in_y,cord_in_z);
-
 		conn_p[ino] = -1;
 		conn_p[ino] = AddPoint( mesh, hash_nodes, point[ino], coords, x, y, z);
 	}
 
 	int aux[8];
-	for(int ino = 0; ino < 8; ino++){
-		aux[ino] = conn_p[ino];
-	}
-	for(int ino = 0; ino < 8; ino++){
-		conn_p[ord[ino]] = aux[ino];
-	}
+	for(int ino = 0; ino < 8; ino++) aux[ino] = conn_p[ino];
+	for(int ino = 0; ino < 8; ino++) conn_p[ord[ino]] = aux[ino];
 
-	if(iel == 0){
+	if(iel == 0)
+	{
 		octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, id);
 
 		elem1->nodes[0].id = conn_p[0];
@@ -2855,14 +3119,17 @@ void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int ie
 
 		CopyPropEl(mesh,id,elem1);
 
-		for(int ino = 0; ino < 8; ino++){
+		for(int ino = 0; ino < 8; ino++)
+		{
 			octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, elem1->nodes[ino].id);
 			elem1->nodes[ino].x = node->x;
 			elem1->nodes[ino].y = node->y;
 			elem1->nodes[ino].z = node->z;
 		}
 
-	}else{
+	}
+	else
+	{
 		octant_t* elem2 = (octant_t*) sc_array_push(&mesh->elements);
 
 		elem2->id = mesh->elements.elem_count;
@@ -2879,7 +3146,8 @@ void ApplyElement(hexa_tree_t* mesh, std::vector<double>& coords, int id, int ie
 
 		CopyPropEl(mesh,id,elem2);
 
-		for(int ino = 0; ino < 8; ino++){
+		for(int ino = 0; ino < 8; ino++)
+		{
 			octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, elem2->nodes[ino].id);
 			elem2->nodes[ino].x = node->x;
 			elem2->nodes[ino].y = node->y;
@@ -9235,8 +9503,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 	//redefine the connectivity data for write the vtk file
 	mesh->part_nodes = NULL;
 	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
-	for(int i =0; i < mesh->local_n_nodes; i++)
-		mesh->part_nodes[i] = mesh->mpi_rank;
+	for(int i =0; i < mesh->local_n_nodes; i++) mesh->part_nodes[i] = mesh->mpi_rank;
+
 
 	sc_hash_array_t* shared_nodes    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_node_t), node_shared_hash_fn, node_shared_equal_fn, &clamped);
 	//insert the shared nodes in the hash_array
@@ -9270,6 +9538,8 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 			hexa_insert_shared_node(shared_nodes,node,mesh->neighbors[5]);
 	}
 
+	//TODO redo this
+	/*
 	double xs;
 	double xe;
 	double ys;
@@ -9328,9 +9598,9 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 		}
 	}
 
-
+	 */
 #ifdef HEXA_DEBUG_
-	if(1){
+	if(0){
 		fprintf(mesh->fdbg, "Shared Nodes: \n");
 		fprintf(mesh->fdbg, "Total: %d\n",shared_nodes->a.elem_count);
 		for(int i = 0; i < shared_nodes->a.elem_count; ++i)
@@ -9348,224 +9618,282 @@ void ApplyOctreeTemplate(hexa_tree_t* mesh, std::vector<double>& coords) {
 
 	////////////////
 	//extract the share nodes from shared_nodes
+	//sc_hash_array_truncate(&mesh->shared_nodes);
 	sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
 	sc_array_sort(&mesh->shared_nodes,node_comp);
 
+	if(false){
+		int local[3];
+		size_t              position;
 
-	int local[3];
-	size_t              position;
+		local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
+		local[1] = mesh->local_n_elements = mesh->elements.elem_count;
 
-	local[0] = mesh->local_n_nodes    = mesh->nodes.elem_count;
-	local[1] = mesh->local_n_elements = mesh->elements.elem_count;
+		// node map
+		int not_my_nodes    = 0;
+		int my_own_nodes    = 0;
+		free(mesh->global_id);
+		mesh->global_id     = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
+		memset(mesh->global_id,-2,mesh->local_n_nodes*sizeof(int64_t));
+		sc_hash_array_t* SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
+		sc_hash_array_t* RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
 
-	// node map
-	int not_my_nodes    = 0;
-	int my_own_nodes    = 0;
-	mesh->global_id     = (int64_t*)malloc(sizeof(int64_t)*mesh->local_n_nodes);
-	memset(mesh->global_id,-2,mesh->local_n_nodes*sizeof(int64_t));
-	sc_hash_array_t* SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
-	sc_hash_array_t* RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_t), processors_hash_fn, processors_equal_fn, &clamped);
-
-	for(int i = 0; i < mesh->shared_nodes.elem_count; ++i)
-	{
-		shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
-		for(int j = 0; j < sn->listSz; j++)
+		for(int i = 0; i < mesh->shared_nodes.elem_count; ++i)
 		{
-			if(sn->rankList[j] < mesh->mpi_rank) {
-				message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&sn->rankList[j],&position);
-				if(m!=NULL)
-				{
-					m->rank  = sn->rankList[j];
-					sc_array_init(&m->idxs, sizeof(uint32_t));
-					uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
-				} else
-				{
-					message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
-					uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
-				}
-				mesh->global_id[sn->id] = -3;
-			}
-			else if (sn->rankList[j] > mesh->mpi_rank)
+			shared_node_t* sn = (shared_node_t*) sc_array_index(&mesh->shared_nodes,i);
+			for(int j = 0; j < sn->listSz; j++)
 			{
-				message_t *m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&sn->rankList[j],&position);
-				if(m!=NULL)
-				{
-					m->rank  = sn->rankList[j];
-					sc_array_init(&m->idxs, sizeof(uint32_t));
-					uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
-				} else
-				{
-					message_t* m = (message_t*)sc_array_index(&RecvFrom->a, position);
-					uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
-					*p = sn->id;
+				if(sn->rankList[j] < mesh->mpi_rank) {
+					message_t* m = (message_t*)sc_hash_array_insert_unique(SendTo,&sn->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = sn->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint32_t));
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = sn->id;
+					} else
+					{
+						message_t* m = (message_t*)sc_array_index(&SendTo->a, position);
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = sn->id;
+					}
+					mesh->global_id[sn->id] = -3;
 				}
-				mesh->global_id[sn->id] = -1;
+				else if (sn->rankList[j] > mesh->mpi_rank)
+				{
+					message_t *m = (message_t*)sc_hash_array_insert_unique(RecvFrom,&sn->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = sn->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint32_t));
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = sn->id;
+					} else
+					{
+						message_t* m = (message_t*)sc_array_index(&RecvFrom->a, position);
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = sn->id;
+					}
+					mesh->global_id[sn->id] = -1;
+				}
 			}
+
+			if(mesh->global_id[sn->id] == -1) not_my_nodes++;
+			if(mesh->global_id[sn->id] == -3) my_own_nodes++;
+
 		}
 
-		if(mesh->global_id[sn->id] == -1) not_my_nodes++;
-		if(mesh->global_id[sn->id] == -3) my_own_nodes++;
+		local[0] -= not_my_nodes;
 
-	}
-
-	local[0] -= not_my_nodes;
-
-	sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
-	sc_hash_array_rip(SendTo  , &mesh->comm_map.SendTo   );
+		sc_hash_array_rip(RecvFrom, &mesh->comm_map.RecvFrom );
+		sc_hash_array_rip(SendTo  , &mesh->comm_map.SendTo   );
 
 #ifdef HEXA_DEBUG_
-	if(0){
-		//nodes
-		fprintf(mesh->fdbg,"Nodes:\n");
-		fprintf(mesh->fdbg, "Recv from %ld processors\n", mesh->comm_map.RecvFrom.elem_count);
+		if(0){
+			//nodes
+			fprintf(mesh->fdbg,"Nodes:\n");
+			fprintf(mesh->fdbg, "Recv from %ld processors\n", mesh->comm_map.RecvFrom.elem_count);
+			for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
+			{
+				message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+				fprintf(mesh->fdbg, "  \n Recv %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+				for(int j =0; j < m->idxs.elem_count; j++)
+				{
+					int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+					fprintf(mesh->fdbg, "%d ", *id);
+					if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+				}
+
+			}
+			fprintf(mesh->fdbg,"\n");
+			fprintf(mesh->fdbg, "Send to %ld processors\n", mesh->comm_map.SendTo.elem_count);
+			for(int i=0; i < mesh->comm_map.SendTo.elem_count; i++)
+			{
+				message_t* m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
+				fprintf(mesh->fdbg, "\n Sending %ld nodes from %d\n", m->idxs.elem_count, m->rank);
+				for(int j =0; j < m->idxs.elem_count; j++)
+				{
+					int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+					fprintf(mesh->fdbg, "%d ", *id);
+					if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+				}
+
+			}
+		}
+#endif
+
+		//size for the nodes message
+		mesh->comm_map.max_recvbuf_size = 0;
+		for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; i++)
+		{
+			message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+			mesh->comm_map.max_recvbuf_size +=  m->idxs.elem_count;
+		}
+
+		mesh->comm_map.max_sendbuf_size = 0;
+		for(int i = 0; i < mesh->comm_map.SendTo.elem_count; i++)
+		{
+			message_t* m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
+			mesh->comm_map.max_sendbuf_size +=  m->idxs.elem_count;
+		}
+
+		mesh->comm_map.nrequests = mesh->comm_map.RecvFrom.elem_count +
+				mesh->comm_map.SendTo.elem_count;
+
+		int offset = 0;
+		MPI_Scan(&local[0], &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+		offset = offset-local[0];
+		int count = offset;
+		for(int i=0; i < mesh->local_n_nodes; ++i)
+			if(mesh->global_id[i] != -1) mesh->global_id[i] = count++;
+
+		int          n_requests;
+
+		MPI_Request *requests;
+		MPI_Status  *statuses;
+		long long    *recvbuf;
+		long long   *sendbuf;
+
+		n_requests = mesh->comm_map.nrequests;
+		recvbuf    = (long long*)malloc(mesh->comm_map.max_recvbuf_size*sizeof(long long));
+		sendbuf    = (long long*)malloc(mesh->comm_map.max_sendbuf_size*sizeof(long long));
+
+		requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+		statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+		int c = 0;
+
+		offset = 0;
+
+		// post all non-blocking receives
+		for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
+			message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+			MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+			offset += m->idxs.elem_count;
+			c++;
+		}
+
+		assert(offset == mesh->comm_map.max_recvbuf_size);
+
+		offset = 0;
+		for(int i = 0; i < mesh->comm_map.SendTo.elem_count; ++i) {
+			message_t *m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
+			for(int j = 0; j < m->idxs.elem_count; ++j)
+			{
+				int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+				sendbuf[offset+j] = (long long) mesh->global_id[*id];
+			}
+			MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+			offset += m->idxs.elem_count;
+			c++;
+		}
+		assert(offset == mesh->comm_map.max_sendbuf_size);
+
+		assert(c == n_requests);
+
+		MPI_Waitall(n_requests,requests,statuses);
+
+		offset = 0;
+		for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
+			message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
+			for(int j = 0; j < m->idxs.elem_count; ++j)
+			{
+				int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+				mesh->global_id[*id] = recvbuf[offset+j];
+			}
+			offset += m->idxs.elem_count;
+		}
+
+		free(recvbuf);
+		free(sendbuf);
+		free(requests);
+		free(statuses);
+
+		mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
+		for(int i =0; i < mesh->local_n_nodes; i++)
+			mesh->part_nodes[i] = mesh->mpi_rank;
+
 		for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
 		{
 			message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-			fprintf(mesh->fdbg, "  \n Recv %ld nodes from %d\n", m->idxs.elem_count, m->rank);
 			for(int j =0; j < m->idxs.elem_count; j++)
 			{
 				int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-				fprintf(mesh->fdbg, "%d ", *id);
-				if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
+				mesh->part_nodes[*id] = m->rank;
 			}
-
 		}
-		fprintf(mesh->fdbg,"\n");
-		fprintf(mesh->fdbg, "Send to %ld processors\n", mesh->comm_map.SendTo.elem_count);
-		for(int i=0; i < mesh->comm_map.SendTo.elem_count; i++)
-		{
-			message_t* m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
-			fprintf(mesh->fdbg, "\n Sending %ld nodes from %d\n", m->idxs.elem_count, m->rank);
-			for(int j =0; j < m->idxs.elem_count; j++)
-			{
-				int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-				fprintf(mesh->fdbg, "%d ", *id);
-				if( (j+1) % 5 == 0 )fprintf(mesh->fdbg, "\n");
-			}
 
-		}
-	}
-#endif
-
-	//size for the nodes message
-	mesh->comm_map.max_recvbuf_size = 0;
-	for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; i++)
-	{
-		message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-		mesh->comm_map.max_recvbuf_size +=  m->idxs.elem_count;
-	}
-
-	mesh->comm_map.max_sendbuf_size = 0;
-	for(int i = 0; i < mesh->comm_map.SendTo.elem_count; i++)
-	{
-		message_t* m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
-		mesh->comm_map.max_sendbuf_size +=  m->idxs.elem_count;
-	}
-
-	mesh->comm_map.nrequests = mesh->comm_map.RecvFrom.elem_count +
-			mesh->comm_map.SendTo.elem_count;
-
-	int offset = 0;
-	MPI_Scan(&local[0], &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
-	offset = offset-local[0];
-	int count = offset;
-	for(int i=0; i < mesh->local_n_nodes; ++i)
-		if(mesh->global_id[i] != -1) mesh->global_id[i] = count++;
-
-	int          n_requests;
-
-	MPI_Request *requests;
-	MPI_Status  *statuses;
-	long long    *recvbuf;
-	long long   *sendbuf;
-
-	n_requests = mesh->comm_map.nrequests;
-	recvbuf    = (long long*)malloc(mesh->comm_map.max_recvbuf_size*sizeof(long long));
-	sendbuf    = (long long*)malloc(mesh->comm_map.max_sendbuf_size*sizeof(long long));
-
-	requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
-	statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
-	int c = 0;
-
-	offset = 0;
-
-	// post all non-blocking receives
-	for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
-		message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-		MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
-		offset += m->idxs.elem_count;
-		c++;
-	}
-
-	assert(offset == mesh->comm_map.max_recvbuf_size);
-
-	offset = 0;
-	for(int i = 0; i < mesh->comm_map.SendTo.elem_count; ++i) {
-		message_t *m = (message_t*) sc_array_index(&mesh->comm_map.SendTo, i);
-		for(int j = 0; j < m->idxs.elem_count; ++j)
-		{
-			int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-			sendbuf[offset+j] = (long long) mesh->global_id[*id];
-		}
-		MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
-		offset += m->idxs.elem_count;
-		c++;
-	}
-	assert(offset == mesh->comm_map.max_sendbuf_size);
-
-	assert(c == n_requests);
-
-	MPI_Waitall(n_requests,requests,statuses);
-
-	offset = 0;
-	for(int i = 0; i < mesh->comm_map.RecvFrom.elem_count; ++i) {
-		message_t *m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-		for(int j = 0; j < m->idxs.elem_count; ++j)
-		{
-			int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-			mesh->global_id[*id] = recvbuf[offset+j];
-		}
-		offset += m->idxs.elem_count;
-	}
-
-	free(recvbuf);
-	free(sendbuf);
-	free(requests);
-	free(statuses);
-
-	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
-	for(int i =0; i < mesh->local_n_nodes; i++)
-		mesh->part_nodes[i] = mesh->mpi_rank;
-
-	for(int i=0; i < mesh->comm_map.RecvFrom.elem_count; i++)
-	{
-		message_t* m = (message_t*) sc_array_index(&mesh->comm_map.RecvFrom, i);
-		for(int j =0; j < m->idxs.elem_count; j++)
-		{
-			int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
-			mesh->part_nodes[*id] = m->rank;
-		}
-	}
-
+	}//do if false
 }
 
 void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 
-	bool deb = true;
+	//assign a color for the nodes...
+
+	// free node
+	// color= 0 && fixed = 0;
+
+	//exterior surface fixed nodes
+	//fixed = 1 && color = 1
+
+	//exterior global nodes
+	//color && fixed = -1;
+	// x- = 2 x+ = 3
+	// y- = 4 y+ = 5
+	// z- = 6 z+ = 7
+
+	//exterior local nodes
+	//color && fixed = -1;
+	// x- = -2 x+ = -3
+	// y- = -4 y+ = -5
+	// z- = -6 z+ = -7
+
+	//exterior global edges
+	//color && fixed = -1;
+	// z-y- = 0+11
+	// z-x+ = 1+11
+	// z-y+ = 2+11
+	// z-x- = 3+11
+
+	// x-y- = 4+11
+	// x+y- = 5+11
+	// x+y+ = 6+11
+	// x-y+ = 7+11
+
+	// z+y- = 8+11
+	// z+x+ = 9+11
+	// z+y+ = 10+11
+	// z+x- = 11+11
+
+	//exterior local edges
+	//color && fixed = -1;
+	// z-y- = -0-11
+	// z-x+ = -1-11
+	// z-y+ = -2-11
+	// z-x- = -3-11
+
+	// x-y- = -4-11
+	// x+y- = -5-11
+	// x+y+ = -6-11
+	// x-y+ = -7-11
+
+	// z+y- = -8-11
+	// z+x+ = -9-11
+	// z+y+ = -10-11
+	// z+x- = -11-11
+
+	bool deb = false;
 	bool clamped = true;
 	//TODO remove vertex hash
 	//vertex hash
 	sc_hash_array_t*	  vertex_hash  = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
 
-	//fazendo vertex hash
+	//fazendo vertex hash & assign the color to the local nodes
 	for(int iel = 0; iel < mesh->elements.elem_count ; iel++){
 		size_t  position;
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		for (int ino = 0; ino < 8; ino++){
+			//build the hash
 			octant_vertex_t key;
 			key.id = elem->nodes[ino].id;
 			octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique (vertex_hash, &key, &position);
@@ -9578,6 +9906,124 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 				vert->elem[vert->list_elem] = elem->id;
 				vert->list_elem++;
 			}
+
+			//setting free the free nodes
+			if(elem->nodes[ino].fixed == 0) elem->nodes[ino].color = 0;
+
+			//assign the color for the local nodes...
+
+			//surface and edges
+			if(elem->nodes[ino].x == mesh->x_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -2;
+			}
+
+			if(elem->nodes[ino].x == mesh->x_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -3;
+			}
+
+			if(elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -4;
+			}
+
+			if(elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -5;
+			}
+
+			if(elem->nodes[ino].z == 0)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -6;
+			}
+
+			if(elem->nodes[ino].z == 3*mesh->max_z)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -7;
+			}
+
+			// z-y- = -0-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -0-11;
+			}
+			// z-x+ = -1-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].x == mesh->x_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -1-11;
+			}
+			// z-y+ = -2-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -2-11;
+			}
+			// z-x- = -3-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].x == mesh->x_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -3-11;
+			}
+
+
+			// x-y- = -4-11
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -4-11;
+			}
+			// x+y- = -5-11
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -5-11;
+			}
+			// x+y+ = -6-11
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -6-11;
+			}
+			// x-y+ = -7-11
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -7-11;
+			}
+
+			// z+y- = -8-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -8-11;
+			}
+			// z+x+ = -9-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].x == mesh->x_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -9-11;
+			}
+			// z+y+ = -10-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -10-11;
+			}
+			// z+x- = -11-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].x == mesh->x_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -11-11;
+			}
 		}
 	}
 
@@ -9586,10 +10032,10 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 	sc_array_t toto;
 	sc_array_init(&toto, sizeof(octant_t));
 
+	//id global exterior surface
 	for(int iel = 0; iel < mesh->elements.elem_count; iel++){
 		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, iel);
 		octant_t * elem = (octant_t*) sc_array_push(&toto);
-		//hexa_element_init(elem);
 		hexa_element_copy(elemOrig,elem);
 
 		if(elem->boundary){
@@ -9666,8 +10112,15 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 				elem1->z=elem->z;
 
 				for(int ino = 0; ino < 8; ino++){
-					elem1->nodes[ino].color = elem->nodes[ino].color;
+					elem1->nodes[ino].color = -elem->nodes[ino].color;
 					elem1->nodes[ino].fixed = 0;
+					if(elem->nodes[ino].fixed == 1)
+					{
+						elem1->nodes[ino].fixed = 1;
+					}else
+					{
+						elem1->nodes[ino].fixed = -elem->nodes[ino].fixed;
+					}
 					elem1->nodes[ino].id = elem->nodes[ino].id;
 					elem1->nodes[ino].x = elem->nodes[ino].x;
 					elem1->nodes[ino].y = elem->nodes[ino].y;
@@ -9690,6 +10143,7 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 		sc_array_reset(&toto);
 	}
 
+	//id global exterior edges
 	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
 		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
 
@@ -9805,6 +10259,7 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 
 	}
 
+	//id global exterior nodes
 	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
 		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
 		if(elem->edge[4].ref){
@@ -9833,15 +10288,15 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 		}
 	}
 
-	//debug
-	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
-		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
-		for(int ino = 0; ino < 8; ino++){
-			//if(elem->nodes[ino].fixed == 1) mesh->part_nodes[elem->nodes[ino].id] = 1;
+	if(deb){
+		//debug
+		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
+			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+			for(int ino = 0; ino < 8; ino++){
+				if(elem->nodes[ino].fixed == 1) mesh->part_nodes[elem->nodes[ino].id] = 1;
+			}
 		}
 
-	}
-	if(false){
 		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++){
 			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
 
@@ -9859,6 +10314,163 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 		}
 	}
 	//printf("Numero de elementos de superficie %d\n", mesh->outsurf.elem_count);
+
+}
+
+void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
+
+	bool clamped = true;
+	//criando a hash de nos para evitar nos duplicados no pillowing
+	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
+	//hash nodes
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino++)
+	{
+		size_t position;
+		octant_node_t *r;
+		octant_node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		key.x = node->x;
+		key.y = node->y;
+		key.z = node->z;
+		r = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+		if(r!=NULL){
+			r->x = node->x;
+			r->y = node->y;
+			r->z = node->z;
+			r->id = node->id;
+		}else{
+			printf("Verificar o no numero %d\n",node->id);
+			octant_node_t* node_i = (octant_node_t*) sc_array_index (&hash_nodes->a, position);
+			printf("Ele foi confundido com o no %d\n", node_i->id);
+		}
+	}
+
+	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
+	//hash nodes nodes_b_mat
+	sc_hash_array_t*   hash_b_mat  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn, node_equal_fn, &clamped);
+
+	//fazendo hash nos nodes_b_mat
+	for(int ino = 0; ino < nodes_b_mat.size(); ino++)
+	{
+		size_t position;
+		octant_node_t *r;
+		octant_node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, nodes_b_mat[ino]);
+		key.x = node->x;
+		key.y = node->y;
+		key.z = node->z;
+
+		r = (octant_node_t*) sc_hash_array_insert_unique(hash_b_mat, &key, &position);
+		if(r!=NULL){
+			r->x = key.x;
+			r->y = key.y;
+			r->z = key.z;
+			r->id = node->id;
+		}else{
+			printf("Verificar o no numero %d\n",node);
+		}
+	}
+
+	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++)
+	{
+		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,ioc);
+
+		for(int iel = 0; iel < 8; iel++)
+		{
+			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements,oct->id[iel]);
+
+			int nSurf = 0;
+			for(int isurf = 0; isurf < 6; isurf++)
+			{
+				bool surf = true;
+				for(int ino = 0; ino < 4; ino++)
+				{
+					size_t position;
+					octant_node_t key;
+					key.x = elem->nodes[FaceNodesMap[isurf][ino]].x;
+					key.y = elem->nodes[FaceNodesMap[isurf][ino]].y;
+					key.z = elem->nodes[FaceNodesMap[isurf][ino]].z;
+
+					bool lnode = sc_hash_array_lookup(hash_b_mat, &key, &position);
+					if(!lnode) surf = false;
+				}
+				if(surf) nSurf++;
+			}
+
+			printf("El:%d nSurf:%d\n",elem->id,nSurf);
+
+		}
+
+	}
+
+
+
+
+
+
+
+
+
+
+	int auxS0[3];
+	int auxS1[3];
+	for(int ino = 0; ino < 3 ; ino++) auxS0[ino] = 0;
+	for(int ino = 0; ino < 3 ; ino++) auxS1[ino] = 0;
+	int countS1 = 0;
+	int countS0 = 0;
+
+	//find the center of the set
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
+	{
+		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements,iel);
+		if(elem->n_mat == 0){
+			for(int ino = 0; ino < 8 ; ino++)
+			{
+				auxS0[0] += elem->nodes[ino].x;
+				auxS0[1] += elem->nodes[ino].y;
+				auxS0[2] += elem->nodes[ino].z;
+				countS0++;
+			}
+		}else
+		{
+			for(int ino = 0; ino < 8 ; ino++)
+			{
+				auxS1[0] += elem->nodes[ino].x;
+				auxS1[1] += elem->nodes[ino].y;
+				auxS1[2] += elem->nodes[ino].z;
+				countS1++;
+			}
+		}
+	}
+
+	printf("C0:%d C1:%d\n",countS0,countS1);
+	int xm0,xm1,ym0,ym1,zm0,zm1;
+	xm0 = auxS0[0]/ countS0;
+	ym0 = auxS0[1]/ countS0;
+	zm0 = auxS0[2]/ countS0;
+	xm1 = auxS1[0]/ countS1;
+	ym1 = auxS1[1]/ countS1;
+	zm1 = auxS1[2]/ countS1;
+
+	printf("Set 0: %d %d %d Set 1: %d %d %d\n",xm0,ym0,zm0,xm1,ym1,zm1);
+
+	//find a "default" edge size
+	//only load the first octree and take (octree size)/2
+	octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,1);
+	octant_t * elem0 = (octant_t*) sc_array_index(&mesh->elements,oct->id[0]);
+	octant_t * elem1 = (octant_t*) sc_array_index(&mesh->elements,oct->id[1]);
+	double h = abs(coords[3*elem0->nodes[0].id] - coords[3*elem1->nodes[1].id]);
+	h += abs(coords[3*elem0->nodes[3].id] - coords[3*elem1->nodes[2].id]);
+	h += abs(coords[3*elem0->nodes[4].id] - coords[3*elem1->nodes[5].id]);
+	h += abs(coords[3*elem0->nodes[7].id] - coords[3*elem1->nodes[6].id]);
+	double factor = 16;
+	h = h/factor;
+	printf("achei um h de %f\n",h);
+
+	//disconnect the fixed nodes and create the new nodes
+
+	//mapping the coords to shrink
+
 }
 
 void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
@@ -9903,43 +10515,6 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	fprintf(mesh->profile,"    Time in ApplyOctreeTemplate %lld millisecond(s).\n",elapsed.count());
 	//std::cout << "Time apply "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
-	/*
-	FILE* bla;
-	char treta[80];
-	sprintf(treta,"edges_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-	bla = fopen(treta,"w");
-	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		for (int edge = 0; edge < 12; ++edge) {
-			fprintf(bla,"El:%d, edge:%d, coord[0]:%d, coord[1]:%d\n",iel,elem->edge[edge].id,elem->edge[edge].coord[0],elem->edge[edge].coord[1]);
-		}
-	}
-	fclose(bla);
-
-
-	FILE* bla;
-	char treta[80];
-	sprintf(treta,"Elementos_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-	bla = fopen(treta,"w");
-	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		for (int ino = 0; ino < 8; ++ino) {
-			fprintf(bla,"El:%d, node:%d, x:%d, y:%d, z:%d\n",elem->id,elem->nodes[ino].id,elem->nodes[ino].x,elem->nodes[ino].y,elem->nodes[ino].z);
-		}
-	}
-	fclose(bla);
-
-	sprintf(treta,"ElementosA_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-	bla = fopen(treta,"w");
-	for (int ino = 0; ino < mesh->nodes.elem_count; ++ino) {
-		octant_node_t *nnode = (octant_node_t*) sc_array_index(&mesh->nodes, ino);
-		for (int ino = 0; ino < 8; ++ino) {
-			fprintf(bla,"x:%d, y:%d, z:%d\n",nnode->x,nnode->y,nnode->z);
-		}
-	}
-	fclose(bla);
-	 */
-
 	//update the vectors
 	mesh->local_n_elements = mesh->elements.elem_count;
 	mesh->local_n_nodes = mesh->nodes.elem_count;
@@ -9951,16 +10526,48 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	free(mesh->part_nodes);
 	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
 	for (int ino = 0; ino < mesh->local_n_nodes; ino++) {
-		mesh->part_nodes[ino]=0;
+		mesh->part_nodes[ino]=mesh->mpi_rank;
 	}
 
-	for(int ino = 0; ino < nodes_b_mat.size(); ino++){
-		mesh->part_nodes[nodes_b_mat[ino]] = 1;
-	}
+	//for(int ino = 0; ino < nodes_b_mat.size(); ino++){
+	//	mesh->part_nodes[nodes_b_mat[ino]] = 1;
+	//}
 
 	start = std::chrono::steady_clock::now( );
 	printf("     Surface Identification\n");
 	SurfaceIdentification(mesh, coords);
 	fprintf(mesh->profile,"    Time in SurfaceIdentification %lld millisecond(s).\n",elapsed.count());
 	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+}
+
+
+void PillowingInterfaceNew(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat)
+{
+	int elem_old = mesh->elements.elem_count;
+	int nodes_old = mesh->nodes.elem_count;
+	bool clamped = true;
+	fprintf(mesh->profile,"Time inside PillowingInterface\n");
+
+	//redo the mapping in the nodes
+	auto start = std::chrono::steady_clock::now( );
+	printf("     Redo Node Mapping\n");
+	RedoNodeMapping(mesh);
+	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+	fprintf(mesh->profile,"    Redo the mapping in the nodes %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Redo the mapping in the nodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+
+	//Identify the boundaries: global and local
+	start = std::chrono::steady_clock::now( );
+	printf("     Surface Identification\n");
+	SurfaceIdentification(mesh, coords);
+	fprintf(mesh->profile,"    Time in SurfaceIdentification %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+
+	//Identify the boundaries: global and local
+	start = std::chrono::steady_clock::now( );
+	printf("     Shrink Sets\n");
+	ShrinkSet(mesh, coords,nodes_b_mat);
+	fprintf(mesh->profile,"    Time in ShrinkSet %lld millisecond(s).\n",elapsed.count());
+	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+
 }

@@ -965,6 +965,12 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		conn[c] = tmp[1]; c++;
 		conn[c] = tmp[2]; c++;
 		conn[c] = tmp[3]; c++;
+
+		if(elem->tem == -1 && true){
+			for(int j = 0; j < 8; j++){
+				fixed_nodes[elem->nodes[j].id] = true;
+			}
+		}
 	}
 
 	assert(mesh->nodes.elem_count == mesh->local_n_nodes);
@@ -989,16 +995,62 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		fixed_nodes[node->node_id] = true;
 	}
 
-	//TODO try to set all the "useless" nodes as fixed...
-	//it maybe can reduce the time waste...
-
-
 	//for(int ino = 0; ino < mesh->shared_nodes.elem_count; ino++){
 	//	shared_node_t * node = (shared_node_t*) sc_array_index(&mesh->shared_nodes, ino);
 	//	fixed_nodes[node->id] = true;
 	//}
 
 	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
+
+	if(false){
+		/*
+		// creates an intruction queue
+		InstructionQueue queue;
+
+
+		// calculate average lambda for mesh
+		ReferenceMesh ref_mesh( MeshImpl );
+		RefMeshTargetCalculator W_0( &ref_mesh );
+		SimpleStats lambda_stats;
+		Settings* settings
+		MeshUtil tool(mesh, settings);
+		tool.lambda_distribution( lambda_stats, err ); MSQ_ERRRTN(err);
+		double lambda = lambda_stats.average();
+
+
+
+		// create objective function
+		IdealShapeTarget W_i;
+		LambdaConstant W( lambda, &W_i );
+		TShapeSizeB1 tm;
+		TQualityMetric mu_0( &W, &tm );
+		ElementPMeanP mu( 1.0, &mu_0 );
+		PMeanPTemplate of( 1.0, &mu );
+		*/
+		/*
+		// create quality assessor
+		EdgeLengthMetric len(0.0);
+		ConditionNumberQualityMetric shape_metric;
+		QualityAssessor qa=QualityAssessor(&shape_metric);
+		qa->add_quality_assessment( &mu );
+		qa->add_quality_assessment( &len );
+		queue.add_quality_assessor( qa, err );
+
+		// create solver
+		TrustRegion solver( &of );
+		TerminationCriterion tc, ptc;
+		tc.add_absolute_vertex_movement( maxVtxMovement );
+		tc.add_iteration_limit( iterationLimit );
+		ptc.add_iteration_limit( pmesh ? parallelIterations : 1 );
+		solver.set_inner_termination_criterion( &tc );
+		solver.set_outer_termination_criterion( &ptc );
+		q.set_master_quality_improver( &solver, err ); MSQ_ERRRTN(err);
+		q.add_quality_assessor( qa, err );
+
+		// Optimize mesh
+		q.run_common( mesh_and_domain, pmesh, settings, err ); MSQ_CHKERR(err);
+		 */
+	}
 
 	if(false){
 		// creates an intruction queue
@@ -1061,12 +1113,6 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		//print_timing_diagnostics(std::cout);
 	}
 
-	UntangleWrapper::UntangleMetric metric0 = UntangleWrapper::BETA;
-	UntangleWrapper un_wrapper0 (metric0);
-	un_wrapper0.set_vertex_movement_limit_factor( 0.005 );
-	un_wrapper0.set_outer_iteration_limit(10);
-	//run_wrapper0.run_instructions( &mesq_mesh, err );
-
 	if(true){
 		// creates an intruction queue
 		InstructionQueue queue1;
@@ -1079,8 +1125,8 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		// creates the laplacian smoother  procedures
 		//Here we use SmartLaplacianSmoother
 		//it tries to avoid the inversion of the element...
-		//SmartLaplacianSmoother lapl1;
-		LaplacianSmoother lapl1;
+		SmartLaplacianSmoother lapl1;
+		//LaplacianSmoother lapl1;
 		QualityAssessor stop_qa=QualityAssessor(&shape_metric);
 		stop_qa.add_quality_assessment(&lapl_met);
 		stop_qa.disable_printing_results();

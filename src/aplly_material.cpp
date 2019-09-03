@@ -315,15 +315,18 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 		}
 	}
 
-	for (int ino = 0; ino < mesh->nodes.elem_count; ++ino){
-		mesh->part_nodes[ino] = 0;
-	}
-	for (int ioc = 0; ioc <  mesh->oct.elem_count; ++ioc) {
-		octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
-		for (int iel = 0; iel < 8; ++iel){
-			octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-			for(int ino = 0; ino < 8; ino++){
-				mesh->part_nodes[elem->nodes[ino].id] += elem->nodes[ino].color;
+	if(deb){
+		for (int ino = 0; ino < mesh->nodes.elem_count; ++ino){
+			mesh->part_nodes[ino] = 0;
+		}
+
+		for (int ioc = 0; ioc <  mesh->oct.elem_count; ++ioc) {
+			octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+			for (int iel = 0; iel < 8; ++iel){
+				octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
+				for(int ino = 0; ino < 8; ino++){
+					mesh->part_nodes[elem->nodes[ino].id] += elem->nodes[ino].color;
+				}
 			}
 		}
 	}
