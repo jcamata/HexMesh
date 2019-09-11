@@ -46,19 +46,6 @@ typedef struct {
 	bool flag; //maybe can be removed...
 } node_t;
 
-/*
-typedef struct
-{
-	uint64_t id;
-	int8_t  list_elem;
-	int8_t  list_face;
-	int32_t  elem[8]; // we must check this values
-	int8_t   face[24]; // we must check this values
-	double   n[24][3];
-	double   nm[3];
-} normal_t;
- */
-
 typedef struct octant_vertex
 {
 	uint64_t id;
@@ -73,14 +60,6 @@ typedef struct edge
 	int32_t  list_elem;
 	int32_t  elem[8]; // we must check this values
 } edge_t;
-/*
-typedef struct pillow
-{
-	uint64_t id;
-	uint64_t a;
-	uint64_t b;
-} pillow_t;
- */
 
 typedef struct octant
 {
@@ -239,7 +218,7 @@ int const OctNeighbourMap[8][3] = {
 		{7, 5, 2}, //El 6
 		{4, 6, 3}  //El 7
 };
-
+/*
 int const EdgeVerticesMap_surf_diagonal[12][2] = {
 		{0, 5}, //y-
 		{1, 4}, //y-
@@ -261,6 +240,7 @@ int const EdgeVerticesMap_vol_diagonal[4][2] = {
 		{2, 4},
 		{3, 5}
 };
+*/
 
 int const FaceEdgesMap[6][4] = {
 		{4, 11, 7, 3},
@@ -285,8 +265,8 @@ int const FaceNodesMap[6][4] = {
 		{1,5,6,2},
 		{1,5,4,0},
 		{2,6,7,3},
-		{5,4,7,6},
-		{1,0,3,2}
+		{1,0,3,2},
+		{5,4,7,6}
 };
 
 int const FaceNodesMap_inv[6][4] = {
@@ -294,8 +274,8 @@ int const FaceNodesMap_inv[6][4] = {
 		{0,4,7,3},
 		{2,6,7,3},
 		{1,5,4,0},
-		{1,0,3,2},
-		{5,4,7,6}
+		{5,4,7,6},
+		{1,0,3,2}
 };
 
 int const FaceNodesMapRef[6][4] = {
@@ -334,6 +314,17 @@ int const VertexEdgeMap[8][3] = {
 		{11,10,7}  //Vertex 7
 };
 
+int const VertexSurfMap[8][3] = {
+		{0,2,4}, //Vertex 0
+		{1,2,4}, //Vertex 1
+		{1,3,4}, //Vertex 2
+		{0,3,4}, //Vertex 3
+		{0,2,5}, //Vertex 4
+		{1,2,5}, //Vertex 5
+		{1,3,5}, //Vertex 6
+		{0,3,5}  //Vertex 7
+};
+
 int const VertexVertexMap[8][3] = {
 		{1,3,4},
 		{0,2,5},
@@ -360,6 +351,17 @@ int const EdgeEdgeMap[12][4] = {
 		{10, 7, 8, 9}//11
 };
 
+int const coord_ref[8][3] = {
+		{-1,-1,-1}, // node 0
+		{ 1,-1,-1}, // node 1
+		{ 1, 1,-1}, // node 2
+		{-1, 1,-1}, //node 1
+		{-1,-1, 1}, //node 4
+		{ 1,-1, 1}, //node 5
+		{ 1, 1, 1}, //node 6
+		{-1, 1, 1} //node 7
+};
+
 void copy_octant(octant_t *orig, octant_t* dest);
 void hexa_init(int argc, char* argv[], hexa_tree_t* mesh);
 void hexa_finalize(hexa_tree_t* mesh);
@@ -377,10 +379,8 @@ void ExtrudePMLElements(hexa_tree_t* mesh, std::vector<double>& coords);
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface);
 void MeshOpt(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
 void PillowingInterface(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat);
-void PillowingInterfaceNew(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat);
 void Adjust_material(hexa_tree_t *mesh);
 void ExtrudeToOctree(hexa_tree_t* mesh,std::vector<double>& coords);
-//octant_t * hexa_element_copy(hexa_tree_t *mesh,int iel);
 void hexa_element_init(octant_t *elem);
 void hexa_element_copy(octant_t * elem, octant_t * elemCopy);
 void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes);
