@@ -22,6 +22,8 @@ typedef struct pillow
 	uint64_t id;
 	uint64_t a;
 	uint64_t b;
+	int mata;
+	int matb;
 	//	uint64_t elem_a;
 	//	uint64_t elem_b;
 	int32_t x,y,z;
@@ -694,7 +696,7 @@ void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords){
 }
 
 
-void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
+void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
 	bool deb = false;
 	bool clamped = true;
@@ -749,11 +751,11 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 		}
 	}
 
-	sc_hash_array_t*   pillow  = (sc_hash_array_t *)sc_hash_array_new(sizeof(pillow_t), pillow_hash_fn, pillow_equal_fn, &clamped);
 	bool createPillow = true;
 	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++)
 	{
 		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,ioc);
+		sc_hash_array_t*   pillow  = (sc_hash_array_t *)sc_hash_array_new(sizeof(pillow_t), pillow_hash_fn, pillow_equal_fn, &clamped);
 
 		//en train de faire la hash du pillowing
 		for(int iel = 0; iel < 8; iel++)
@@ -1038,15 +1040,15 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 				if(elem->nodes[0].x <= b->x && elem->nodes[6].x >= b->x &&
 						elem->nodes[0].y <= b->y && elem->nodes[6].y >= b->y &&
 						elem->nodes[0].z <= b->z && elem->nodes[6].z >= b->z) inb[iel] = true;
-				if(deb)printf("%d %d\n",elem->id,p->id);
-				if(deb)printf("%d %d %d %d %s\n",a->id,a->x,a->y,a->z, ina[iel] ? "true" : "false");
-				if(deb)printf("%d %d %d %d %s\n",b->id,b->x,b->y,b->z, inb[iel] ? "true" : "false");
-				if(deb)printf("%d %d %d %d %d %d\n",elem->nodes[0].x,elem->nodes[6].x,elem->nodes[0].y,elem->nodes[6].y,
-						elem->nodes[0].z,elem->nodes[6].z);
-
 
 				if(ina[iel] || inb[iel])
 				{
+					if(deb)printf("%d %d\n",elem->id,p->id);
+					if(deb)printf("%d %d %d %d %s\n",a->id,a->x,a->y,a->z, ina[iel] ? "true" : "false");
+					if(deb)printf("%d %d %d %d %s\n",b->id,b->x,b->y,b->z, inb[iel] ? "true" : "false");
+					if(deb)printf("%d %d %d %d %d %d\n",elem->nodes[0].x,elem->nodes[6].x,elem->nodes[0].y,elem->nodes[6].y,
+							elem->nodes[0].z,elem->nodes[6].z);
+
 					double cord_in_ref[3];
 					int nnode;
 					double ref_in_x[8],ref_in_y[8],ref_in_z[8];
@@ -1069,8 +1071,11 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						cord_in_ref[0] = (a->x - elem->nodes[0].x)/6 -1;
 						cord_in_ref[1] = (a->y - elem->nodes[0].y)/6 -1;
 						cord_in_ref[2] = (a->z - elem->nodes[0].z)/6 -1;
-						nnode = a->id;
+						nnode = p->a;
+						p->mata = elem->n_mat;
 						a->color = int(color)/int(colorc);
+						if(deb)printf("Id do no %d, aqui achei no a:%d no elemento %d que tem o material %d\n",
+								p->id,p->a,elem->id,elem->n_mat);
 					}
 					if(inb[iel])
 					{
@@ -1078,7 +1083,10 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						cord_in_ref[1] = (b->y - elem->nodes[0].y)/6 -1;
 						cord_in_ref[2] = (b->z - elem->nodes[0].z)/6 -1;
 						nnode = p->b;
+						p->matb = elem->n_mat;
 						b->color = int(color)/int(colorc);
+						if(deb)printf("Id do no %d, aqui achei no b:%d no elemento %d que tem o material %d\n",
+								p->id,p->b,elem->id,elem->n_mat);
 					}
 					GtsPoint* ref_point = LinearMapHex(cord_in_ref, ref_in_x, ref_in_y, ref_in_z);
 
@@ -1143,8 +1151,15 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 
 					bool lnode = sc_hash_array_lookup(pillow, &key, &position);
 					pillow_t* p = (pillow_t*) sc_array_index(&pillow->a,position);
-					if(elem->n_mat == 0) new_nodes[ino] = p->a;
-					if(elem->n_mat == 1) new_nodes[ino] = p->b;
+					printf("Id do no %d, mata:%d matb:%d elem mat %d\n",p->id,p->mata,p->matb,elem->n_mat);
+					if(elem->n_mat == p->mata)
+					{
+						new_nodes[ino] = p->a;
+					}
+					else
+					{
+						new_nodes[ino] = p->b;
+					}
 				}
 
 				if(createPillow)
@@ -1167,9 +1182,7 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						pelem->nodes[FaceNodesMap_inv[aux[isurf]][ino]].id= new_nodes[ino];
 
 						elemOrig->nodes[FaceNodesMap[aux[isurf]][ino]].id = new_nodes[ino];
-						//printf("    FaceNodesMap:%d\n",FaceNodesMap[aux[isurf]][ino]);
-						//printf("    Trocando %d por %d\n",elem->nodes[FaceNodesMap[aux[isurf]][ino]].id,new_nodes[ino]);
-						//printf("    E o elemento novo eh %d e %d\n",connec[FaceNodesMap[aux[isurf]][ino]],new_nodes[ino]);
+
 						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].fixed= 0;
 						octant_node_t* node = (octant_node_t*) sc_array_index(&hash_nodes->a,connec[FaceNodesMap[aux[isurf]][ino]]);
 						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].x = node->x;
@@ -1204,20 +1217,9 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						octant_node_t * b = (octant_node_t*) sc_array_index(&hash_nodes->a,p->b);
 						if(deb)printf("%d %d %d %d %d %d\n",elem->id,p->id,p->a, a->id,p->b,b->id);
 
-						if(deb)printf("%d %d %d\n",a->x,a->y,a->z);
-						if(deb)printf("%d %d %d\n",b->x,b->y,b->z);
-						if(deb)printf("%d %d %d %d %d %d\n",elem->nodes[0].x,elem->nodes[1].x,elem->nodes[0].y,elem->nodes[3].y,elem->nodes[0].z,elem->nodes[4].z);
-						if(elem->nodes[0].x <= a->x && elem->nodes[6].x >= a->x) ina++;
-						if(elem->nodes[0].y <= a->y && elem->nodes[6].y >= a->y) ina++;
-						if(elem->nodes[0].z <= a->z && elem->nodes[6].z >= a->z) ina++;
-						if(elem->nodes[0].x <= b->x && elem->nodes[6].x >= b->x) inb++;
-						if(elem->nodes[0].y <= b->y && elem->nodes[6].y >= b->y) inb++;
-						if(elem->nodes[0].z <= b->z && elem->nodes[6].z >= b->z) inb++;
-						if(deb)printf("%d %d\n",ina, inb);
-
 						if(createPillow)
 						{
-							if(elem->n_mat == 0)
+							if(elem->n_mat == p->mata)
 							{
 								elemOrig->nodes[ino].id = p->a;
 								elemOrig->nodes[ino].x = a->x;
@@ -1237,9 +1239,8 @@ void ShrinkSet(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 			}
 			sc_array_reset(&toto);
 		}
+		sc_hash_array_destroy(pillow);
 	}
-
-	sc_hash_array_destroy(pillow);
 
 	//faire la atualisation de mon tableau de noeuds
 	sc_array_reset(&mesh->nodes);
@@ -1272,7 +1273,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	//Make the pillow
 	start = std::chrono::steady_clock::now( );
 	printf("     Pillow Layer\n");
-	ShrinkSet(mesh, coords,nodes_b_mat);
+	Pillowing(mesh, coords,nodes_b_mat);
 	fprintf(mesh->profile,"    Time in PillowLayer %lld millisecond(s).\n",elapsed.count());
 	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
