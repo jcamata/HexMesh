@@ -1176,11 +1176,12 @@ void hexa_mesh(hexa_tree_t* mesh)
 
 	hexaNodes(mesh,indep_nodes,shared_nodes,local,global);
 
+	/*
 	sc_hash_array_t    *indep_edges     = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_edge_t), edge_hash_id, edge_equal_id, &clamped);
 	sc_hash_array_t    *shared_edges    = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_edge_t), edge_hash_id, edge_equal_id, &clamped);
 
 	hexaEdges(mesh,indep_nodes,shared_nodes,local,global,indep_edges,shared_edges);
-
+*/
 	////////////////////////////////////
 	//extract the share nodes from shared_nodes
 	sc_hash_array_rip (shared_nodes, &mesh->shared_nodes);
@@ -1191,7 +1192,6 @@ void hexa_mesh(hexa_tree_t* mesh)
 	if(mesh->mpi_rank == 0)
 	{
 		printf("Total number of elements: %lld\n", mesh->total_n_elements);
-		printf("Total number of edges: %lld\n", mesh->total_n_edges);
 		printf("Total number of nodes: %lld\n", mesh->total_n_nodes);
 	}
 
