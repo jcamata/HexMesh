@@ -350,9 +350,11 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 
 	Mesquite::MsqPrintError err(std::cout);
 
-	for(int isurf = 0; isurf < 1 ; isurf ++)
+	for(int isurf = 0; isurf < 4 ; isurf ++)
 	{
 		//hash of the fixed nodes
+		//I need this...
+		//because I made the update for each surface
 		bool clamped = true;
 		sc_hash_array_t* hash_Fixed = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
 		for(int ino = 0; ino < hash_FixedNodes->a.elem_count; ino++)
@@ -376,6 +378,9 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 		std::vector<int> elem_aux;
 		//hash for the surface nodes
 		sc_hash_array_t* hash_SurfaceNodes = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
+		sc_hash_array_t* hash_NodesLocal = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
+		int nlocal = 0;
+		std::vector<int> conn_local;
 		for(int  iel = 0; iel < mesh->outsurf.elem_count; iel++)
 		{
 			octant_t * elem = (octant_t*) sc_array_index(&mesh->outsurf, iel);
@@ -389,6 +394,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 					key.x = elem->nodes[FaceNodesMap[isurf][ino]].x;
 					key.y = elem->nodes[FaceNodesMap[isurf][ino]].y;
 					key.z = elem->nodes[FaceNodesMap[isurf][ino]].z;
+					key.id = elem->nodes[FaceNodesMap[isurf][ino]].id;
 					octant_node_t* r = (octant_node_t*) sc_hash_array_insert_unique(hash_SurfaceNodes, &key, &position);
 					if (r != NULL)
 					{
@@ -397,11 +403,29 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 						r->z = key.z;
 						r->id = elem->nodes[FaceNodesMap[isurf][ino]].id;
 					}
+
+					//refazendo a conectividade com nos de 0 a nvertices...
+					//passando uma malha "local"
+					octant_node_t* rlocal = (octant_node_t*) sc_hash_array_insert_unique(hash_NodesLocal, &key, &position);
+					if (rlocal != NULL)
+					{
+						rlocal->x = key.x;
+						rlocal->y = key.y;
+						rlocal->z = key.z;
+						rlocal->id = nlocal;
+						conn_local.push_back(nlocal);
+						nlocal++;
+					}
+					else
+					{
+						octant_node_t* rlocal = (octant_node_t*) sc_array_index(&hash_NodesLocal->a, position);
+						conn_local.push_back(rlocal->id);
+					}
 				}
 
 				for(int iedge = 0; iedge < 4; iedge++)
 				{
-					if(elem->edge[FaceEdgesMap[isurf][iedge]].ref == true)
+					if(elem->edge[FaceEdgesMap[isurf][iedge]].ref)
 					{
 						for(int ino = 0; ino < 2; ino++)
 						{
@@ -429,25 +453,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 		int nvertices = hash_SurfaceNodes->a.elem_count;
 		printf("     Mesh normal to %d with: %d elements and %d vertex\n",isurf, nelem,nvertices);
 
-
-
-		// montando a malha para passar para o mesquite...
-		// conectividade na malha "global"
-		int c = 0;
-		std::vector<int> conn_global(4*nelem);
-		for(int iel = 0; iel < elem_aux.size(); iel++)
-		{
-			octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, elem_aux[iel]);
-			for(int ino = 0; ino < 4; ino++)
-			{
-				conn_global[c] = elem->nodes[FaceNodesMap[isurf][ino]].id;
-				c++;
-			}
-		}
-
 		//nos fixos e coordenadas dos nos
-		//TODO adicionar em uma hash e ir colocando o no id como ive...
-		sc_hash_array_t* hash_NodesLocal = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
 		std::vector<double> Scoors(3*nvertices);
 		bool *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
 		for(int ive = 0 ; ive < nvertices ;ive++ )
@@ -463,59 +469,14 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			key.x = node->x;
 			key.y = node->y;
 			key.z = node->z;
+			key.id = node->id;
 			bool tre = sc_hash_array_lookup(hash_Fixed,&key,&position);
 			if(tre)
 			{
 				fixed_nodes[ive] = true;
 				mesh->part_nodes[node->id] = 1;
 			}
-
-			octant_node_t* r = (octant_node_t*) sc_hash_array_insert_unique(hash_NodesLocal, &key, &position);
-			if(r!=NULL)
-			{
-				r->id = ive;
-				r->x = key.x;
-				r->y = key.y;
-				r->z = key.z;
-			}
-
 		}
-
-		//TODO procurar na hash local o no global, assim eu tenho o mapa local
-		std::vector<int> conn_local(4*nelem);
-		//refazendo a conectividade com nos de 0 a nvertices...
-		//passando uma malha "local"
-		//TODO erro aqui!
-		for(int ino = 0 ; ino < conn_global.size(); ino ++)
-		{
-			octant_node_t * node = (octant_node_t*) sc_array_index(&mesh->nodes, conn_global[ino]);
-			octant_node_t key;
-			size_t position;
-			key.x = node->x;
-			key.y = node->y;
-			key.z = node->z;
-			bool lnode = sc_hash_array_lookup(hash_NodesLocal,&key,&position);
-			if(lnode)
-			{
-				octant_node_t * r = (octant_node_t*) sc_array_index(&hash_NodesLocal->a, position);
-				printf("no numero %d global %d\n",r->id,conn_global[ino]);
-				conn_local[ino] = r->id;
-			}
-		}
-
-		for(int ino = 0 ; ino < nvertices; ino++)
-		{
-			printf("Node:%d, fixed:%d, coords %f %f %f\n",
-					ino,fixed_nodes[ino],Scoors[3*ino+0],Scoors[3*ino+1],Scoors[3*ino+2]);
-		}
-
-		for(int ino = 0 ; ino < nelem; ino++)
-		{
-			printf("Element:%d, conn %d %d %d %d conn %d %d %d %d\n",ino,conn_local[4*ino+0],conn_local[4*ino+1],conn_local[4*ino+2],conn_local[4*ino+3],
-					conn_global[4*ino+0],conn_global[4*ino+1],conn_global[4*ino+2],conn_global[4*ino+3]);
-		}
-		conn_global.clear();
-
 
 		if(nelem!=0)
 		{
@@ -581,34 +542,21 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			// launches optimization on mesh_set1
 			queue1.run_instructions(&mesh_and_domain, err);
 
-
 			std::vector<MeshImpl::VertexHandle> vertices;
 			mesh_and_domain.get_mesh()->get_all_vertices(vertices,err);
 
-			if(isurf != 5){
-				for (int ino = 0; ino < vertices.size() ; ino++)
-				{
-					Mesh::VertexHandle vertex = vertices[ino];
-					MsqVertex aux_msq;
-					mesh_and_domain.get_mesh()->vertices_get_coordinates( &vertex, &aux_msq, 1, err );
-					octant_node_t * node = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ino);
-					coords[3*node->id+0] = aux_msq[0];
-					coords[3*node->id+1] = aux_msq[1];
-					coords[3*node->id+2] = aux_msq[2];
-				}
-				mesq_mesh.clear();
-			}else{
-				for (int ino = 0; ino < vertices.size() ; ino++){
-					Mesh::VertexHandle vertex = vertices[ino];
-					MsqVertex aux_msq;
-					mesh_and_domain.get_mesh()->vertices_get_coordinates( &vertex, &aux_msq, 1, err );
-					octant_node_t * node = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ino);
-					coords[3*node->id+0] = aux_msq[0];
-					coords[3*node->id+1] = aux_msq[1];
-					//coords[3*node->node_id+2] = aux_msq[2];
-				}
-				mesq_mesh.clear();
+			for (int ino = 0; ino < vertices.size() ; ino++)
+			{
+				Mesh::VertexHandle vertex = vertices[ino];
+				MsqVertex aux_msq;
+				mesh_and_domain.get_mesh()->vertices_get_coordinates( &vertex, &aux_msq, 1, err );
+				octant_node_t * node = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ino);
+				coords[3*node->id+0] = aux_msq[0];
+				coords[3*node->id+1] = aux_msq[1];
+				coords[3*node->id+2] = aux_msq[2];
 			}
+			mesq_mesh.clear();
+
 		}else{
 			printf("Please check mesquite_interface! set of elements = 0.\n");
 		}
