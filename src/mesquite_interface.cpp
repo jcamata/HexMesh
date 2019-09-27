@@ -15,6 +15,65 @@
 
 using namespace Mesquite;
 
+unsigned sel_hash_id(const void *v, const void *u)
+{
+	const shared_octant_t *q = (const shared_octant_t*) v;
+	uint64_t a, b, c;
+
+	a = (uint32_t) 1;
+	b = (uint32_t) q->id;
+	c = (uint32_t) 0;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int sel_equal_id(const void *v, const void *u, const void *w)
+{
+	const shared_octant_t *e1 = (const shared_octant_t*) v;
+	const shared_octant_t *e2 = (const shared_octant_t*) u;
+
+	return (unsigned) (e1->id == e2->id);
+
+}
+
+void hexa_insert_shared_element(hexa_tree_t* mesh, sc_hash_array_t    *shared_element, octant_t* elem,std::vector<double>& coords, int processor)
+{
+	size_t position;
+	shared_octant_t *se;
+	shared_octant_t key;
+	int i;
+
+	key.id = elem->id;
+
+	if( processor < 0) return;
+
+	se = (shared_octant_t*) sc_hash_array_insert_unique (shared_element, &key, &position);
+	if(se != NULL)
+	{
+		se->id = elem->id;
+		se->listSz = 1;
+		se->rankList[0] = processor;
+		for(int ino = 0; ino < 8; ino++)
+		{
+			se->nodes[ino].id = mesh->global_id[elem->nodes[ino].id];
+			se->nodes[ino].fixed = elem->nodes[ino].fixed;
+			se->coord[ino][0] = coords[3*elem->nodes[ino].id + 0];
+			se->coord[ino][1] = coords[3*elem->nodes[ino].id + 1];
+			se->coord[ino][2] = coords[3*elem->nodes[ino].id + 2];
+		}
+	} else
+	{
+		se = (shared_octant_t*) sc_array_index(&shared_element->a, position);
+		for(i=0; i < se->listSz; ++i)
+			if(se->rankList[i] == processor) break;
+		if(i == se->listSz){
+			se->rankList[se->listSz] = processor;
+			se->listSz++;
+		}
+	}
+}
+
 void OptLine(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes)
 {
 
@@ -512,7 +571,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			MeshDomainAssoc mesh_and_domain = MeshDomainAssoc(&mesq_mesh, &plane);
 			assert(mesh_and_domain.are_compatible() == true);
 
-			//mesh_and_domain.
+			//For mesh_and_domain.
 			// creates an intruction queue
 			InstructionQueue queue1;
 
@@ -524,10 +583,11 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			// creates the laplacian smoother  procedures
 			//Here we use SmartLaplacianSmoother
 			//it tries to avoid the inversion of the element...
+			//try to keep this instead of laplacian
 			SmartLaplacianSmoother lapl1;
 			QualityAssessor stop_qa=QualityAssessor(&shape_metric);
 			stop_qa.add_quality_assessment(&lapl_met);
-			//stop_qa.disable_printing_results();
+			stop_qa.disable_printing_results();
 
 			//**************Set stopping criterion****************
 			TerminationCriterion sc2;
@@ -535,16 +595,18 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			sc2.add_cpu_time(120);
 			sc2.add_relative_vertex_movement(1e-5);
 			lapl1.set_outer_termination_criterion(&sc2);
-			// adds 1 pass of pass1 to mesh_set1
+			// adds 1 pass of pass1 to mesh_and_domain
 			queue1.add_quality_assessor(&stop_qa,err);
 			queue1.set_master_quality_improver(&lapl1, err);
 			queue1.add_quality_assessor(&stop_qa,err);
-			// launches optimization on mesh_set1
+			// launches optimization on mesh_and_domain
 			queue1.run_instructions(&mesh_and_domain, err);
 
+			//get the vertices
 			std::vector<MeshImpl::VertexHandle> vertices;
 			mesh_and_domain.get_mesh()->get_all_vertices(vertices,err);
 
+			//update the coords vector
 			for (int ino = 0; ino < vertices.size() ; ino++)
 			{
 				Mesh::VertexHandle vertex = vertices[ino];
@@ -571,12 +633,826 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 
 }
 
+void BuildMessage(hexa_tree_t* mesh, std::vector<double>& coords, sc_array_t ghostEl)
+{
+	//ids, nos se esta fixo ou não e coordenandas
+	//além de um saber qual é o processso
+	bool clamped = true;
+	bool deb = false;
+	sc_hash_array_t    *shared_element  = (sc_hash_array_t *)sc_hash_array_new(sizeof (shared_octant_t), sel_hash_id ,sel_equal_id , &clamped);
+
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
+	{
+
+		octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		if(elem->boundary)
+		{
+			bool el_boundary = false;
+			int isurf;
+			isurf = 0;
+			elem->surf[isurf].ext = false;
+			if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_start &&
+					elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_start &&
+					elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_start &&
+					elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_start)
+			{
+				elem->surf[isurf].ext = true;
+				el_boundary = true;
+				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+			}
+
+			isurf = 1;
+			elem->surf[isurf].ext = false;
+			if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_end &&
+					elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_end &&
+					elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_end &&
+					elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_end)
+			{
+				elem->surf[isurf].ext = true;
+				el_boundary = true;
+				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+			}
+
+			isurf = 2;
+			elem->surf[isurf].ext = false;
+			if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_start &&
+					elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_start &&
+					elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_start &&
+					elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_start)
+			{
+				elem->surf[isurf].ext = true;
+				el_boundary = true;
+				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+			}
+
+			isurf = 3;
+			elem->surf[isurf].ext = false;
+			if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_end &&
+					elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_end &&
+					elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_end &&
+					elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_end)
+			{
+				elem->surf[isurf].ext = true;
+				el_boundary = true;
+				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+			}
+
+			if(elem->surf[2].ext)
+			{
+				if(elem->surf[0].ext)
+				{
+					hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[0]);
+				}
+				else if(elem->surf[1].ext)
+				{
+					hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[2]);
+				}
+
+				hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[1]);
+
+			}
+			if(elem->surf[3].ext)
+			{
+				if(elem->surf[0].ext)
+				{
+					hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[6]);
+				}
+				else if(elem->surf[1].ext)
+				{
+					hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[8]);
+				}
+
+				hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[7]);
+
+			}
+			if(elem->surf[0].ext)
+			{
+				hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[3]);
+			}
+			if(elem->surf[1].ext)
+			{
+				hexa_insert_shared_element(mesh,shared_element,elem,coords,mesh->neighbors[5]);
+			}
+
+		}
+	}
+
+	//if(deb) printf("Proc:%d tenho %d elementos para compartilhar\n",mesh->mpi_rank,shared_element->a.elem_count);
+
+	//mapa de comunicacao
+	// comm from proc [n+1] to proc [n]
+	if(true)
+	{
+		sc_hash_array_t* SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_el_t), processors_hash_fn, processors_equal_fn, &clamped);
+		sc_hash_array_t* RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_el_t), processors_hash_fn, processors_equal_fn, &clamped);
+
+		for(int ino = 0; ino < shared_element->a.elem_count; ++ino)
+		{
+			size_t position;
+			shared_octant_t* se = (shared_octant_t*) sc_array_index(&shared_element->a,ino);
+			for(int j = 0; j < se->listSz; j++)
+			{
+				if(se->rankList[j] < mesh->mpi_rank)
+				{
+					message_el_t* m = (message_el_t*)sc_hash_array_insert_unique(SendTo,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint32_t));
+						sc_array_init(&m->nodes, sizeof(uint32_t));
+						sc_array_init(&m->coord, sizeof(double_t));
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+					else
+					{
+						message_el_t* m = (message_el_t*)sc_array_index(&SendTo->a, position);
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+				}
+				else if (se->rankList[j] > mesh->mpi_rank)
+				{
+					message_el_t *m = (message_el_t*)sc_hash_array_insert_unique(RecvFrom,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint32_t));
+						sc_array_init(&m->nodes, sizeof(uint32_t));
+						sc_array_init(&m->coord, sizeof(double_t));
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+					else
+					{
+						message_el_t* m = (message_el_t*)sc_array_index(&RecvFrom->a, position);
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+				}
+			}
+		}
+		//send the el ids
+		std::vector<int> elid;
+		if(true)
+		{
+			//size for the ghost elements message
+			int max_recvbuf_size = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				max_recvbuf_size +=  m->idxs.elem_count;
+			}
+
+			int max_sendbuf_size = 0;
+			for(int i = 0; i < SendTo->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				max_sendbuf_size +=  m->idxs.elem_count;
+			}
+
+			int n_requests = RecvFrom->a.elem_count + SendTo->a.elem_count;
+
+			if(deb)printf("proc:%d send:%d recv:%d nrequest:%d\n",mesh->mpi_rank,max_recvbuf_size,max_sendbuf_size,n_requests);
+
+			//comecando a comunicacao
+			long long    * recvbuf    = (long long*)malloc(max_recvbuf_size*sizeof(long long));
+			long long    * sendbuf    = (long long*)malloc(max_sendbuf_size*sizeof(long long));
+
+			MPI_Request * requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+			MPI_Status  * statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+			int c = 0;
+
+			//////////////// comm para o nome dos elementos
+			int offset = 0;
+			// post all non-blocking receives
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->idxs.elem_count;
+				c++;
+			}
+
+			assert(offset == max_recvbuf_size);
+
+			offset = 0;
+			for(int i = 0; i < SendTo->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				for(int j = 0; j < m->idxs.elem_count; ++j)
+				{
+					int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+					sendbuf[offset+j] = (long long) *id;
+				}
+				MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->idxs.elem_count;
+				c++;
+			}
+			assert(offset == max_sendbuf_size);
+
+			assert(c == n_requests);
+
+			MPI_Waitall(n_requests,requests,statuses);
+
+			offset = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				for(int j = 0; j < m->idxs.elem_count; ++j)
+				{
+					elid.push_back(recvbuf[offset+j]);
+				}
+				offset += m->idxs.elem_count;
+			}
+			free(recvbuf);
+			free(sendbuf);
+			free(requests);
+			free(statuses);
+		}
+
+		if(deb)printf("Sou o proc %d e recebi %d elementos\n",mesh->mpi_rank,elid.size());
+
+		//send the global nodes ids
+		std::vector<int> nodeid;
+		if(true)
+		{
+			//size for the ghost elements message
+			int max_recvbuf_size = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				max_recvbuf_size +=  m->nodes.elem_count;
+			}
+
+			int max_sendbuf_size = 0;
+			for(int i = 0; i < SendTo->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				max_sendbuf_size +=  m->nodes.elem_count;
+			}
+
+			int n_requests = RecvFrom->a.elem_count + SendTo->a.elem_count;
+
+			if(deb)printf("proc:%d send:%d recv:%d nrequest:%d\n",mesh->mpi_rank,max_sendbuf_size,max_recvbuf_size,n_requests);
+
+			//comecando a comunicacao
+			long long    * recvbuf    = (long long*)malloc(max_recvbuf_size*sizeof(long long));
+			long long    * sendbuf    = (long long*)malloc(max_sendbuf_size*sizeof(long long));
+
+			MPI_Request * requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+			MPI_Status  * statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+			int c = 0;
+
+			//////////////// comm para o nome dos elementos
+			int offset = 0;
+			// post all non-blocking receives
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				MPI_Irecv(&recvbuf[offset], m->nodes.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->nodes.elem_count;
+				c++;
+			}
+
+			assert(offset == max_recvbuf_size);
+
+			offset = 0;
+			for(int i = 0; i < SendTo->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				for(int j = 0; j < m->idxs.elem_count; ++j)
+				{
+					int32_t *id = (int32_t*) sc_array_index(&m->nodes,j);
+					sendbuf[offset+j] = (long long) *id;
+				}
+				MPI_Isend(&sendbuf[offset], m->nodes.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->nodes.elem_count;
+				c++;
+			}
+			assert(offset == max_sendbuf_size);
+
+			assert(c == n_requests);
+
+			MPI_Waitall(n_requests,requests,statuses);
+
+			offset = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				for(int j = 0; j < m->nodes.elem_count; ++j)
+				{
+					nodeid.push_back(recvbuf[offset+j]);
+				}
+				offset += m->nodes.elem_count;
+			}
+			free(recvbuf);
+			free(sendbuf);
+			free(requests);
+			free(statuses);
+		}
+
+		if(deb)printf("Sou o proc %d e recebi %d nos\n",mesh->mpi_rank,nodeid.size());
+
+		//send the cooors
+		std::vector<double> coordcom;
+		if(true)
+		{
+			//size for the ghost elements message
+			int max_recvbuf_size = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				max_recvbuf_size +=  m->coord.elem_count;
+			}
+
+			int max_sendbuf_size = 0;
+			for(int i = 0; i < SendTo->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				max_sendbuf_size +=  m->coord.elem_count;
+			}
+
+			int n_requests = RecvFrom->a.elem_count + SendTo->a.elem_count;
+
+			if(deb)printf("proc:%d send:%d recv:%d nrequest:%d\n",mesh->mpi_rank,max_sendbuf_size,max_recvbuf_size,n_requests);
+
+			//comecando a comunicacao
+			double    * recvbuf    = (double*)malloc(max_recvbuf_size*sizeof(double));
+			double    * sendbuf    = (double*)malloc(max_sendbuf_size*sizeof(double));
+
+			MPI_Request * requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+			MPI_Status  * statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+			int c = 0;
+
+			//////////////// comm para o nome dos elementos
+			int offset = 0;
+			// post all non-blocking receives
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				MPI_Irecv(&recvbuf[offset], m->coord.elem_count, MPI_DOUBLE, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->coord.elem_count;
+				c++;
+			}
+
+			assert(offset == max_recvbuf_size);
+
+			offset = 0;
+			for(int i = 0; i < SendTo->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				for(int j = 0; j < m->coord.elem_count; ++j)
+				{
+					double_t *id = (double_t*) sc_array_index(&m->coord,j);
+					sendbuf[offset+j] = (double) *id;
+				}
+				MPI_Isend(&sendbuf[offset], m->coord.elem_count, MPI_DOUBLE, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->coord.elem_count;
+				c++;
+			}
+			assert(offset == max_sendbuf_size);
+
+			assert(c == n_requests);
+
+			MPI_Waitall(n_requests,requests,statuses);
+
+			offset = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				for(int j = 0; j < m->coord.elem_count; ++j)
+				{
+					coordcom.push_back(recvbuf[offset+j]);
+				}
+				offset += m->coord.elem_count;
+			}
+			free(recvbuf);
+			free(sendbuf);
+			free(requests);
+			free(statuses);
+		}
+
+		if(deb)printf("Sou o proc %d e recebi %d coords\n",mesh->mpi_rank,coordcom.size());
+
+		printf("Sou o processador %d e devo ter %d ghost elements\n",mesh->mpi_rank,elid.size());
+		for(int iel = 0; iel < elid.size(); iel++)
+		{
+			shared_octant_t* se = (shared_octant_t*) sc_array_push(&ghostEl);
+			se->id = elid[iel];
+			for(int ino = 0; ino < 8; ino++)
+			{
+				se->nodes[ino].id = nodeid[8*iel+ino];
+				for(int j = 0; j < 3; j++) se->coord[ino][j] = coordcom[8*iel+3*ino+j];
+			}
+		}
+	}
+
+	//mapa de comunicacao
+	// comm from proc [n] to proc [n+1]
+	if(true)
+	{
+		sc_hash_array_t* SendTo   = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_el_t), processors_hash_fn, processors_equal_fn, &clamped);
+		sc_hash_array_t* RecvFrom = (sc_hash_array_t *) sc_hash_array_new(sizeof(message_el_t), processors_hash_fn, processors_equal_fn, &clamped);
+
+		for(int ino = 0; ino < shared_element->a.elem_count; ++ino)
+		{
+			size_t position;
+			shared_octant_t* se = (shared_octant_t*) sc_array_index(&shared_element->a,ino);
+			for(int j = 0; j < se->listSz; j++)
+			{
+				if(se->rankList[j] > mesh->mpi_rank)
+				{
+					message_el_t* m = (message_el_t*)sc_hash_array_insert_unique(SendTo,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint32_t));
+						sc_array_init(&m->nodes, sizeof(uint32_t));
+						sc_array_init(&m->coord, sizeof(double_t));
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+					else
+					{
+						message_el_t* m = (message_el_t*)sc_array_index(&SendTo->a, position);
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+				}
+				else if (se->rankList[j] < mesh->mpi_rank)
+				{
+					message_el_t *m = (message_el_t*)sc_hash_array_insert_unique(RecvFrom,&se->rankList[j],&position);
+					if(m!=NULL)
+					{
+						m->rank  = se->rankList[j];
+						sc_array_init(&m->idxs, sizeof(uint32_t));
+						sc_array_init(&m->nodes, sizeof(uint32_t));
+						sc_array_init(&m->coord, sizeof(double_t));
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+					else
+					{
+						message_el_t* m = (message_el_t*)sc_array_index(&RecvFrom->a, position);
+						uint32_t* p = (uint32_t*) sc_array_push(&m->idxs);
+						*p = se->id;
+						for(int ino = 0; ino < 8; ino++)
+						{
+							uint32_t* n = (uint32_t*) sc_array_push(&m->nodes);
+							*n = se->nodes[ino].id;
+							for(int icord = 0; icord < 3; icord++)
+							{
+								double_t* c = (double_t*) sc_array_push(&m->coord);
+								*c = se->coord[ino][icord];
+							}
+						}
+					}
+				}
+			}
+		}
+		//send the el ids
+		std::vector<int> elid;
+		if(true)
+		{
+			//size for the ghost elements message
+			int max_recvbuf_size = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				max_recvbuf_size +=  m->idxs.elem_count;
+			}
+
+			int max_sendbuf_size = 0;
+			for(int i = 0; i < SendTo->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				max_sendbuf_size +=  m->idxs.elem_count;
+			}
+
+			int n_requests = RecvFrom->a.elem_count + SendTo->a.elem_count;
+
+			//if(deb)printf("proc:%d send:%d recv:%d nrequest:%d\n",mesh->mpi_rank,max_recvbuf_size,max_sendbuf_size,n_requests);
+
+			//comecando a comunicacao
+			long long    * recvbuf    = (long long*)malloc(max_recvbuf_size*sizeof(long long));
+			long long    * sendbuf    = (long long*)malloc(max_sendbuf_size*sizeof(long long));
+
+			MPI_Request * requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+			MPI_Status  * statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+			int c = 0;
+
+			//////////////// comm para o nome dos elementos
+			int offset = 0;
+			// post all non-blocking receives
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				MPI_Irecv(&recvbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->idxs.elem_count;
+				c++;
+			}
+
+			assert(offset == max_recvbuf_size);
+
+			offset = 0;
+			for(int i = 0; i < SendTo->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				for(int j = 0; j < m->idxs.elem_count; ++j)
+				{
+					int32_t *id = (int32_t*) sc_array_index(&m->idxs,j);
+					sendbuf[offset+j] = (long long) *id;
+				}
+				MPI_Isend(&sendbuf[offset], m->idxs.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->idxs.elem_count;
+				c++;
+			}
+			assert(offset == max_sendbuf_size);
+
+			assert(c == n_requests);
+
+			MPI_Waitall(n_requests,requests,statuses);
+
+			offset = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				for(int j = 0; j < m->idxs.elem_count; ++j)
+				{
+					elid.push_back(recvbuf[offset+j]);
+				}
+				offset += m->idxs.elem_count;
+			}
+			free(recvbuf);
+			free(sendbuf);
+			free(requests);
+			free(statuses);
+		}
+
+		if(deb)printf("Sou o proc %d e recebi %d elementos\n",mesh->mpi_rank,elid.size());
+
+		//send the global nodes ids
+		std::vector<int> nodeid;
+		if(true)
+		{
+			//size for the ghost elements message
+			int max_recvbuf_size = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				max_recvbuf_size +=  m->nodes.elem_count;
+			}
+
+			int max_sendbuf_size = 0;
+			for(int i = 0; i < SendTo->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				max_sendbuf_size +=  m->nodes.elem_count;
+			}
+
+			int n_requests = RecvFrom->a.elem_count + SendTo->a.elem_count;
+
+			if(deb)printf("proc:%d send:%d recv:%d nrequest:%d\n",mesh->mpi_rank,max_sendbuf_size,max_recvbuf_size,n_requests);
+
+			//comecando a comunicacao
+			long long    * recvbuf    = (long long*)malloc(max_recvbuf_size*sizeof(long long));
+			long long    * sendbuf    = (long long*)malloc(max_sendbuf_size*sizeof(long long));
+
+			MPI_Request * requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+			MPI_Status  * statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+			int c = 0;
+
+			//////////////// comm para o nome dos elementos
+			int offset = 0;
+			// post all non-blocking receives
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				MPI_Irecv(&recvbuf[offset], m->nodes.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->nodes.elem_count;
+				c++;
+			}
+
+			assert(offset == max_recvbuf_size);
+
+			offset = 0;
+			for(int i = 0; i < SendTo->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				for(int j = 0; j < m->idxs.elem_count; ++j)
+				{
+					int32_t *id = (int32_t*) sc_array_index(&m->nodes,j);
+					sendbuf[offset+j] = (long long) *id;
+				}
+				MPI_Isend(&sendbuf[offset], m->nodes.elem_count, MPI_LONG_LONG, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->nodes.elem_count;
+				c++;
+			}
+			assert(offset == max_sendbuf_size);
+
+			assert(c == n_requests);
+
+			MPI_Waitall(n_requests,requests,statuses);
+
+			offset = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				for(int j = 0; j < m->nodes.elem_count; ++j)
+				{
+					nodeid.push_back(recvbuf[offset+j]);
+				}
+				offset += m->nodes.elem_count;
+			}
+			free(recvbuf);
+			free(sendbuf);
+			free(requests);
+			free(statuses);
+		}
+
+		if(deb)printf("Sou o proc %d e recebi %d nos\n",mesh->mpi_rank,nodeid.size());
+
+		//send the cooors
+		std::vector<double> coordcom;
+		if(true)
+		{
+			//size for the ghost elements message
+			int max_recvbuf_size = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				max_recvbuf_size +=  m->coord.elem_count;
+			}
+
+			int max_sendbuf_size = 0;
+			for(int i = 0; i < SendTo->a.elem_count; i++)
+			{
+				message_el_t* m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				max_sendbuf_size +=  m->coord.elem_count;
+			}
+
+			int n_requests = RecvFrom->a.elem_count + SendTo->a.elem_count;
+
+			if(deb)printf("proc:%d send:%d recv:%d nrequest:%d\n",mesh->mpi_rank,max_sendbuf_size,max_recvbuf_size,n_requests);
+
+			//comecando a comunicacao
+			double    * recvbuf    = (double*)malloc(max_recvbuf_size*sizeof(double));
+			double    * sendbuf    = (double*)malloc(max_sendbuf_size*sizeof(double));
+
+			MPI_Request * requests = (MPI_Request*) malloc (n_requests*sizeof(MPI_Request));
+			MPI_Status  * statuses = (MPI_Status*)  malloc (n_requests*sizeof(MPI_Status));
+			int c = 0;
+
+			//////////////// comm para o nome dos elementos
+			int offset = 0;
+			// post all non-blocking receives
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				MPI_Irecv(&recvbuf[offset], m->coord.elem_count, MPI_DOUBLE, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->coord.elem_count;
+				c++;
+			}
+
+			assert(offset == max_recvbuf_size);
+
+			offset = 0;
+			for(int i = 0; i < SendTo->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&SendTo->a, i);
+				for(int j = 0; j < m->coord.elem_count; ++j)
+				{
+					double_t *id = (double_t*) sc_array_index(&m->coord,j);
+					sendbuf[offset+j] = (double) *id;
+				}
+				MPI_Isend(&sendbuf[offset], m->coord.elem_count, MPI_DOUBLE, m->rank,0,MPI_COMM_WORLD, &requests[c]);
+				offset += m->coord.elem_count;
+				c++;
+			}
+			assert(offset == max_sendbuf_size);
+
+			assert(c == n_requests);
+
+			MPI_Waitall(n_requests,requests,statuses);
+
+			offset = 0;
+			for(int i = 0; i < RecvFrom->a.elem_count; ++i) {
+				message_el_t *m = (message_el_t*) sc_array_index(&RecvFrom->a, i);
+				for(int j = 0; j < m->coord.elem_count; ++j)
+				{
+					coordcom.push_back(recvbuf[offset+j]);
+				}
+				offset += m->coord.elem_count;
+			}
+			free(recvbuf);
+			free(sendbuf);
+			free(requests);
+			free(statuses);
+		}
+
+		if(deb)printf("Sou o proc %d e recebi %d coords\n",mesh->mpi_rank,coordcom.size());
+
+		printf("Sou o processador %d e devo ter mais %d ghost elements\n",mesh->mpi_rank,elid.size());
+		for(int iel = 0; iel < elid.size(); iel++)
+		{
+			shared_octant_t* se = (shared_octant_t*) sc_array_push(&ghostEl);
+			se->id = elid[iel];
+			for(int ino = 0; ino < 8; ino++)
+			{
+				se->nodes[ino].id = nodeid[8*iel+ino];
+				for(int j = 0; j < 3; j++) se->coord[ino][j] = coordcom[8*iel+3*ino+j];
+			}
+		}
+	}
+
+	printf("Sou o processador %d e tenho %d ghost elements\n",mesh->mpi_rank,ghostEl.elem_count);
+
+
+}
+
 void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
 	Mesquite::MsqPrintError err(std::cout);
 
+	//achando os ids globais...
+	int local = mesh->elements.elem_count;
+	int offset = 0;
+	MPI_Scan(&local, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+	offset = offset-local;
+	int count = offset;
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
+	{
+		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		elem->id = count;
+		count++;
+	}
+
+	sc_array_t ghostEl;
+	sc_array_init(&ghostEl, sizeof(shared_octant_t));
+	//montar o as mensagens para serem enviadas...
+	BuildMessage(mesh,coords,ghostEl);
+
+	//printf("Sou o processador %d e eu tenho %d ghost elements\n",mesh->mpi_rank,ghostEl.elem_count);
+
+
+
+	//
 	int nvertices = mesh->local_n_nodes;
 	int nelem     = mesh->local_n_elements;
-
 	std::vector<int> conn(8*nelem);
 	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
 	size_t *gid         = (size_t*) malloc(nvertices*sizeof(size_t));
@@ -635,10 +1511,102 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		fixed_nodes[node->node_id] = true;
 	}
 
+	//Mesquite::ParallelMeshImpl mesq_mesh;
+
+	/*
 	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
 
+//create parallel mesh instance, specifying tags containing parallel data
+  Mesquite::ParallelMeshImpl parallel_mesh(&mesh, "GLOBAL_ID", "PROCESSOR_ID");
+  Mesquite::ParallelHelperImpl helper;
+  helper.set_communicator(MPI_COMM_WORLD);
+  helper.set_parallel_mesh(&parallel_mesh);
+  parallel_mesh.set_parallel_helper(&helper);
+
+  //do Laplacian smooth
+   //SmartLaplacianSmoother
+  LaplaceWrapper optimizer;
+  optimizer.set_vertex_movement_limit_factor(1.e-10);
+  optimizer.set_iteration_limit(2000);
+  optimizer.enable_culling(false);
+  optimizer.run_instructions(&parallel_mesh, err);
+
+	std::vector<MeshImpl::VertexHandle> vertices;
+	mesq_mesh.get_all_vertices(vertices, err);
+
+	for (int ino = 0; ino < vertices.size() ; ino++)
+	{
+		Mesh::VertexHandle vertex = vertices[ino];
+		MsqVertex aux;
+		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
+		coords[3*ino+0] = aux[0];
+		coords[3*ino+1] = aux[1];
+		coords[3*ino+2] = aux[2];
+	}
+
+	free(fixed_nodes);
+	free(gid);
+	free(mid);
+	free(pid);
+	 */
+
+}
+
+void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
+
+	//TODO list
+	// create a global id for every id (element, surface, edge, node)
+	// generate the mesh with the ghost elements
+	// run in serial and local the optimization
+	// run again in paralell
+
+	//hash of the fixed nodes
+	bool clamped = true;
+	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+
+	for(int ino = 0; ino < material_fixed_nodes.size(); ino++){
+		size_t position;
+		node_t *r;
+		node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, material_fixed_nodes[ino]);
+		key.coord[0] = coords[3*node->id+0];
+		key.coord[1] = coords[3*node->id+1];
+		key.coord[2] = coords[3*node->id+2];
+		key.node_id = node->id;
+		r = (node_t*) sc_hash_array_insert_unique(hash_FixedNodes, &key, &position);
+		if (r != NULL) {
+			r->coord[0] = key.coord[0];
+			r->coord[1] = key.coord[1];
+			r->coord[2] = key.coord[2];
+			r->node_id = key.node_id;
+		} else {
+
+		}
+	}
+
+	////////////////////////////////
+	////DEBUG
+	////////////////////////////////
+	for(int ino = 0; ino < mesh->nodes.elem_count; ino ++){
+		octant_node_t* elem = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+		mesh->part_nodes[ino] = -1;
+	}
+	////////////////////////////////
+	////DEBUG
+	////////////////////////////////
+	//printf("     Line Optimization\n");
+	//OptLine(mesh, coords, hash_FixedNodes);
+
+	//printf("     Surface Optimization\n");
+	//OptSurface(mesh, coords, hash_FixedNodes);
+
+	printf("     Volume Optimization\n");
+	OptVolume(mesh, coords, hash_FixedNodes);
+}
+
+/*
 	if(false){
-		/*
+
 		// creates an intruction queue
 		InstructionQueue queue;
 
@@ -661,8 +1629,8 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		TQualityMetric mu_0( &W, &tm );
 		ElementPMeanP mu( 1.0, &mu_0 );
 		PMeanPTemplate of( 1.0, &mu );
-		 */
-		/*
+
+
 		// create quality assessor
 		EdgeLengthMetric len(0.0);
 		ConditionNumberQualityMetric shape_metric;
@@ -684,7 +1652,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 
 		// Optimize mesh
 		q.run_common( mesh_and_domain, pmesh, settings, err ); MSQ_CHKERR(err);
-		 */
+
 	}
 
 	if(false){
@@ -783,75 +1751,5 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		// launches optimization on mesh_set1
 		queue1.run_instructions(&mesq_mesh, err);
 	}
-
-	std::vector<MeshImpl::VertexHandle> vertices;
-	mesq_mesh.get_all_vertices(vertices, err);
-
-	for (int ino = 0; ino < vertices.size() ; ino++)
-	{
-		Mesh::VertexHandle vertex = vertices[ino];
-		MsqVertex aux;
-		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
-		coords[3*ino+0] = aux[0];
-		coords[3*ino+1] = aux[1];
-		coords[3*ino+2] = aux[2];
-	}
-
-	free(fixed_nodes);
-	free(gid);
-	free(mid);
-	free(pid);
-
-}
-
-void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
-
-	//TODO list
-	// create a global id for every id (element, surface, edge, node)
-	// generate the mesh with the ghost elements
-	// run in serial and local the optimization
-	// run again in paralell
-
-	//hash of the fixed nodes
-	bool clamped = true;
-	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
-
-	for(int ino = 0; ino < material_fixed_nodes.size(); ino++){
-		size_t position;
-		node_t *r;
-		node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, material_fixed_nodes[ino]);
-		key.coord[0] = coords[3*node->id+0];
-		key.coord[1] = coords[3*node->id+1];
-		key.coord[2] = coords[3*node->id+2];
-		key.node_id = node->id;
-		r = (node_t*) sc_hash_array_insert_unique(hash_FixedNodes, &key, &position);
-		if (r != NULL) {
-			r->coord[0] = key.coord[0];
-			r->coord[1] = key.coord[1];
-			r->coord[2] = key.coord[2];
-			r->node_id = key.node_id;
-		} else {
-
-		}
-	}
-
-	////////////////////////////////
-	////DEBUG
-	////////////////////////////////
-	for(int ino = 0; ino < mesh->nodes.elem_count; ino ++){
-		octant_node_t* elem = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
-		mesh->part_nodes[ino] = -1;
-	}
-	////////////////////////////////
-	////DEBUG
-	////////////////////////////////
-	printf("     Line Optimization\n");
-	OptLine(mesh, coords, hash_FixedNodes);
-
-	printf("     Surface Optimization\n");
-	OptSurface(mesh, coords, hash_FixedNodes);
-
-	//printf("     Volume Optimization\n");
-	//OptVolume(mesh, coords, hash_FixedNodes);
-}
+ *
+ */

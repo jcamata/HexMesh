@@ -100,11 +100,29 @@ typedef struct shared_edge
 	int32_t      rankList[4];
 } shared_edge_t;
 
+typedef struct shared_octant
+{
+	int32_t id;
+	octant_node_t nodes[8];
+	double coord[8][3];
+	int listSz;
+	int rankList[4];
+} shared_octant_t;
+
 typedef struct 
 {
 	int rank;
 	sc_array_t idxs;
 } message_t;
+
+typedef struct message_el
+{
+	int rank;
+	sc_array_t idxs;
+	sc_array_t nodes;
+	sc_array_t coord;
+	sc_array_t nodep;
+} message_el_t;
 
 typedef struct
 {
@@ -240,7 +258,7 @@ int const EdgeVerticesMap_vol_diagonal[4][2] = {
 		{2, 4},
 		{3, 5}
 };
-*/
+ */
 
 int const FaceEdgesMap[6][4] = {
 		{4, 11, 7, 3},
