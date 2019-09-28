@@ -36,7 +36,6 @@ typedef struct
 
 typedef struct octant_surf
 {
-	//int     pml;
 	bool    ext;
 } octant_surf_t;
 
@@ -121,7 +120,6 @@ typedef struct message_el
 	sc_array_t idxs;
 	sc_array_t nodes;
 	sc_array_t coord;
-	sc_array_t nodep;
 } message_el_t;
 
 typedef struct
