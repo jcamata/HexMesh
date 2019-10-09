@@ -178,10 +178,7 @@ typedef struct {
 	int32_t x_end;
 	int32_t y_start;
 	int32_t y_end;
-	//double x_startc;
-	//double x_endc;
-	//double y_startc;
-	//double y_endc;
+
 	int neighbors[9];
 	comm_map_t comm_map;
 	comm_map_t  comm_map_edge;
