@@ -205,540 +205,6 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1)
 	elem1->z=elem->z;
 }
 
-void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords)
-{
-
-	//assign a color for the nodes...
-
-	// free node
-	// color= 0 && fixed = 0;
-
-	//exterior surface fixed nodes
-	//fixed = 1 && color = 1
-
-	//exterior global nodes
-	//color && fixed = -1;
-	// x- = 2 x+ = 3
-	// y- = 4 y+ = 5
-	// z- = 6 z+ = 7
-
-	//exterior local nodes
-	//color && fixed = -1;
-	// x- = -2 x+ = -3
-	// y- = -4 y+ = -5
-	// z- = -6 z+ = -7
-
-	//exterior global edges
-	//color && fixed = -1;
-	// z-y- = 0+11
-	// z-x+ = 1+11
-	// z-y+ = 2+11
-	// z-x- = 3+11
-
-	// x-y- = 4+11
-	// x+y- = 5+11
-	// x+y+ = 6+11
-	// x-y+ = 7+11
-
-	// z+y- = 8+11
-	// z+x+ = 9+11
-	// z+y+ = 10+11
-	// z+x- = 11+11
-
-	//exterior local edges
-	//color && fixed = -1;
-	// z-y- = -0-11
-	// z-x+ = -1-11
-	// z-y+ = -2-11
-	// z-x- = -3-11
-
-	// x-y- = -4-11
-	// x+y- = -5-11
-	// x+y+ = -6-11
-	// x-y+ = -7-11
-
-	// z+y- = -8-11
-	// z+x+ = -9-11
-	// z+y+ = -10-11
-	// z+x- = -11-11
-
-	bool deb = false;
-	bool clamped = true;
-	//TODO remove vertex hash
-	//vertex hash
-	sc_hash_array_t*	  vertex_hash  = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
-
-	//fazendo vertex hash & assign the color to the local nodes
-	for(int iel = 0; iel < mesh->elements.elem_count ; iel++)
-	{
-		size_t  position;
-		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		for (int ino = 0; ino < 8; ino++)
-		{
-			//build the hash
-			octant_vertex_t key;
-			key.id = elem->nodes[ino].id;
-			octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique (vertex_hash, &key, &position);
-			if(vert != NULL)
-			{
-				vert->id = elem->nodes[ino].id;
-				vert->list_elem = 1;
-				vert->elem[vert->list_elem-1] = elem->id;
-			}
-			else
-			{
-				vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
-				vert->elem[vert->list_elem] = elem->id;
-				vert->list_elem++;
-			}
-
-			//setting free the free nodes
-			if(elem->nodes[ino].fixed == 0) elem->nodes[ino].color = 0;
-
-			//assign the color for the local nodes...
-
-			//surface and edges
-			if(elem->nodes[ino].x == mesh->x_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -2;
-			}
-
-			if(elem->nodes[ino].x == mesh->x_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -3;
-			}
-
-			if(elem->nodes[ino].y == mesh->y_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -4;
-			}
-
-			if(elem->nodes[ino].y == mesh->y_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -5;
-			}
-
-			if(elem->nodes[ino].z == 0)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -6;
-			}
-
-			if(elem->nodes[ino].z == 3*mesh->max_z)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -7;
-			}
-
-			// z-y- = -0-11
-			if(elem->nodes[ino].z == 0 && elem->nodes[ino].y == mesh->y_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -0-11;
-			}
-			// z-x+ = -1-11
-			if(elem->nodes[ino].z == 0 && elem->nodes[ino].x == mesh->x_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -1-11;
-			}
-			// z-y+ = -2-11
-			if(elem->nodes[ino].z == 0 && elem->nodes[ino].y == mesh->y_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -2-11;
-			}
-			// z-x- = -3-11
-			if(elem->nodes[ino].z == 0 && elem->nodes[ino].x == mesh->x_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -3-11;
-			}
-
-
-			// x-y- = -4-11
-			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -4-11;
-			}
-			// x+y- = -5-11
-			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -5-11;
-			}
-			// x+y+ = -6-11
-			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -6-11;
-			}
-			// x-y+ = -7-11
-			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -7-11;
-			}
-
-			// z+y- = -8-11
-			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].y == mesh->y_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -8-11;
-			}
-			// z+x+ = -9-11
-			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].x == mesh->x_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -9-11;
-			}
-			// z+y+ = -10-11
-			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].y == mesh->y_end)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -10-11;
-			}
-			// z+x- = -11-11
-			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].x == mesh->x_start)
-			{
-				elem->nodes[ino].fixed = -1;
-				elem->nodes[ino].color = -11-11;
-			}
-		}
-	}
-
-	sc_array_init(&mesh->outsurf, sizeof(octant_t));
-
-	sc_array_t toto;
-	sc_array_init(&toto, sizeof(octant_t));
-
-	//id global exterior surface
-	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
-	{
-		octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, iel);
-		octant_t * elem = (octant_t*) sc_array_push(&toto);
-		hexa_element_copy(elemOrig,elem);
-
-		if(elem->boundary)
-		{
-			int isurf;
-			isurf = 0;
-			elem->surf[isurf].ext = false;
-			if(elem->nodes[FaceNodesMap[isurf][0]].x == 0 && elem->nodes[FaceNodesMap[isurf][1]].x == 0 &&
-					elem->nodes[FaceNodesMap[isurf][2]].x == 0 && elem->nodes[FaceNodesMap[isurf][3]].x == 0)
-			{
-				elem->surf[isurf].ext = true;
-				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
-			}
-
-			isurf = 1;
-			elem->surf[isurf].ext = false;
-			if(elem->nodes[FaceNodesMap[isurf][0]].x == 3*mesh->ncellx && elem->nodes[FaceNodesMap[isurf][1]].x == 3*mesh->ncellx &&
-					elem->nodes[FaceNodesMap[isurf][2]].x == 3*mesh->ncellx && elem->nodes[FaceNodesMap[isurf][3]].x == 3*mesh->ncellx)
-			{
-				elem->surf[isurf].ext = true;
-				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
-			}
-
-			isurf = 2;
-			elem->surf[isurf].ext = false;
-			if(elem->nodes[FaceNodesMap[isurf][0]].y == 0 && elem->nodes[FaceNodesMap[isurf][1]].y == 0 &&
-					elem->nodes[FaceNodesMap[isurf][2]].y == 0 && elem->nodes[FaceNodesMap[isurf][3]].y == 0)
-			{
-				elem->surf[isurf].ext = true;
-				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
-			}
-
-			isurf = 3;
-			elem->surf[isurf].ext = false;
-			if(elem->nodes[FaceNodesMap[isurf][0]].y == 3*mesh->ncelly && elem->nodes[FaceNodesMap[isurf][1]].y == 3*mesh->ncelly &&
-					elem->nodes[FaceNodesMap[isurf][2]].y == 3*mesh->ncelly && elem->nodes[FaceNodesMap[isurf][3]].y == 3*mesh->ncelly)
-			{
-				elem->surf[isurf].ext = true;
-				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
-			}
-
-			isurf = 5;
-			elem->surf[isurf].ext = false;
-			if(elem->nodes[FaceNodesMap[isurf][0]].z == 3*mesh->max_z && elem->nodes[FaceNodesMap[isurf][1]].z == 3*mesh->max_z &&
-					elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z && elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z)
-			{
-				elem->surf[isurf].ext = true;
-				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
-			}
-
-			isurf = 4;
-			elem->surf[isurf].ext = false;
-			if(elem->nodes[FaceNodesMap[isurf][0]].z == 0 && elem->nodes[FaceNodesMap[isurf][1]].z == 0 &&
-					elem->nodes[FaceNodesMap[isurf][2]].z == 0 && elem->nodes[FaceNodesMap[isurf][3]].z == 0)
-			{
-				elem->surf[isurf].ext = true;
-				if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
-			}
-
-
-			bool aux = false;
-			for(int isurf = 0; isurf < 6; isurf++) if(elem->surf[isurf].ext) aux = true;
-			if(aux)
-			{
-				octant_t* elem1 = (octant_t*) sc_array_push(&mesh->outsurf);
-
-				elem1->level = -1;
-				elem1->id = elem->id;
-				elem1->tem = elem->tem;
-				elem1->pad = elem->pad;
-				elem1->n_mat = elem->n_mat;
-				elem1->pml_id = elem->pml_id;
-				elem1->father = elem->id;
-				elem1->boundary = elem->boundary;
-				elem1->x=elem->x;
-				elem1->y=elem->y;
-				elem1->z=elem->z;
-
-				for(int ino = 0; ino < 8; ino++)
-				{
-					elem1->nodes[ino].color = -elem->nodes[ino].color;
-					elem1->nodes[ino].fixed = 0;
-					if(elem->nodes[ino].fixed == 1)
-					{
-						elem1->nodes[ino].fixed = 1;
-					}
-					else
-					{
-						elem1->nodes[ino].fixed = -elem->nodes[ino].fixed;
-					}
-					elem1->nodes[ino].id = elem->nodes[ino].id;
-					elem1->nodes[ino].x = elem->nodes[ino].x;
-					elem1->nodes[ino].y = elem->nodes[ino].y;
-					elem1->nodes[ino].z = elem->nodes[ino].z;
-				}
-
-				for(int iedge = 0; iedge < 12; iedge++)
-				{
-					elem1->edge[iedge].coord[0] = elem->edge[iedge].coord[0];
-					elem1->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
-					elem1->edge[iedge].id = elem->edge[iedge].id;
-					elem1->edge[iedge].ref = false;
-				}
-
-				for(int isurf = 0; isurf < 6; isurf++) elem1->surf[isurf].ext = elem->surf[isurf].ext;
-			}
-		}
-
-		sc_array_reset(&toto);
-	}
-
-	//id global exterior edges
-	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
-	{
-		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
-
-		//edge 0
-		int iedge;
-		iedge = 0;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 1;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 2;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 3;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 4;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 5;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 6;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 7;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 8;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 9;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 10;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-		iedge = 11;
-		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
-		{
-			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
-			{
-				elem->edge[iedge].ref = true;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
-				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
-			}
-		}
-
-	}
-
-	//id global exterior nodes
-	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
-	{
-		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
-		if(elem->edge[4].ref)
-		{
-			if(elem->nodes[0].z == 0) elem->nodes[0].fixed = -1;
-			if(deb && elem->nodes[0].z == 0) mesh->part_nodes[elem->nodes[0].id] = -1;
-			if(elem->nodes[4].z == 3*mesh->max_z) elem->nodes[4].fixed = -5;
-			if(deb && elem->nodes[4].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[4].id] = -5;
-		}
-		if(elem->edge[5].ref)
-		{
-			if(elem->nodes[1].z == 0) elem->nodes[1].fixed = -2;
-			if(deb && elem->nodes[1].z == 0) mesh->part_nodes[elem->nodes[1].id] = -2;
-			if(elem->nodes[5].z == 3*mesh->max_z) elem->nodes[5].fixed = -6;
-			if(deb && elem->nodes[5].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[5].id] = -6;
-		}
-		if(elem->edge[6].ref)
-		{
-			if(elem->nodes[2].z == 0) elem->nodes[2].fixed = -3;
-			if(deb && elem->nodes[2].z == 0) mesh->part_nodes[elem->nodes[2].id] = -3;
-			if(elem->nodes[6].z == 3*mesh->max_z) elem->nodes[6].fixed = -7;
-			if(deb && elem->nodes[6].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[6].id] = -7;
-		}
-		if(elem->edge[7].ref)
-		{
-			if(elem->nodes[3].z == 0) elem->nodes[3].fixed = -4;
-			if(deb && elem->nodes[3].z == 0) mesh->part_nodes[elem->nodes[3].id] = -4;
-			if(elem->nodes[7].z == 3*mesh->max_z) elem->nodes[7].fixed = -8;
-			if(deb && elem->nodes[7].z == 3*mesh->max_z) mesh->part_nodes[elem->nodes[7].id] = -8;
-		}
-	}
-
-	if(deb)
-	{
-		//debug
-		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
-		{
-			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
-			for(int ino = 0; ino < 8; ino++)
-			{
-				if(elem->nodes[ino].fixed == 1) mesh->part_nodes[elem->nodes[ino].id] = 1;
-			}
-		}
-
-		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
-		{
-			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
-
-			printf("Sou o elemento: %d\n",elem->id);
-			printf("Surface: \n",elem->id);
-			for(int isurf = 0; isurf < 6; isurf++) printf("%s ", elem->surf[isurf].ext ? "true" : "false");
-
-			printf("\nEdge: \n",elem->id);
-			for(int isurf = 0; isurf < 12; isurf++) printf("%d ",elem->edge[isurf].ref);
-
-			printf("\nNode: \n",elem->id);
-			for(int isurf = 0; isurf < 8; isurf++) printf("%d ",elem->nodes[isurf].fixed);
-			printf("\n",elem->id);
-
-		}
-	}
-}
-
 void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
 	bool deb = false;
@@ -763,14 +229,10 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 			r->y = node->y;
 			r->z = node->z;
 			r->id = node->id;
-		}else{
-			printf("Verificar o no numero %d\n",node->id);
-			octant_node_t* node_i = (octant_node_t*) sc_array_index (&hash_nodes->a, position);
-			printf("Ele foi confundido com o no %d\n", node_i->id);
 		}
 	}
 
-	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
+	//assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
 	//hash nodes nodes_b_mat
 	sc_hash_array_t*   hash_b_mat  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn, node_equal_fn, &clamped);
 
@@ -791,8 +253,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 			r->y = key.y;
 			r->z = key.z;
 			r->id = node->id;
-		}else{
-			printf("Verificar o no numero %d\n",node);
 		}
 	}
 
@@ -1349,7 +809,7 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 					//créer l'élément
 					octant_t* pelem;
 					pelem = (octant_t*) sc_array_push(&mesh->elements);
-					pelem->id = mesh->elements.elem_count+1;
+					pelem->id = mesh->elements.elem_count-1;
 					pelem->n_mat = elem->n_mat;
 					pelem->pad = elem->pad;
 					pelem->x = elem->x;
@@ -1430,6 +890,570 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 
 }
 
+void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords)
+{
+
+	//assign a color for the nodes...
+
+	// free node
+	// color= 0 && fixed = 0;
+
+	//exterior surface fixed nodes
+	//fixed = 1 && color = 1
+
+	//exterior global nodes
+	//color && fixed = -1;
+	// x- = 2 x+ = 3
+	// y- = 4 y+ = 5
+	// z- = 6 z+ = 7
+
+	//exterior local nodes
+	//color && fixed = -1;
+	// x- = -2 x+ = -3
+	// y- = -4 y+ = -5
+	// z- = -6 z+ = -7
+
+	//exterior global edges
+	//color && fixed = -1;
+	// z-y- = 0+11
+	// z-x+ = 1+11
+	// z-y+ = 2+11
+	// z-x- = 3+11
+
+	// x-y- = 4+11
+	// x+y- = 5+11
+	// x+y+ = 6+11
+	// x-y+ = 7+11
+
+	// z+y- = 8+11
+	// z+x+ = 9+11
+	// z+y+ = 10+11
+	// z+x- = 11+11
+
+	//exterior global vertex
+	//color && fixed = -1;
+	//x-y-z- = 30
+	//x+y-z- = 31
+	//x+y+z- = 32
+	//x-y+z- = 33
+
+	//x-y-z+ = 34
+	//x+y-z+ = 35
+	//x+y+z+ = 36
+	//x-y+z+ = 37
+
+	//exterior local edges
+	//color && fixed = -1;
+	// z-y- = -0-11
+	// z-x+ = -1-11
+	// z-y+ = -2-11
+	// z-x- = -3-11
+
+	// x-y- = -4-11
+	// x+y- = -5-11
+	// x+y+ = -6-11
+	// x-y+ = -7-11
+
+	// z+y- = -8-11
+	// z+x+ = -9-11
+	// z+y+ = -10-11
+	// z+x- = -11-11
+
+	//exterior local vertex
+	//color && fixed = -1;
+	//x-y-z- = -30
+	//x+y-z- = -31
+	//x+y+z- = -32
+	//x-y+z- = -33
+
+	//x-y-z+ = -34
+	//x+y-z+ = -35
+	//x+y+z+ = -36
+	//x-y+z+ = -37
+
+	bool deb = false;
+	bool clamped = true;
+	//vertex hash
+	sc_hash_array_t*	  vertex_hash  = (sc_hash_array_t *)sc_hash_array_new(sizeof (octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
+
+
+	//fazendo vertex hash & assign the color to the local nodes
+	for(int iel = 0; iel < mesh->elements.elem_count ; iel++)
+	{
+		size_t  position;
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for (int ino = 0; ino < 8; ino++)
+		{
+			//build the hash
+			octant_vertex_t key;
+			key.id = elem->nodes[ino].id;
+			octant_vertex_t* vert = (octant_vertex_t*) sc_hash_array_insert_unique(vertex_hash, &key, &position);
+			if(vert != NULL)
+			{
+				vert->id = elem->nodes[ino].id;
+				vert->list_elem = 1;
+				vert->elem[vert->list_elem-1] = elem->id;
+			}
+			else
+			{
+				vert = (octant_vertex_t*) sc_array_index(&vertex_hash->a, position);
+				vert->elem[vert->list_elem] = elem->id;
+				vert->list_elem++;
+			}
+
+
+			//setting free the free nodes
+			if(elem->nodes[ino].fixed == 0) elem->nodes[ino].color = 0;
+
+			//assign the color for the local nodes...
+
+			//surface and edges
+			if(elem->nodes[ino].x == mesh->x_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -2;
+			}
+
+			if(elem->nodes[ino].x == mesh->x_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -3;
+			}
+
+			if(elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -4;
+			}
+
+			if(elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -5;
+			}
+
+			if(elem->nodes[ino].z == 0)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -6;
+			}
+
+			if(elem->nodes[ino].z == 3*mesh->max_z)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -7;
+			}
+
+			// z-y- = -0-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -0-11;
+			}
+			// z-x+ = -1-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].x == mesh->x_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -1-11;
+			}
+			// z-y+ = -2-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -2-11;
+			}
+			// z-x- = -3-11
+			if(elem->nodes[ino].z == 0 && elem->nodes[ino].x == mesh->x_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -3-11;
+			}
+
+
+			// x-y- = -4-11
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -4-11;
+			}
+			// x+y- = -5-11
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -5-11;
+			}
+			// x+y+ = -6-11
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -6-11;
+			}
+			// x-y+ = -7-11
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -7-11;
+			}
+
+			// z+y- = -8-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].y == mesh->y_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -8-11;
+			}
+			// z+x+ = -9-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].x == mesh->x_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -9-11;
+			}
+			// z+y+ = -10-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].y == mesh->y_end)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -10-11;
+			}
+			// z+x- = -11-11
+			if(elem->nodes[ino].z == 3*mesh->max_z && elem->nodes[ino].x == mesh->x_start)
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -11-11;
+			}
+
+			// x-y-z- = -30
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 0 )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -30;
+			}
+			// x+y-z- = -31
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 0 )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -31;
+			}
+			// x+y+z- = -32
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 0 )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -32;
+			}
+			// x-y+z- = -33
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 0 )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -33;
+			}
+			// x-y-z+ = -34
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 3*mesh->max_z )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -34;
+			}
+			// x+y-z+ = -35
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 3*mesh->max_z )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -35;
+			}
+			// x+y+z+ = -36
+			if(elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 3*mesh->max_z )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -36;
+			}
+			// x-y+z+ = -37
+			if(elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 3*mesh->max_z )
+			{
+				elem->nodes[ino].fixed = -1;
+				elem->nodes[ino].color = -37;
+			}
+		}
+	}
+
+	sc_array_init(&mesh->outsurf, sizeof(octant_t));
+
+	sc_array_t toto;
+	sc_array_init(&toto, sizeof(octant_t));
+
+	//id global exterior surface
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
+	{
+		octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		//octant_t * elem = (octant_t*) sc_array_push(&toto);
+		//hexa_element_copy(elemOrig,elem);
+
+		int isurf;
+		isurf = 0;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].x == 0 && elem->nodes[FaceNodesMap[isurf][1]].x == 0 &&
+				elem->nodes[FaceNodesMap[isurf][2]].x == 0 && elem->nodes[FaceNodesMap[isurf][3]].x == 0)
+		{
+			elem->surf[isurf].ext = true;
+			if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+		}
+
+		isurf = 1;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].x == 3*mesh->ncellx && elem->nodes[FaceNodesMap[isurf][1]].x == 3*mesh->ncellx &&
+				elem->nodes[FaceNodesMap[isurf][2]].x == 3*mesh->ncellx && elem->nodes[FaceNodesMap[isurf][3]].x == 3*mesh->ncellx)
+		{
+			elem->surf[isurf].ext = true;
+			if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+		}
+
+		isurf = 2;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].y == 0 && elem->nodes[FaceNodesMap[isurf][1]].y == 0 &&
+				elem->nodes[FaceNodesMap[isurf][2]].y == 0 && elem->nodes[FaceNodesMap[isurf][3]].y == 0)
+		{
+			elem->surf[isurf].ext = true;
+			if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+		}
+
+		isurf = 3;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].y == 3*mesh->ncelly && elem->nodes[FaceNodesMap[isurf][1]].y == 3*mesh->ncelly &&
+				elem->nodes[FaceNodesMap[isurf][2]].y == 3*mesh->ncelly && elem->nodes[FaceNodesMap[isurf][3]].y == 3*mesh->ncelly)
+		{
+			elem->surf[isurf].ext = true;
+			if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+		}
+
+		isurf = 5;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].z == 3*mesh->max_z && elem->nodes[FaceNodesMap[isurf][1]].z == 3*mesh->max_z &&
+				elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z && elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z)
+		{
+			elem->surf[isurf].ext = true;
+			if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+		}
+
+		isurf = 4;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].z == 0 && elem->nodes[FaceNodesMap[isurf][1]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][2]].z == 0 && elem->nodes[FaceNodesMap[isurf][3]].z == 0)
+		{
+			elem->surf[isurf].ext = true;
+			if(deb) for(int ino = 0; ino < 4; ino++) mesh->part_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = isurf+20;
+		}
+
+		bool aux = false;
+		for(int isurf = 0; isurf < 6; isurf++) if(elem->surf[isurf].ext) aux = true;
+		if(aux)
+		{
+			octant_t* elem1 = (octant_t*) sc_array_push(&mesh->outsurf);
+
+			elem1->level = -1;
+			elem1->id = elem->id;
+			elem1->tem = elem->tem;
+			elem1->pad = elem->pad;
+			elem1->n_mat = elem->n_mat;
+			elem1->pml_id = elem->pml_id;
+			elem1->father = elem->id;
+			elem1->boundary = elem->boundary;
+			elem1->x=elem->x;
+			elem1->y=elem->y;
+			elem1->z=elem->z;
+
+			for(int ino = 0; ino < 8; ino++)
+			{
+				elem1->nodes[ino].color = elem->nodes[ino].color;
+				elem1->nodes[ino].fixed = 0;
+
+				elem1->nodes[ino].fixed = elem->nodes[ino].fixed;
+
+				elem1->nodes[ino].id = elem->nodes[ino].id;
+				elem1->nodes[ino].x = elem->nodes[ino].x;
+				elem1->nodes[ino].y = elem->nodes[ino].y;
+				elem1->nodes[ino].z = elem->nodes[ino].z;
+			}
+
+			for(int iedge = 0; iedge < 12; iedge++)
+			{
+				elem1->edge[iedge].coord[0] = elem->edge[iedge].coord[0];
+				elem1->edge[iedge].coord[1] = elem->edge[iedge].coord[1];
+				elem1->edge[iedge].id = elem->edge[iedge].id;
+				elem1->edge[iedge].ref = false;
+			}
+
+			for(int isurf = 0; isurf < 6; isurf++) elem1->surf[isurf].ext = elem->surf[isurf].ext;
+		}
+
+		sc_array_reset(&toto);
+	}
+
+	//id global exterior edges
+	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
+	{
+		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+
+		//edge 0
+		int iedge;
+		iedge = 0;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 1;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 2;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 3;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 4;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 5;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 6;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 7;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 8;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 9;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 3*mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3*mesh->ncellx)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 10;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].y == 3*mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3*mesh->ncelly)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+
+		iedge = 11;
+		if(elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
+		{
+			if(elem->nodes[EdgeVerticesMap[iedge][0]].z == 3*mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3*mesh->max_z)
+			{
+				elem->edge[iedge].ref = true;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = iedge;
+				if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = iedge;
+			}
+		}
+	}
+
+	if(deb)
+	{
+		//debug
+		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
+		{
+			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+			for(int ino = 0; ino < 8; ino++)
+			{
+				if(elem->nodes[ino].fixed == 1) mesh->part_nodes[elem->nodes[ino].id] = 1;
+			}
+		}
+
+		for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
+		{
+			octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+
+			printf("Sou o elemento: %d\n",elem->id);
+			printf("Surface: \n",elem->id);
+			for(int isurf = 0; isurf < 6; isurf++) printf("%s ", elem->surf[isurf].ext ? "true" : "false");
+
+			printf("\nEdge: \n",elem->id);
+			for(int isurf = 0; isurf < 12; isurf++) printf("%d ",elem->edge[isurf].ref);
+
+			printf("\nNode: \n",elem->id);
+			for(int isurf = 0; isurf < 8; isurf++) printf("%d ",elem->nodes[isurf].fixed);
+			printf("\n",elem->id);
+
+		}
+	}
+}
+
 void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat)
 {
 	int elem_old = mesh->elements.elem_count;
@@ -1452,7 +1476,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	fprintf(mesh->profile,"    Time in PillowLayer %lld millisecond(s).\n",elapsed.count());
 	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
-	//Identify the boundaries
+	//Identify the global and local boundaries
 	start = std::chrono::steady_clock::now( );
 	printf("     Surface Identification\n");
 	SurfaceIdentification(mesh, coords);
@@ -1470,6 +1494,16 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	free(mesh->part_nodes);
 	mesh->part_nodes = (int*) malloc (mesh->local_n_nodes*sizeof(int));
 	for (int ino = 0; ino < mesh->local_n_nodes; ino++) {
-		mesh->part_nodes[ino]=mesh->mpi_rank;
+		mesh->part_nodes[ino] = mesh->mpi_rank;
+	}
+	for(int ino = 0; ino < nodes_b_mat.size();ino++)
+	{
+		mesh->part_nodes[nodes_b_mat[ino]] = 1;
+	}
+	for(int  iel = 0; iel < mesh->outsurf.elem_count; iel++)
+	{
+		octant_t * toto = (octant_t*) sc_array_index(&mesh->outsurf, iel);
+		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, toto->id);
+		elem->n_mat = 10;
 	}
 }
