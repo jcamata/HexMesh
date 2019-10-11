@@ -888,6 +888,22 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 	sc_array_reset(&mesh->nodes);
 	sc_hash_array_rip(hash_nodes,&mesh->nodes);
 
+	//update the x y z coords in mesh->elements
+	for(int oc = 0; oc < mesh->oct.elem_count; oc++)
+	{
+		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,oc);
+		for(int iel = 0; iel < 8; iel++)
+		{
+			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements,oct->id[iel]);
+			for(int ino = 0; ino < 8; ino ++)
+			{
+				octant_node_t* node = (octant_node_t*) sc_array_index(&mesh->nodes,elem->nodes[ino].id);
+				elem->nodes[ino].x = node->x;
+				elem->nodes[ino].y = node->y;
+				elem->nodes[ino].z = node->z;
+			}
+		}
+	}
 }
 
 void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords)
@@ -1499,11 +1515,5 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	for(int ino = 0; ino < nodes_b_mat.size();ino++)
 	{
 		mesh->part_nodes[nodes_b_mat[ino]] = 1;
-	}
-	for(int  iel = 0; iel < mesh->outsurf.elem_count; iel++)
-	{
-		octant_t * toto = (octant_t*) sc_array_index(&mesh->outsurf, iel);
-		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, toto->id);
-		elem->n_mat = 10;
 	}
 }
