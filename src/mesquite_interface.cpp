@@ -98,12 +98,7 @@ void hexa_insert_shared_element(hexa_tree_t* mesh, sc_hash_array_t    *shared_el
 void OptLine(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes)
 {
 
-	bool deb = false;
-	if(deb)
-	{
-		for(int ino = 0; ino < mesh->nodes.elem_count; ino++) mesh->part_nodes[ino] = -1;
-	}
-
+	bool deb = true;
 	std::vector<int> aux0;
 	std::vector<int> aux1;
 	std::vector<int> aux2;
@@ -119,100 +114,45 @@ void OptLine(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* ha
 	std::vector<int> aux10;
 	std::vector<int> aux11;
 
-	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
+	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
 	{
-		octant_t* elem = (octant_t*) sc_array_index (&mesh->outsurf, iel);
+		octant_t* elem = (octant_t*) sc_array_index (&mesh->elements, iel);
 
-		for(int iedge = 0; iedge < 12; iedge++)
+		for(int ino = 0; ino < 8; ino++)
 		{
-			if(elem->edge[iedge].ref == true)
+			//select only the local exterior edges
+			//exterior local edges
+			//color && fixed = -1;
+			if(elem->nodes[ino].fixed == -1 && elem->nodes[ino].color < -10)
 			{
-				if(iedge == 0)
-				{
-					aux0.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux0.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 0;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 0;
-				}
-				if(iedge == 1)
-				{
-					aux1.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux1.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 1;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 1;
-				}
-				if(iedge == 2)
-				{
-					aux2.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux2.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 2;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 2;
-				}
-				if(iedge == 3)
-				{
-					aux3.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux3.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 3;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 3;
-				}
 
-				if(iedge == 4)
-				{
-					aux4.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux4.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 4;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 4;
-				}
-				if(iedge == 5)
-				{
-					aux5.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux5.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 5;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 5;
-				}
-				if(iedge == 6)
-				{
-					aux6.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux6.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 6;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 6;
-				}
-				if(iedge == 7)
-				{
-					aux7.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux7.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 7;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 7;
-				}
+				// z-y- = -0-11
+				if(elem->nodes[ino].color == -11 || elem->nodes[ino].color == -30  || elem->nodes[ino].color == -31 ) aux0.push_back(elem->nodes[ino].id);
+				// z-x+ = -1-11
+				if(elem->nodes[ino].color == -12 || elem->nodes[ino].color == -31  || elem->nodes[ino].color == -32 ) aux1.push_back(elem->nodes[ino].id);
+				// z-y+ = -2-11
+				if(elem->nodes[ino].color == -13 || elem->nodes[ino].color == -32  || elem->nodes[ino].color == -33 ) aux2.push_back(elem->nodes[ino].id);
+				// z-x- = -3-11
+				if(elem->nodes[ino].color == -14 || elem->nodes[ino].color == -30  || elem->nodes[ino].color == -33 ) aux3.push_back(elem->nodes[ino].id);
 
-				if(iedge == 8)
-				{
-					aux8.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux8.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 8;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 8;
-				}
-				if(iedge == 9)
-				{
-					aux9.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux9.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 9;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 9;
-				}
-				if(iedge == 10)
-				{
-					aux10.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux10.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 10;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 10;
-				}
-				if(iedge == 11)
-				{
-					aux11.push_back(elem->nodes[EdgeVerticesMap[iedge][0]].id);
-					aux11.push_back(elem->nodes[EdgeVerticesMap[iedge][1]].id);
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][0]].id] = 11;
-					if(deb) mesh->part_nodes[elem->nodes[EdgeVerticesMap[iedge][1]].id] = 11;
-				}
+				// x-y- = -4-11
+				if(elem->nodes[ino].color == -15 || elem->nodes[ino].color == -30  || elem->nodes[ino].color == -34 ) aux4.push_back(elem->nodes[ino].id);
+				// x+y- = -5-11
+				if(elem->nodes[ino].color == -16 || elem->nodes[ino].color == -31  || elem->nodes[ino].color == -35 ) aux5.push_back(elem->nodes[ino].id);
+				// x+y+ = -6-11
+				if(elem->nodes[ino].color == -17 || elem->nodes[ino].color == -32  || elem->nodes[ino].color == -36 ) aux6.push_back(elem->nodes[ino].id);
+				// x-y+ = -7-11
+				if(elem->nodes[ino].color == -18 || elem->nodes[ino].color == -33  || elem->nodes[ino].color == -37 ) aux7.push_back(elem->nodes[ino].id);
+
+
+				// z+y- = -8-11
+				if(elem->nodes[ino].color == -19 || elem->nodes[ino].color == -34  || elem->nodes[ino].color == -35 ) aux8.push_back(elem->nodes[ino].id);
+				// z+x+ = -9-11
+				if(elem->nodes[ino].color == -20 || elem->nodes[ino].color == -35  || elem->nodes[ino].color == -36 ) aux9.push_back(elem->nodes[ino].id);
+				// z+y+ = -10-11
+				if(elem->nodes[ino].color == -21 || elem->nodes[ino].color == -36  || elem->nodes[ino].color == -37 ) aux10.push_back(elem->nodes[ino].id);
+				// z+x- = -11-11
+				if(elem->nodes[ino].color == -22 || elem->nodes[ino].color == -34  || elem->nodes[ino].color == -37 ) aux11.push_back(elem->nodes[ino].id);
 			}
 		}
 	}
@@ -390,13 +330,13 @@ void OptLine(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* ha
 			for(int ino = 1; ino < (aux.size()-1); ino++)
 			{
 
-				node_t key;
+				octant_node_t key;
 				size_t position;
 				int node = aux[ino];
-				key.coord[0] = coords[3*node+0];
-				key.coord[1] = coords[3*node+1];
-				key.coord[2] = coords[3*node+2];
-				key.node_id = node;
+				octant_node_t* n = (octant_node_t*) sc_array_index(&mesh->nodes,aux[ino]);
+				key.x = n->x;
+				key.y = n->y;
+				key.z = n->z;
 
 				bool nodel = sc_hash_array_lookup(hash_FixedNodes, &key, &position);
 				if(nodel)
@@ -445,25 +385,28 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			key.x = node->x;
 			key.y = node->y;
 			key.z = node->z;
+			key.id = node->id;
 			octant_node_t * r = (octant_node_t*) sc_hash_array_insert_unique(hash_Fixed, &key, &position);
 			if (r != NULL)
 			{
 				r->x = key.x;
 				r->y = key.y;
 				r->z = key.z;
-				r->id = node->id;
+				r->id = key.id;
 			}
 		}
 
 		std::vector<int> elem_aux;
 		//hash for the surface nodes
 		sc_hash_array_t* hash_SurfaceNodes = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
-		sc_hash_array_t* hash_NodesLocal = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
+		sc_hash_array_t* hash_SurfaceLocal = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
+
 		int nlocal = 0;
 		std::vector<int> conn_local;
 		for(int  iel = 0; iel < mesh->outsurf.elem_count; iel++)
 		{
 			octant_t * elem = (octant_t*) sc_array_index(&mesh->outsurf, iel);
+
 			if(elem->surf[isurf].ext)
 			{
 				elem_aux.push_back(elem->id);
@@ -481,12 +424,14 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 						r->x = key.x;
 						r->y = key.y;
 						r->z = key.z;
-						r->id = elem->nodes[FaceNodesMap[isurf][ino]].id;
+						r->id = key.id;
+
+						r->fixed = 0;
+						if(elem->nodes[FaceNodesMap[isurf][ino]].color < -10) r->fixed = -1;
 					}
 
-					//refazendo a conectividade com nos de 0 a nvertices...
-					//passando uma malha "local"
-					octant_node_t* rlocal = (octant_node_t*) sc_hash_array_insert_unique(hash_NodesLocal, &key, &position);
+					size_t positionl;
+					octant_node_t* rlocal = (octant_node_t*) sc_hash_array_insert_unique(hash_SurfaceLocal, &key, &positionl);
 					if (rlocal != NULL)
 					{
 						rlocal->x = key.x;
@@ -495,13 +440,14 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 						rlocal->id = nlocal;
 						conn_local.push_back(nlocal);
 						nlocal++;
-					}
-					else
+					}else
 					{
-						octant_node_t* rlocal = (octant_node_t*) sc_array_index(&hash_NodesLocal->a, position);
-						conn_local.push_back(rlocal->id);
+						octant_node_t* rl = (octant_node_t*) sc_array_index(&hash_SurfaceLocal->a, positionl);
+						conn_local.push_back(rl->id);
 					}
 				}
+
+				for(int ino = 0; ino < 8; ino++) mesh->part_nodes[elem->nodes[ino].id] = 0;
 
 				for(int iedge = 0; iedge < 4; iedge++)
 				{
@@ -531,30 +477,34 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 
 		int nelem = elem_aux.size();
 		int nvertices = hash_SurfaceNodes->a.elem_count;
-		printf("     Mesh normal to %d with: %d elements and %d vertex\n",isurf, nelem,nvertices);
+		printf("     Mesh normal to %d in proc %d with: %d elements and %d vertex\n",isurf, mesh->mpi_rank,nelem,nvertices);
 
 		//nos fixos e coordenadas dos nos
 		std::vector<double> Scoors(3*nvertices);
 		bool *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
 		for(int ive = 0 ; ive < nvertices ;ive++ )
 		{
-			fixed_nodes[ive] = false;
-			octant_node_t * node = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ive);
-			Scoors[3*ive+0] = coords[3*node->id+0];
-			Scoors[3*ive+1] = coords[3*node->id+1];
-			Scoors[3*ive+2] = coords[3*node->id+2];
+			octant_node_t * gnode = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ive);
 
 			octant_node_t key;
 			size_t position;
-			key.x = node->x;
-			key.y = node->y;
-			key.z = node->z;
-			key.id = node->id;
+			key.x = gnode->x;
+			key.y = gnode->y;
+			key.z = gnode->z;
+
+			bool lnode = sc_hash_array_lookup(hash_SurfaceLocal,&key,&position);
+			octant_node_t * ln = (octant_node_t*) sc_array_index(&hash_SurfaceLocal->a, position);
+			fixed_nodes[ln->id] = false;
+
+			Scoors[3*ln->id+0] = coords[3*gnode->id+0];
+			Scoors[3*ln->id+1] = coords[3*gnode->id+1];
+			Scoors[3*ln->id+2] = coords[3*gnode->id+2];
+
 			bool tre = sc_hash_array_lookup(hash_Fixed,&key,&position);
-			if(tre)
+			if(tre || gnode->fixed == -1)
 			{
-				fixed_nodes[ive] = true;
-				mesh->part_nodes[node->id] = 1;
+				fixed_nodes[ln->id] = true;
+				mesh->part_nodes[gnode->id] = 1;
 			}
 		}
 
@@ -566,7 +516,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			int n[3];
 			if(isurf == 0)
 			{
-				n[0] = -1; n[1] = 0; n[2] = 0;
+				n[0] = 1; n[1] = 0; n[2] = 0;
 			}
 			if(isurf == 1)
 			{
@@ -574,7 +524,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			}
 			if(isurf == 2)
 			{
-				n[1] = -1; n[0] = 0; n[2] = 0;
+				n[1] = 1; n[0] = 0; n[2] = 0;
 			}
 			if(isurf == 3)
 			{
@@ -582,22 +532,30 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			}
 			if(isurf == 4)
 			{
-				n[2] = -1; n[1] = 0; n[0] = 0;
+				n[2] = 1; n[1] = 0; n[0] = 0;
 			}
 			if(isurf == 5)
 			{
 				n[2] = 1; n[1] = 0; n[0] = 0;
 			}
+
 			Mesquite::PlanarDomain plane(Vector3D(n[0],n[1],n[2]), Vector3D(Scoors[0],Scoors[1],Scoors[2]));
 			MeshDomainAssoc mesh_and_domain = MeshDomainAssoc(&mesq_mesh, &plane);
 			assert(mesh_and_domain.are_compatible() == true);
-
+			{
+				std::ostringstream out_name;
+				out_name << "original_mesh." << isurf << "." << mesh->mpi_size << "."<< mesh->mpi_rank << ".vtk";
+				mesq_mesh.write_vtk(out_name.str().c_str(), err);
+			}
 			//For mesh_and_domain.
 			// creates an intruction queue
 			InstructionQueue queue1;
 
 			// creates a mean ratio quality metric ...
-			ConditionNumberQualityMetric shape_metric;
+			// creates an edge length metric ...
+			IdealWeightInverseMeanRatio shape_metric(err);
+			//LInfTemplate lapl_met(&shape_metric);
+
 			EdgeLengthQualityMetric lapl_met;
 			lapl_met.set_averaging_method(QualityMetric::RMS);
 
@@ -606,13 +564,14 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			//it tries to avoid the inversion of the element...
 			//try to keep this instead of laplacian
 			SmartLaplacianSmoother lapl1;
+			//LaplacianSmoother lapl1;
 			QualityAssessor stop_qa=QualityAssessor(&shape_metric);
 			stop_qa.add_quality_assessment(&lapl_met);
 			stop_qa.disable_printing_results();
 
 			//**************Set stopping criterion****************
 			TerminationCriterion sc2;
-			sc2.add_iteration_limit( 10 );
+			sc2.add_iteration_limit( 30 );
 			sc2.add_cpu_time(120);
 			sc2.add_relative_vertex_movement(1e-5);
 			lapl1.set_outer_termination_criterion(&sc2);
@@ -623,25 +582,33 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			// launches optimization on mesh_and_domain
 			queue1.run_instructions(&mesh_and_domain, err);
 
-			//get the vertices
-			std::vector<MeshImpl::VertexHandle> vertices;
-			mesh_and_domain.get_mesh()->get_all_vertices(vertices,err);
-
-			//update the coords vector
-			for (int ino = 0; ino < vertices.size() ; ino++)
+			int inverted_elements = 0;
+			int inverted_samples = 0;
+			bool test = stop_qa.get_inverted_element_count(inverted_elements, inverted_samples ,err);
+			if(inverted_elements == 0 && test)
 			{
-				Mesh::VertexHandle vertex = vertices[ino];
-				MsqVertex aux_msq;
-				mesh_and_domain.get_mesh()->vertices_get_coordinates( &vertex, &aux_msq, 1, err );
-				octant_node_t * node = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ino);
-				coords[3*node->id+0] = aux_msq[0];
-				coords[3*node->id+1] = aux_msq[1];
-				coords[3*node->id+2] = aux_msq[2];
+				//get the vertices
+				std::vector<MeshImpl::VertexHandle> vertices;
+				mesh_and_domain.get_mesh()->get_all_vertices(vertices,err);
+
+				//update the coords vector
+				for (int ino = 0; ino < vertices.size() ; ino++)
+				{
+					Mesh::VertexHandle vertex = vertices[ino];
+					MsqVertex aux_msq;
+					mesh_and_domain.get_mesh()->vertices_get_coordinates( &vertex, &aux_msq, 1, err );
+					octant_node_t * node = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ino);
+					coords[3*node->id+0] = aux_msq[0];
+					coords[3*node->id+1] = aux_msq[1];
+					coords[3*node->id+2] = aux_msq[2];
+				}
+			}
+			else
+			{
+				printf("     There are inverted elements in the opt mesh. "
+						"No modification was made in the mesh\n");
 			}
 			mesq_mesh.clear();
-
-		}else{
-			printf("Please check mesquite_interface! set of elements = 0.\n");
 		}
 
 		elem_aux.clear();
@@ -649,9 +616,9 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 		Scoors.clear();
 		free(fixed_nodes);
 		sc_hash_array_destroy(hash_SurfaceNodes);
-		sc_hash_array_destroy(hash_NodesLocal);
 	}
 
+	//TODO opt surf for isurf four and five
 }
 
 sc_array_t BuildMessage(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* shared_element)
@@ -1494,7 +1461,7 @@ sc_array_t BuildMessage(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_
 	return ghostEl;
 }
 
-void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
+void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
 	Mesquite::MsqPrintError err(std::cout);
 
 	bool deb = false;
@@ -1702,6 +1669,32 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 
 	/*
 
+Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
+
+  	int default_gid = -1;
+ 	int default_pid = 0;
+ 	int defaut_mat = 0;
+ 	mesq_mesh.tag_create("GLOBAL_ID"   ,Mesquite::Mesh::HANDLE,1,&default_gid, err);
+ 	mesq_mesh.tag_create("PROCESSOR_ID",Mesquite::Mesh::INT   ,1,&default_pid, err);
+ 	mesq_mesh.tag_create("MAT_ID",Mesquite::Mesh::INT   ,1,&defaut_mat, err);
+
+  	TagHandle tag_processor_id = mesq_mesh.tag_get("PROCESSOR_ID", err);
+ 	TagHandle tag_global_id    = mesq_mesh.tag_get("GLOBAL_ID", err);
+ 	TagHandle tag_mat_id    = mesq_mesh.tag_get("MAT_ID", err);
+ 	std::vector<MeshImpl::VertexHandle> vertices;
+ 	std::vector<MeshImpl::ElementHandle>	elem_array;
+
+  	mesq_mesh.get_all_vertices(vertices, err);
+ 	mesq_mesh.get_all_elements(elem_array,err);
+ 	mesq_mesh.tag_set_vertex_data(tag_global_id   ,vertices.size(),&vertices[0], gid, err);
+ 	mesq_mesh.tag_set_vertex_data(tag_processor_id,vertices.size(),&vertices[0], pid, err);
+ 	mesq_mesh.tag_set_element_data(tag_mat_id,nelem,&elem_array[0],mid,err);
+
+  	{
+ 		std::ostringstream out_name;
+ 		out_name << "original_mesh." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
+ 		mesq_mesh.write_vtk(out_name.str().c_str(), err);
+ 	}
 //create parallel mesh instance, specifying tags containing parallel data
   Mesquite::ParallelMeshImpl parallel_mesh(&mesh, "GLOBAL_ID", "PROCESSOR_ID");
   Mesquite::ParallelHelperImpl helper;
@@ -1738,54 +1731,199 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 	sc_hash_array_destroy(nodeswg);
 }
 
-void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
+void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
 
-	//TODO list
-	// create a global id for every id (element, surface, edge, node)
-	// generate the mesh with the ghost elements
-	// run in serial and local the optimization
-	// run again in paralell
+	Mesquite::MsqPrintError err(std::cout);
 
-	//hash of the fixed nodes
-	bool clamped = true;
-	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof(node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	int nvertices = mesh->local_n_nodes;
+	int nelem     = mesh->local_n_elements;
 
-	for(int ino = 0; ino < material_fixed_nodes.size(); ino++){
-		size_t position;
-		node_t *r;
-		node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, material_fixed_nodes[ino]);
-		key.coord[0] = coords[3*node->id+0];
-		key.coord[1] = coords[3*node->id+1];
-		key.coord[2] = coords[3*node->id+2];
-		key.node_id = node->id;
-		r = (node_t*) sc_hash_array_insert_unique(hash_FixedNodes, &key, &position);
-		if (r != NULL) {
-			r->coord[0] = key.coord[0];
-			r->coord[1] = key.coord[1];
-			r->coord[2] = key.coord[2];
-			r->node_id = key.node_id;
-		} else {
+	std::vector<int> conn(8*nelem);
+	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
 
+	int c = 0;
+	int tmp[8];
+	for(int  iel = 0; iel < mesh->elements.elem_count; iel++)
+	{
+		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for(int j = 0; j < 8; j++)
+		{
+			tmp[j] = elem->nodes[j].id;
+		}
+		conn[c] = tmp[4]; c++;
+		conn[c] = tmp[5]; c++;
+		conn[c] = tmp[6]; c++;
+		conn[c] = tmp[7]; c++;
+		conn[c] = tmp[0]; c++;
+		conn[c] = tmp[1]; c++;
+		conn[c] = tmp[2]; c++;
+		conn[c] = tmp[3]; c++;
+
+		if(elem->tem == -1)
+		{
+			for(int j = 0; j < 8; j++)
+			{
+				//fixed_nodes[elem->nodes[j].id] = true;
+			}
+		}
+
+		int isurf;
+		isurf = 0;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_start &&
+				elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_start &&
+				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_start &&
+				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_start)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 1;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_end &&
+				elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_end &&
+				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_end &&
+				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_end)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 2;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_start &&
+				elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_start &&
+				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_start &&
+				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_start)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 3;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_end &&
+				elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_end &&
+				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_end &&
+				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_end)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 4;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][1]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][2]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][3]].z == 0)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 5;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].z == 3*mesh->max_z  &&
+				elem->nodes[FaceNodesMap[isurf][1]].z == 3*mesh->max_z  &&
+				elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z  &&
+				elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z )
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
 		}
 	}
 
-	////////////////////////////////
-	////DEBUG
-	////////////////////////////////
-	for(int ino = 0; ino < mesh->nodes.elem_count; ino ++){
-		octant_node_t* elem = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
-		mesh->part_nodes[ino] = -1;
+	for(int ino = 0; ino < hash_FixedNodes->a.elem_count; ino++)
+	{
+		node_t* node = (node_t*) sc_array_index (&hash_FixedNodes->a, ino);
+		fixed_nodes[node->node_id] = true;
 	}
-	////////////////////////////////
-	////DEBUG
-	////////////////////////////////
-	//printf("     Line Optimization\n");
-	//OptLine(mesh, coords, hash_FixedNodes);
 
-	//printf("     Surface Optimization\n");
-	//OptSurface(mesh, coords, hash_FixedNodes);
+	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
 
-	printf("     Volume Optimization\n");
-	OptVolume(mesh, coords, hash_FixedNodes);
+	//For mesh_and_domain.
+	// creates an intruction queue
+	InstructionQueue queue1;
+
+	// creates a mean ratio quality metric ...
+	ConditionNumberQualityMetric shape_metric;
+	EdgeLengthQualityMetric lapl_met;
+	lapl_met.set_averaging_method(QualityMetric::RMS);
+
+	// creates the laplacian smoother  procedures
+	//Here we use SmartLaplacianSmoother
+	//it tries to avoid the inversion of the element...
+	//try to keep this instead of laplacian
+	SmartLaplacianSmoother lapl1;
+	QualityAssessor stop_qa=QualityAssessor(&shape_metric);
+	stop_qa.add_quality_assessment(&lapl_met);
+	//stop_qa.disable_printing_results();
+
+	//**************Set stopping criterion****************
+	TerminationCriterion sc2;
+	sc2.add_iteration_limit( 10 );
+	sc2.add_cpu_time(120);
+	sc2.add_relative_vertex_movement(1e-5);
+	lapl1.set_outer_termination_criterion(&sc2);
+	// adds 1 pass of pass1 to mesh_and_domain
+	queue1.add_quality_assessor(&stop_qa,err);
+	queue1.set_master_quality_improver(&lapl1, err);
+	queue1.add_quality_assessor(&stop_qa,err);
+	// launches optimization on mesh_and_domain
+	queue1.run_instructions(&mesq_mesh, err);
+
+	std::vector<MeshImpl::VertexHandle> vertices;
+	mesq_mesh.get_all_vertices(vertices, err);
+
+	for (int ino = 0; ino < vertices.size() ; ino++){
+		Mesh::VertexHandle vertex = vertices[ino];
+		MsqVertex aux;
+		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
+		coords[3*ino+0] = aux[0];
+		coords[3*ino+1] = aux[1];
+		coords[3*ino+2] = aux[2];
+	}
+
+}
+void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
+
+	//hash of the fixed nodes
+	bool clamped = true;
+	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
+
+	for(int ino = 0; ino < material_fixed_nodes.size(); ino++){
+		size_t position;
+		octant_node_t *r;
+		octant_node_t key;
+		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, material_fixed_nodes[ino]);
+		key.x = node->x;
+		key.y = node->y;
+		key.z = node->z;
+		key.id = node->id;
+		r = (octant_node_t*) sc_hash_array_insert_unique(hash_FixedNodes, &key, &position);
+		if (r != NULL) {
+			r->x = key.x;
+			r->y = key.y;
+			r->z = key.z;
+			r->id = key.id;
+		}
+	}
+
+	printf("     Line Optimization\n");
+	OptLine(mesh, coords, hash_FixedNodes);
+
+	printf("     Surface Optimization\n");
+	OptSurface(mesh, coords, hash_FixedNodes);
+
+	if(false)
+	{
+		//Sequential implementation
+		//the exterior boundaries were fixed
+		//the interior
+		printf("     Volume Optimization\n");
+		OptVolume(mesh, coords, hash_FixedNodes);
+	}
+	if(false)
+	{
+		//Parallel implementation
+		//TODO add the tags and make ir works...
+		printf("     Parallel Volume Optimization\n");
+		OptVolumeParallel(mesh, coords, hash_FixedNodes);
+	}
 }
