@@ -621,6 +621,158 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 	//TODO opt surf for isurf four and five
 }
 
+
+void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
+
+	Mesquite::MsqPrintError err(std::cout);
+
+	int nvertices = mesh->local_n_nodes;
+	int nelem     = mesh->local_n_elements;
+
+	std::vector<int> conn(8*nelem);
+	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
+
+	int c = 0;
+	int tmp[8];
+	for(int  iel = 0; iel < mesh->elements.elem_count; iel++)
+	{
+		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for(int j = 0; j < 8; j++)
+		{
+			tmp[j] = elem->nodes[j].id;
+		}
+		conn[c] = tmp[4]; c++;
+		conn[c] = tmp[5]; c++;
+		conn[c] = tmp[6]; c++;
+		conn[c] = tmp[7]; c++;
+		conn[c] = tmp[0]; c++;
+		conn[c] = tmp[1]; c++;
+		conn[c] = tmp[2]; c++;
+		conn[c] = tmp[3]; c++;
+
+		if(elem->tem == -1)
+		{
+			for(int j = 0; j < 8; j++)
+			{
+				fixed_nodes[elem->nodes[j].id] = true;
+			}
+		}
+
+		int isurf;
+		isurf = 0;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_start &&
+				elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_start &&
+				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_start &&
+				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_start)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 1;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_end &&
+				elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_end &&
+				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_end &&
+				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_end)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 2;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_start &&
+				elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_start &&
+				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_start &&
+				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_start)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 3;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_end &&
+				elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_end &&
+				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_end &&
+				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_end)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 4;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][1]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][2]].z == 0 &&
+				elem->nodes[FaceNodesMap[isurf][3]].z == 0)
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+
+		isurf = 5;
+		elem->surf[isurf].ext = false;
+		if(elem->nodes[FaceNodesMap[isurf][0]].z == 3*mesh->max_z  &&
+				elem->nodes[FaceNodesMap[isurf][1]].z == 3*mesh->max_z  &&
+				elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z  &&
+				elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z )
+		{
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+		}
+	}
+
+	for(int ino = 0; ino < hash_FixedNodes->a.elem_count; ino++)
+	{
+		node_t* node = (node_t*) sc_array_index (&hash_FixedNodes->a, ino);
+		fixed_nodes[node->node_id] = true;
+	}
+
+	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
+
+	//For mesh_and_domain.
+	// creates an intruction queue
+	InstructionQueue queue1;
+
+	// creates a mean ratio quality metric ...
+	ConditionNumberQualityMetric shape_metric;
+	EdgeLengthQualityMetric lapl_met;
+	lapl_met.set_averaging_method(QualityMetric::RMS);
+
+	// creates the laplacian smoother  procedures
+	//Here we use SmartLaplacianSmoother
+	//it tries to avoid the inversion of the element...
+	//try to keep this instead of laplacian
+	SmartLaplacianSmoother lapl1;
+	QualityAssessor stop_qa=QualityAssessor(&shape_metric);
+	stop_qa.add_quality_assessment(&lapl_met);
+	stop_qa.disable_printing_results();
+
+	//**************Set stopping criterion****************
+	TerminationCriterion sc2;
+	sc2.add_iteration_limit( 10 );
+	sc2.add_cpu_time(120);
+	sc2.add_relative_vertex_movement(1e-5);
+	lapl1.set_outer_termination_criterion(&sc2);
+	// adds 1 pass of pass1 to mesh_and_domain
+	queue1.add_quality_assessor(&stop_qa,err);
+	queue1.set_master_quality_improver(&lapl1, err);
+	queue1.add_quality_assessor(&stop_qa,err);
+	// launches optimization on mesh_and_domain
+	queue1.run_instructions(&mesq_mesh, err);
+
+	std::vector<MeshImpl::VertexHandle> vertices;
+	mesq_mesh.get_all_vertices(vertices, err);
+
+	for (int ino = 0; ino < vertices.size() ; ino++){
+		Mesh::VertexHandle vertex = vertices[ino];
+		MsqVertex aux;
+		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
+		coords[3*ino+0] = aux[0];
+		coords[3*ino+1] = aux[1];
+		coords[3*ino+2] = aux[2];
+	}
+
+}
+
 sc_array_t BuildMessage(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* shared_element)
 {
 	bool clamped = true;
@@ -1665,52 +1817,49 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	}
 
 
-	//Mesquite::ParallelMeshImpl parallel_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords_local[0], &conn[0]);
+	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords_local[0], &conn[0]);
+	int default_gid = -1;
+	int default_pid = 0;
+	int defaut_mat = 0;
+	mesq_mesh.tag_create("GLOBAL_ID"   ,Mesquite::Mesh::HANDLE,1,&default_gid, err);
+	mesq_mesh.tag_create("PROCESSOR_ID",Mesquite::Mesh::INT   ,1,&default_pid, err);
+	//mesq_mesh.tag_create("MAT_ID",Mesquite::Mesh::INT   ,1,&defaut_mat, err);
 
-	/*
-
-Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
-
-  	int default_gid = -1;
- 	int default_pid = 0;
- 	int defaut_mat = 0;
- 	mesq_mesh.tag_create("GLOBAL_ID"   ,Mesquite::Mesh::HANDLE,1,&default_gid, err);
- 	mesq_mesh.tag_create("PROCESSOR_ID",Mesquite::Mesh::INT   ,1,&default_pid, err);
- 	mesq_mesh.tag_create("MAT_ID",Mesquite::Mesh::INT   ,1,&defaut_mat, err);
-
-  	TagHandle tag_processor_id = mesq_mesh.tag_get("PROCESSOR_ID", err);
- 	TagHandle tag_global_id    = mesq_mesh.tag_get("GLOBAL_ID", err);
- 	TagHandle tag_mat_id    = mesq_mesh.tag_get("MAT_ID", err);
- 	std::vector<MeshImpl::VertexHandle> vertices;
- 	std::vector<MeshImpl::ElementHandle>	elem_array;
-
-  	mesq_mesh.get_all_vertices(vertices, err);
- 	mesq_mesh.get_all_elements(elem_array,err);
- 	mesq_mesh.tag_set_vertex_data(tag_global_id   ,vertices.size(),&vertices[0], gid, err);
- 	mesq_mesh.tag_set_vertex_data(tag_processor_id,vertices.size(),&vertices[0], pid, err);
- 	mesq_mesh.tag_set_element_data(tag_mat_id,nelem,&elem_array[0],mid,err);
-
-  	{
- 		std::ostringstream out_name;
- 		out_name << "original_mesh." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
- 		mesq_mesh.write_vtk(out_name.str().c_str(), err);
- 	}
-//create parallel mesh instance, specifying tags containing parallel data
-  Mesquite::ParallelMeshImpl parallel_mesh(&mesh, "GLOBAL_ID", "PROCESSOR_ID");
-  Mesquite::ParallelHelperImpl helper;
-  helper.set_communicator(MPI_COMM_WORLD);
-  helper.set_parallel_mesh(&parallel_mesh);
-  parallel_mesh.set_parallel_helper(&helper);
-
-  //do Laplacian smooth
-   //SmartLaplacianSmoother
-  LaplaceWrapper optimizer;
-  optimizer.set_vertex_movement_limit_factor(1.e-10);
-  optimizer.set_iteration_limit(2000);
-  optimizer.enable_culling(false);
-  optimizer.run_instructions(&parallel_mesh, err);
-
+	TagHandle tag_processor_id = mesq_mesh.tag_get("PROCESSOR_ID", err);
+	TagHandle tag_global_id    = mesq_mesh.tag_get("GLOBAL_ID", err);
+	//TagHandle tag_mat_id    = mesq_mesh.tag_get("MAT_ID", err);
 	std::vector<MeshImpl::VertexHandle> vertices;
+	std::vector<MeshImpl::ElementHandle>	elem_array;
+
+	mesq_mesh.get_all_vertices(vertices, err);
+	mesq_mesh.get_all_elements(elem_array,err);
+	mesq_mesh.tag_set_vertex_data(tag_global_id   ,vertices.size(),&vertices[0], gid, err);
+	mesq_mesh.tag_set_vertex_data(tag_processor_id,vertices.size(),&vertices[0], pid, err);
+	//mesq_mesh.tag_set_element_data(tag_mat_id,nelem,&elem_array[0],mid,err);
+
+	Mesquite::MeshImpl pmesh;
+	{
+		std::ostringstream out_name;
+		out_name << "parallel_mesh." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
+		mesq_mesh.write_vtk(out_name.str().c_str(), err);
+		pmesh.read_vtk(out_name.str().c_str(), err);
+	}
+	//create parallel mesh instance, specifying tags containing parallel data
+	Mesquite::ParallelMeshImpl parallel_mesh(&pmesh, "GLOBAL_ID", "PROCESSOR_ID");
+	Mesquite::ParallelHelperImpl helper;
+	helper.set_communicator(MPI_COMM_WORLD);
+	helper.set_parallel_mesh(&parallel_mesh);
+	parallel_mesh.set_parallel_helper(&helper);
+
+	//do Laplacian smooth
+	LaplaceWrapper optimizer;
+	optimizer.set_vertex_movement_limit_factor(1.e-10);
+	optimizer.set_iteration_limit(2000);
+	optimizer.enable_culling(false);
+	//optimizer.run_instructions(&parallel_mesh, err);
+
+/*
+	//std::vector<MeshImpl::VertexHandle> vertices;
 	mesq_mesh.get_all_vertices(vertices, err);
 
 	for (int ino = 0; ino < vertices.size() ; ino++)
@@ -1722,165 +1871,13 @@ Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[
 		coords[3*ino+1] = aux[1];
 		coords[3*ino+2] = aux[2];
 	}
-
-
-	 */
+*/
 	free(fixed_nodes);
 	free(gid);
 	free(pid);
 	sc_hash_array_destroy(nodeswg);
 }
 
-void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
-
-	Mesquite::MsqPrintError err(std::cout);
-
-	int nvertices = mesh->local_n_nodes;
-	int nelem     = mesh->local_n_elements;
-
-	std::vector<int> conn(8*nelem);
-	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
-
-	int c = 0;
-	int tmp[8];
-	for(int  iel = 0; iel < mesh->elements.elem_count; iel++)
-	{
-		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		for(int j = 0; j < 8; j++)
-		{
-			tmp[j] = elem->nodes[j].id;
-		}
-		conn[c] = tmp[4]; c++;
-		conn[c] = tmp[5]; c++;
-		conn[c] = tmp[6]; c++;
-		conn[c] = tmp[7]; c++;
-		conn[c] = tmp[0]; c++;
-		conn[c] = tmp[1]; c++;
-		conn[c] = tmp[2]; c++;
-		conn[c] = tmp[3]; c++;
-
-		if(elem->tem == -1)
-		{
-			for(int j = 0; j < 8; j++)
-			{
-				//fixed_nodes[elem->nodes[j].id] = true;
-			}
-		}
-
-		int isurf;
-		isurf = 0;
-		elem->surf[isurf].ext = false;
-		if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_start &&
-				elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_start &&
-				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_start &&
-				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_start)
-		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
-		}
-
-		isurf = 1;
-		elem->surf[isurf].ext = false;
-		if(elem->nodes[FaceNodesMap[isurf][0]].x == mesh->x_end &&
-				elem->nodes[FaceNodesMap[isurf][1]].x == mesh->x_end &&
-				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_end &&
-				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_end)
-		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
-		}
-
-		isurf = 2;
-		elem->surf[isurf].ext = false;
-		if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_start &&
-				elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_start &&
-				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_start &&
-				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_start)
-		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
-		}
-
-		isurf = 3;
-		elem->surf[isurf].ext = false;
-		if(elem->nodes[FaceNodesMap[isurf][0]].y == mesh->y_end &&
-				elem->nodes[FaceNodesMap[isurf][1]].y == mesh->y_end &&
-				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_end &&
-				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_end)
-		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
-		}
-
-		isurf = 4;
-		elem->surf[isurf].ext = false;
-		if(elem->nodes[FaceNodesMap[isurf][0]].z == 0 &&
-				elem->nodes[FaceNodesMap[isurf][1]].z == 0 &&
-				elem->nodes[FaceNodesMap[isurf][2]].z == 0 &&
-				elem->nodes[FaceNodesMap[isurf][3]].z == 0)
-		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
-		}
-
-		isurf = 5;
-		elem->surf[isurf].ext = false;
-		if(elem->nodes[FaceNodesMap[isurf][0]].z == 3*mesh->max_z  &&
-				elem->nodes[FaceNodesMap[isurf][1]].z == 3*mesh->max_z  &&
-				elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z  &&
-				elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z )
-		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
-		}
-	}
-
-	for(int ino = 0; ino < hash_FixedNodes->a.elem_count; ino++)
-	{
-		node_t* node = (node_t*) sc_array_index (&hash_FixedNodes->a, ino);
-		fixed_nodes[node->node_id] = true;
-	}
-
-	Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords[0], &conn[0]);
-
-	//For mesh_and_domain.
-	// creates an intruction queue
-	InstructionQueue queue1;
-
-	// creates a mean ratio quality metric ...
-	ConditionNumberQualityMetric shape_metric;
-	EdgeLengthQualityMetric lapl_met;
-	lapl_met.set_averaging_method(QualityMetric::RMS);
-
-	// creates the laplacian smoother  procedures
-	//Here we use SmartLaplacianSmoother
-	//it tries to avoid the inversion of the element...
-	//try to keep this instead of laplacian
-	SmartLaplacianSmoother lapl1;
-	QualityAssessor stop_qa=QualityAssessor(&shape_metric);
-	stop_qa.add_quality_assessment(&lapl_met);
-	//stop_qa.disable_printing_results();
-
-	//**************Set stopping criterion****************
-	TerminationCriterion sc2;
-	sc2.add_iteration_limit( 10 );
-	sc2.add_cpu_time(120);
-	sc2.add_relative_vertex_movement(1e-5);
-	lapl1.set_outer_termination_criterion(&sc2);
-	// adds 1 pass of pass1 to mesh_and_domain
-	queue1.add_quality_assessor(&stop_qa,err);
-	queue1.set_master_quality_improver(&lapl1, err);
-	queue1.add_quality_assessor(&stop_qa,err);
-	// launches optimization on mesh_and_domain
-	queue1.run_instructions(&mesq_mesh, err);
-
-	std::vector<MeshImpl::VertexHandle> vertices;
-	mesq_mesh.get_all_vertices(vertices, err);
-
-	for (int ino = 0; ino < vertices.size() ; ino++){
-		Mesh::VertexHandle vertex = vertices[ino];
-		MsqVertex aux;
-		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
-		coords[3*ino+0] = aux[0];
-		coords[3*ino+1] = aux[1];
-		coords[3*ino+2] = aux[2];
-	}
-
-}
 void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
 
 	//hash of the fixed nodes
@@ -1911,7 +1908,7 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	printf("     Surface Optimization\n");
 	OptSurface(mesh, coords, hash_FixedNodes);
 
-	if(false)
+	if(mesh->mpi_size == 1)
 	{
 		//Sequential implementation
 		//the exterior boundaries were fixed
@@ -1919,7 +1916,7 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		printf("     Volume Optimization\n");
 		OptVolume(mesh, coords, hash_FixedNodes);
 	}
-	if(false)
+	if(mesh->mpi_size != 1)
 	{
 		//Parallel implementation
 		//TODO add the tags and make ir works...
