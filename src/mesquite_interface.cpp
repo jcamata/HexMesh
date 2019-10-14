@@ -1637,6 +1637,62 @@ sc_array_t BuildMessage(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_
 	return ghostEl;
 }
 
+void Mesh2VTK(hexa_tree_t* mesh,std::vector<double>& lcoord,std::vector<int>& conn, bool *fixed_nodes,size_t *gid,int *pid)
+{
+
+	char fdname[80];
+	sprintf(fdname,"MesqMesh_%04d_%04d.vtk", mesh->mpi_size, mesh->mpi_rank);
+	FILE* outfile = fopen(fdname,"w");
+
+	fprintf(outfile,"# vtk DataFile Version 3.0\n");
+	fprintf(outfile,"Mesquite Mesh\n");
+	fprintf(outfile,"ASCII\n");
+	fprintf(outfile,"DATASET UNSTRUCTURED_GRID\n");
+	fprintf(outfile,"POINTS %d double\n",lcoord.size()/3);
+	for(int ino = 0; ino < lcoord.size()/3; ino++)
+	{
+		fprintf(outfile,"%f %f %f\n",lcoord[3*ino+0],lcoord[3*ino+1],lcoord[3*ino+2]);
+	}
+
+	fprintf(outfile,"CELLS %d %d\n",conn.size()/8, 9*conn.size()/8);
+	for(int iel = 0; iel < conn.size()/8; iel++)
+	{
+		fprintf(outfile,"%d %d %d %d %d %d %d %d %d\n",8,
+				conn[8*iel+0],conn[8*iel+1],conn[8*iel+2],conn[8*iel+3],
+				conn[8*iel+4],conn[8*iel+5],conn[8*iel+6],conn[8*iel+7]);
+	}
+
+	fprintf(outfile,"CELL_TYPES %d\n",conn.size()/8);
+	for(int iel = 0; iel < conn.size()/8; iel++)
+	{
+		fprintf(outfile,"12\n");
+	}
+
+	fprintf(outfile,"POINT_DATA %d\n",lcoord.size()/3);
+	fprintf(outfile,"SCALARS fixed int\n");
+	fprintf(outfile,"LOOKUP_TABLE default\n");
+	for(int ino = 0; ino < lcoord.size()/3; ino++)
+	{
+		fprintf(outfile,"%d\n",fixed_nodes[ino]);
+	}
+
+	fprintf(outfile,"SCALARS GLOBAL_ID unsigned_long 1\n");
+	fprintf(outfile,"LOOKUP_TABLE default\n");
+	for(int ino = 0; ino < lcoord.size()/3; ino++)
+	{
+		fprintf(outfile,"%d\n",gid[ino]);
+	}
+
+	fprintf(outfile,"SCALARS PROCESSOR_ID unsigned_long 1\n");
+	fprintf(outfile,"LOOKUP_TABLE default\n");
+	for(int ino = 0; ino < lcoord.size()/3; ino++)
+	{
+		fprintf(outfile,"%d\n",pid[ino]);
+	}
+
+	fclose(outfile);
+}
+
 void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
 	Mesquite::MsqPrintError err(std::cout);
 
@@ -1733,7 +1789,6 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	std::vector<double> coords_local(3*nvertices);
 	size_t *gid = (size_t*) malloc(nvertices*sizeof(size_t));
 	int    *pid = (int*) malloc (nvertices*sizeof(int));
-	int    *mid = (int*) malloc (nelem*sizeof(int));
 	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
 
 	//gid ta com problema
@@ -1742,7 +1797,6 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
 	{
 		octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-		mid[iel] = elem->n_mat;
 		for(int ino = 0; ino < 8; ino++)
 		{
 			tmp[ino] = elem->nodes[ino].id;
@@ -1804,7 +1858,6 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	for(int iel = 0; iel < ghostEl.elem_count; iel++)
 	{
 		shared_octant_t * elem = (shared_octant_t*) sc_array_index(&ghostEl, iel);
-		mid[mesh->elements.elem_count+iel] = 0;
 		for(int ino = 0; ino < 8; ino++)
 		{
 			size_t position;
@@ -1842,7 +1895,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 		conn[c] = tmp[3]; c++;
 	}
 
-	//TODO refaire: ajouter le ghost avec
+	//TODO refaire: ajouter ghost
 	//fixed nodes
 	for(int iel = 0; iel < mesh->outsurf.elem_count; iel++)
 	{
@@ -1865,38 +1918,32 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 		fixed_nodes[node->id] = true;
 	}
 
-	int default_gid = -1;
-	int default_pid = 0;
-	int defaut_mat = 0;
+	Mesh2VTK(mesh,coords_local,conn,fixed_nodes,gid,pid);
+
 	Mesquite::MeshImpl parallel_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords_local[0], &conn[0]);
 
+	std::vector<MeshImpl::VertexHandle> vertices;
+	parallel_mesh.get_all_vertices(vertices, err);
+
+	size_t default_gid = -1;
+	int default_pid = 0;
 	parallel_mesh.tag_create("GLOBAL_ID"   ,Mesquite::Mesh::HANDLE,1,&default_gid, err);
 	parallel_mesh.tag_create("PROCESSOR_ID",Mesquite::Mesh::INT   ,1,&default_pid, err);
-	//parallel_mesh.tag_create("MAT_ID",Mesquite::Mesh::INT   ,1,&defaut_mat, err);
 
 	TagHandle tag_processor_id = parallel_mesh.tag_get("PROCESSOR_ID", err);
 	TagHandle tag_global_id    = parallel_mesh.tag_get("GLOBAL_ID", err);
-	//TagHandle tag_mat_id    = parallel_mesh.tag_get("MAT_ID", err);
 
-	std::vector<MeshImpl::VertexHandle> vertices;
-	//std::vector<MeshImpl::ElementHandle>	elem_array;
-
-	//parallel_mesh.get_all_elements(elem_array,err);
-	parallel_mesh.get_all_vertices(vertices, err);
 	parallel_mesh.tag_set_vertex_data(tag_global_id   ,vertices.size(),&vertices[0], gid, err);
 	parallel_mesh.tag_set_vertex_data(tag_processor_id,vertices.size(),&vertices[0], pid, err);
-	//parallel_mesh.tag_set_element_data(tag_mat_id,nelem,&elem_array[0],mid,err);
-	//Mesquite::MeshImpl aa;
+
 	{
 		std::ostringstream out_name;
 		out_name << "parallel_mesh." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
 		parallel_mesh.write_vtk(out_name.str().c_str(), err);
-		//aa.read_vtk(out_name.str().c_str(), err);
 	}
 
 	//create parallel mesh instance, specifying tags containing parallel data
 	Mesquite::ParallelMeshImpl mesq_mesh(&parallel_mesh, "GLOBAL_ID", "PROCESSOR_ID");
-	//Mesquite::ParallelMeshImpl mesq_mesh(&aa, "GLOBAL_ID", "PROCESSOR_ID");
 	Mesquite::ParallelHelperImpl helper;
 	helper.set_communicator(MPI_COMM_WORLD);
 	helper.set_parallel_mesh(&mesq_mesh);
