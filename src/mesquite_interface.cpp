@@ -1674,6 +1674,7 @@ void Mesh2VTK(hexa_tree_t* mesh,std::vector<double>& lcoord,std::vector<int>& co
 	for(int ino = 0; ino < lcoord.size()/3; ino++)
 	{
 		fprintf(outfile,"%d\n",fixed_nodes[ino]);
+		//fprintf(outfile,"%d\n",0);
 	}
 
 	fprintf(outfile,"SCALARS GLOBAL_ID unsigned_long 1\n");
@@ -1681,6 +1682,7 @@ void Mesh2VTK(hexa_tree_t* mesh,std::vector<double>& lcoord,std::vector<int>& co
 	for(int ino = 0; ino < lcoord.size()/3; ino++)
 	{
 		fprintf(outfile,"%d\n",gid[ino]);
+		//fprintf(outfile,"%d\n",0);
 	}
 
 	fprintf(outfile,"SCALARS PROCESSOR_ID unsigned_long 1\n");
@@ -1688,6 +1690,7 @@ void Mesh2VTK(hexa_tree_t* mesh,std::vector<double>& lcoord,std::vector<int>& co
 	for(int ino = 0; ino < lcoord.size()/3; ino++)
 	{
 		fprintf(outfile,"%d\n",pid[ino]);
+		//fprintf(outfile,"%d\n",1);
 	}
 
 	fclose(outfile);
@@ -1762,7 +1765,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 			shared_node_t* n = (shared_node_t*) sc_hash_array_insert_unique(nodeswg, &key, &position);
 			if(n!=NULL)
 			{
-				n->id = nodeswg->a.elem_count;
+				n->id = nodeswg->a.elem_count-1;
 				n->x = key.x;
 				n->y = key.y;
 				n->z = key.z;
@@ -1771,7 +1774,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 			else
 			{
 				shared_node_t* n = (shared_node_t*) sc_array_index(&nodeswg->a,position);
-				n->listSz = elem->rank;
+				if(n->listSz < elem->rank) n->listSz = elem->rank;
 			}
 		}
 	}
@@ -1791,7 +1794,12 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	int    *pid = (int*) malloc (nvertices*sizeof(int));
 	bool   *fixed_nodes = (bool*)malloc(nvertices*sizeof(bool));
 
-	//gid ta com problema
+	//TODO pid ta com problema
+	for(int ino = 0; ino < nvertices; ino++)
+	{
+		gid[ino] = -1;
+		pid[ino] = -1;
+	}
 
 	//for the elements in the proc
 	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
@@ -1815,13 +1823,13 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 
 		if(elem->tem == -1)
 		{
-			for(int j = 0; j < 8; j++)
+			for(int ino = 0; ino < 8; ino++)
 			{
-				fixed_nodes[elem->nodes[j].id] = true;
+				fixed_nodes[elem->nodes[ino].id] = 1;
 			}
 		}
 
-		//adding vertex in nodes with ghost hash
+		//adding nodes in ghost hash
 		for(int ino = 0; ino < 8; ino++)
 		{
 			size_t position;
@@ -1839,7 +1847,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 				n->z = key.z;
 
 				//add global id
-				gid[n->id] = key.id;
+				gid[n->id] = mesh->global_id[key.id];
 				//add proc id
 				gid[n->id] = mesh->mpi_rank;
 			}
@@ -1847,9 +1855,9 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 			{
 				shared_node_t* n = (shared_node_t*) sc_array_index(&nodeswg->a,position);
 				//add global id
-				gid[n->id] = key.id;
+				gid[n->id] = mesh->global_id[key.id];
 				//add proc id
-				pid[n->id] = n->listSz;
+				pid[n->id] = mesh->mpi_rank;
 			}
 		}
 	}
@@ -1865,24 +1873,23 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 			key.x = elem->nodes[ino].x;
 			key.y = elem->nodes[ino].y;
 			key.z = elem->nodes[ino].z;
-			key.id = elem->nodes[ino].id;
 
 			bool lnode = sc_hash_array_lookup(nodeswg,&key,&position);
-			if(lnode)
-			{
-				shared_node_t * sn = (shared_node_t*) sc_array_index(&nodeswg->a,position);
+			shared_node_t * sn = (shared_node_t*) sc_array_index(&nodeswg->a,position);
 
-				//add global id
-				gid[sn->id] = elem->nodes[ino].id;
-				//add proc id
-				pid[sn->id] = sn->listSz;
+			//add global id
+			//The id in the ghostEl is global
+			//The id in nodeswg is local
+			gid[sn->id] = elem->nodes[ino].id;
+			//add proc id
+			if(pid[sn->id] < sn->listSz) pid[sn->id] = sn->listSz;
 
-				tmp[ino] = sn->id;
+			tmp[ino] = sn->id;
 
-				coords_local[3*sn->id + 0] = elem->coord[ino][0];
-				coords_local[3*sn->id + 1] = elem->coord[ino][1];
-				coords_local[3*sn->id + 2] = elem->coord[ino][2];
-			}
+			coords_local[3*sn->id + 0] = elem->coord[ino][0];
+			coords_local[3*sn->id + 1] = elem->coord[ino][1];
+			coords_local[3*sn->id + 2] = elem->coord[ino][2];
+
 		}
 
 		conn[c] = tmp[4]; c++;
@@ -1906,7 +1913,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 			{
 				for(int ino = 0; ino < 4; ino++)
 				{
-					fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
+					fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = 1;
 				}
 			}
 		}
@@ -1915,10 +1922,15 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	for(int ino = 0; ino < hash_FixedNodes->a.elem_count; ino++)
 	{
 		octant_node_t* node = (octant_node_t*) sc_array_index (&hash_FixedNodes->a, ino);
-		fixed_nodes[node->id] = true;
+		fixed_nodes[node->id] = 1;
 	}
 
 	Mesh2VTK(mesh,coords_local,conn,fixed_nodes,gid,pid);
+
+	//char fdname[80];
+	//sprintf(fdname,"MesqMesh_%04d_%04d.vtk", mesh->mpi_size, mesh->mpi_rank);
+	//Mesquite::MeshImpl parallel_mesh;
+	//parallel_mesh.read_vtk(fdname,err);
 
 	Mesquite::MeshImpl parallel_mesh(nvertices,nelem,Mesquite::HEXAHEDRON, &fixed_nodes[0], &coords_local[0], &conn[0]);
 
@@ -1954,7 +1966,8 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	optimizer.set_vertex_movement_limit_factor(1.e-10);
 	optimizer.set_iteration_limit(2);
 	optimizer.enable_culling(false);
-	//	optimizer.run_instructions(&mesq_mesh, err);
+	optimizer.run_instructions(&mesq_mesh, err);
+
 	/*
 	//std::vector<MeshImpl::VertexHandle> vertices;
 	mesq_mesh.get_all_vertices(vertices, err);
@@ -1968,11 +1981,14 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 		coords[3*ino+1] = aux[1];
 		coords[3*ino+2] = aux[2];
 	}
+
 	 */
+
 	free(fixed_nodes);
 	free(gid);
 	free(pid);
 	sc_hash_array_destroy(nodeswg);
+
 }
 
 void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int> material_fixed_nodes){
