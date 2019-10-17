@@ -1961,12 +1961,47 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	helper.set_parallel_mesh(&mesq_mesh);
 	mesq_mesh.set_parallel_helper(&helper);
 
+	//For mesh_and_domain.
+	// creates an intruction queue
+	InstructionQueue queue1;
+
+	// creates a mean ratio quality metric ...
+	ConditionNumberQualityMetric shape_metric;
+	EdgeLengthQualityMetric lapl_met;
+	lapl_met.set_averaging_method(QualityMetric::RMS);
+
+	// creates the laplacian smoother  procedures
+	//Here we use SmartLaplacianSmoother
+	//it tries to avoid the inversion of the element...
+	//try to keep this instead of laplacian
+	SmartLaplacianSmoother lapl1;
+	QualityAssessor stop_qa=QualityAssessor(&shape_metric);
+	stop_qa.add_quality_assessment(&lapl_met);
+	stop_qa.disable_printing_results();
+
+	//**************Set stopping criterion****************
+	TerminationCriterion sc2;
+	sc2.add_iteration_limit( 1 );
+	sc2.add_cpu_time(120);
+	sc2.add_relative_vertex_movement(1e-5);
+	lapl1.set_outer_termination_criterion(&sc2);
+	TerminationCriterion sc1;
+	sc1.add_iteration_limit(10);
+	sc1.add_cpu_time(10);
+	lapl1.set_inner_termination_criterion(&sc1);
+	// adds 1 pass of pass1 to mesh_and_domain
+	queue1.add_quality_assessor(&stop_qa,err);
+	queue1.set_master_quality_improver(&lapl1, err);
+	queue1.add_quality_assessor(&stop_qa,err);
+	// launches optimization on mesh_and_domain
+	queue1.run_instructions(&mesq_mesh, err);
+
 	//do Laplacian smooth
-	LaplaceWrapper optimizer;
-	optimizer.set_vertex_movement_limit_factor(1.e-10);
-	optimizer.set_iteration_limit(2);
-	optimizer.enable_culling(false);
-	optimizer.run_instructions(&mesq_mesh, err);
+	//LaplaceWrapper optimizer;
+	//optimizer.set_vertex_movement_limit_factor(1.e-10);
+	//optimizer.set_iteration_limit(2);
+	//optimizer.enable_culling(false);
+	//optimizer.run_instructions(&mesq_mesh, err);
 
 	/*
 	//std::vector<MeshImpl::VertexHandle> vertices;
