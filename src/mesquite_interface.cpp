@@ -1925,7 +1925,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 		fixed_nodes[node->id] = 1;
 	}
 
-	Mesh2VTK(mesh,coords_local,conn,fixed_nodes,gid,pid);
+	//Mesh2VTK(mesh,coords_local,conn,fixed_nodes,gid,pid);
 
 	//char fdname[80];
 	//sprintf(fdname,"MesqMesh_%04d_%04d.vtk", mesh->mpi_size, mesh->mpi_rank);
@@ -1961,63 +1961,117 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 	helper.set_parallel_mesh(&mesq_mesh);
 	mesq_mesh.set_parallel_helper(&helper);
 
-	//For mesh_and_domain.
-	// creates an intruction queue
-	InstructionQueue queue1;
+	//MeshDomain *domain=0;
+	//MeshDomainAssoc mesh_and_domain = MeshDomainAssoc(&mesh, domain);
 
-	// creates a mean ratio quality metric ...
-	ConditionNumberQualityMetric shape_metric;
-	EdgeLengthQualityMetric lapl_met;
-	lapl_met.set_averaging_method(QualityMetric::RMS);
+	if(false)
+	{
+		// creates an intruction queue
+		InstructionQueue queue1;
 
-	// creates the laplacian smoother  procedures
-	//Here we use SmartLaplacianSmoother
-	//it tries to avoid the inversion of the element...
-	//try to keep this instead of laplacian
-	SmartLaplacianSmoother lapl1;
-	QualityAssessor stop_qa=QualityAssessor(&shape_metric);
-	stop_qa.add_quality_assessment(&lapl_met);
-	stop_qa.disable_printing_results();
+		// creates a mean ratio quality metric ...
+		UntangleBetaQualityMetric untangle_metric( 1.e-6 );
 
-	//**************Set stopping criterion****************
-	TerminationCriterion sc2;
-	sc2.add_iteration_limit( 1 );
-	sc2.add_cpu_time(120);
-	sc2.add_relative_vertex_movement(1e-5);
-	lapl1.set_outer_termination_criterion(&sc2);
-	TerminationCriterion sc1;
-	sc1.add_iteration_limit(10);
-	sc1.add_cpu_time(10);
-	lapl1.set_inner_termination_criterion(&sc1);
-	// adds 1 pass of pass1 to mesh_and_domain
-	queue1.add_quality_assessor(&stop_qa,err);
-	queue1.set_master_quality_improver(&lapl1, err);
-	queue1.add_quality_assessor(&stop_qa,err);
-	// launches optimization on mesh_and_domain
-	queue1.run_instructions(&mesq_mesh, err);
+		QualityAssessor qa_untangle(&untangle_metric);
+		queue1.add_quality_assessor(&qa_untangle, err); MSQ_ERRRTN(err);
+		//q1.run_common( mesh_and_domain, pmesh, settings, err );
 
-	//do Laplacian smooth
-	//LaplaceWrapper optimizer;
-	//optimizer.set_vertex_movement_limit_factor(1.e-10);
-	//optimizer.set_iteration_limit(2);
-	//optimizer.enable_culling(false);
-	//optimizer.run_instructions(&mesq_mesh, err);
+		LPtoPTemplate untangle_func( 2, &untangle_metric );
+		ConjugateGradient untangle_solver( &untangle_func );
+		//untangle_solver.set_debugging_level(3);
+
+		//SteepestDescent untangle_solver( &untangle_func );
+		TerminationCriterion untangle_inner("<type:untangle_inner>"), untangle_outer("<type:untangle_outer>");
+		untangle_solver.use_global_patch();
+
+		untangle_inner.add_absolute_quality_improvement( 0.0 );
+		untangle_inner.add_iteration_limit( 20 );
+
+		untangle_outer.add_absolute_quality_improvement( 0.0 );
+		untangle_outer.add_iteration_limit( 10 );
+
+		untangle_solver.set_inner_termination_criterion( &untangle_inner );
+		untangle_solver.set_outer_termination_criterion( &untangle_outer );
+
+		// adds 1 pass of pass1 to mesh_and_domain
+		queue1.add_quality_assessor(&qa_untangle, err); MSQ_ERRRTN(err);
+		queue1.set_master_quality_improver( &untangle_solver, err ); MSQ_ERRRTN(err);
+		queue1.add_quality_assessor(&qa_untangle, err); MSQ_ERRRTN(err);
+		// launches optimization on mesh_and_domain
+		queue1.run_instructions(&mesq_mesh, err);
+	}
+
+	if(true)
+	{
+		// creates an intruction queue
+		InstructionQueue queue1;
+
+		// creates a mean ratio quality metric ...
+		ConditionNumberQualityMetric shape_metric;
+		EdgeLengthQualityMetric lapl_met;
+		lapl_met.set_averaging_method(QualityMetric::RMS);
+
+		// creates the laplacian smoother  procedures
+		//Here we use SmartLaplacianSmoother
+		//it tries to avoid the inversion of the element...
+		//try to keep this instead of laplacian
+		SmartLaplacianSmoother lapl1;
+		QualityAssessor stop_qa=QualityAssessor(&shape_metric);
+		stop_qa.add_quality_assessment(&lapl_met);
+		//queue1.run_common(mesq_mesh,settings,err)
+		stop_qa.disable_printing_results();
+
+		//**************Set stopping criterion****************
+		// For parallel runs, we generally need to have the inner and outer TerminationCriterion
+		// have the same criteria else we can get an infinite loop (see VertexMover::loop_over_mesh)
+
+		TerminationCriterion sc1("<type:SmartLaplacianSmoother_inner>");
+		sc1.add_iteration_limit(10);
+		sc1.add_cpu_time(10);
+		sc1.add_relative_vertex_movement(1e-5);
+		sc1.write_iterations("inner.gpt", err);
+
+
+		TerminationCriterion sc2("<type:SmartLaplacianSmoother_outer>");;
+		sc2.add_iteration_limit( 1 );
+		sc2.add_cpu_time(120);
+		sc2.add_relative_vertex_movement(1e-5);
+		sc2.write_iterations("outer.gpt", err);
+
+		lapl1.set_outer_termination_criterion(&sc2);
+		lapl1.set_inner_termination_criterion(&sc1);
+
+		// adds 1 pass of pass1 to mesh_and_domain
+		queue1.add_quality_assessor(&stop_qa,err);
+		queue1.set_master_quality_improver(&lapl1, err);
+		queue1.add_quality_assessor(&stop_qa,err);
+		// launches optimization on mesh_and_domain
+		queue1.run_instructions(&mesq_mesh, err);
+	}
+
+	std::vector<MeshImpl::VertexHandle> ver;
+	mesq_mesh.get_all_vertices(ver, err);
 
 	/*
-	//std::vector<MeshImpl::VertexHandle> vertices;
-	mesq_mesh.get_all_vertices(vertices, err);
-
 	for (int ino = 0; ino < vertices.size() ; ino++)
 	{
 		Mesh::VertexHandle vertex = vertices[ino];
 		MsqVertex aux;
 		mesq_mesh.vertices_get_coordinates( &vertex, &aux, 1, err );
-		coords[3*ino+0] = aux[0];
-		coords[3*ino+1] = aux[1];
-		coords[3*ino+2] = aux[2];
+		if(pid[ino] == mesh->mpi_rank)
+		{
+			coords[3*ino+0] = aux[0];
+			coords[3*ino+1] = aux[1];
+			coords[3*ino+2] = aux[2];
+		}
 	}
-
 	 */
+
+	{
+		std::ostringstream out_name;
+		out_name << "parallel_mesh_out." << mesh->mpi_size << "." << mesh->mpi_rank << ".vtk";
+		//mesq_mesh.write_vtk(out_name.str().c_str(), err);
+	}
 
 	free(fixed_nodes);
 	free(gid);
@@ -2050,13 +2104,13 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		}
 	}
 
-	//printf("     Line Optimization\n");
-	//OptLine(mesh, coords, hash_FixedNodes);
+	printf("     Line Optimization\n");
+	OptLine(mesh, coords, hash_FixedNodes);
 
-	//printf("     Surface Optimization\n");
-	//OptSurface(mesh, coords, hash_FixedNodes);
+	printf("     Surface Optimization\n");
+	OptSurface(mesh, coords, hash_FixedNodes);
 
-	if(mesh->mpi_size == 1)
+	if(mesh->mpi_size == 1 || mesh->mpi_size !=1)
 	{
 		//Sequential implementation
 		//the exterior boundaries were fixed
@@ -2064,7 +2118,7 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		printf("     Volume Optimization\n");
 		OptVolume(mesh, coords, hash_FixedNodes);
 	}
-	if(mesh->mpi_size != 1)
+	if(mesh->mpi_size != 1 && false)
 	{
 		//Parallel implementation
 		printf("     Parallel Volume Optimization\n");
