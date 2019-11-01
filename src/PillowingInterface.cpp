@@ -256,6 +256,7 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 		}
 	}
 
+	//fazendo o pillow
 	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++)
 	{
 		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,ioc);
