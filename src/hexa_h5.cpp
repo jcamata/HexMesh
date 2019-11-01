@@ -16,7 +16,8 @@ using namespace std;
 #include "hexa.h"
 
 
-void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords){
+void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords)
+{
 
 	char filename[80];
 	sprintf(filename, "%s_%04d_%04d.h5",root_name , mesh->mpi_size, mesh->mpi_rank);
@@ -47,8 +48,9 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 			connect.push_back(h->nodes[j].id);
 		}
 	}
+
 	// Create a new file using default property lists.
-	H5File file(FILE_NAME, H5F_ACC_TRUNC);
+	H5File file(filename, H5F_ACC_TRUNC);
 
 	//write the Nodes:
 	dims[0] = mesh->local_n_nodes;
@@ -56,7 +58,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	DataSpace *dataspace1 = new DataSpace (RANK, dims);
 
 	// Create the dataset.
-	DataSet *dataset1 = new DataSet (file.createDataSet(DATASET_NAME1,
+	DataSet *dataset1 = new DataSet (file.createDataSet("Nodes",
 			PredType::IEEE_F64LE, *dataspace1));
 
 	DataSpace mspace1( RANK, dims );
@@ -78,7 +80,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	dataspace1 = new DataSpace (RANK, dims);
 
 	// Create the dataset in group "SEM3D".
-	dataset1 = new DataSet (file.createDataSet(DATASET_NAME2,
+	dataset1 = new DataSet (file.createDataSet("Sem3D/Hexa8",
 			PredType::STD_U64LE, *dataspace1));
 	DataSpace mspace2( RANK, dims );
 
@@ -88,13 +90,14 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	delete dataset1;
 	delete dataspace1;
 
+
 	//write the Material:
 	//
 	dim[0] = mesh->local_n_elements;
 	dataspace1 = new DataSpace (1, dim);
 	RANK = 1;
 	// Create the dataset in group "SEM3D".
-	dataset1 = new DataSet (file.createDataSet(DATASET_NAME3,
+	dataset1 = new DataSet (file.createDataSet("Sem3D/Mat",
 			PredType::STD_I64LE, *dataspace1));
 	DataSpace mspace3( RANK, dim );
 
@@ -110,7 +113,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	dataspace1 = new DataSpace (1, dim);
 	RANK = 1;
 	// Create the dataset in group "SEM3D".
-	dataset1 = new DataSet (file.createDataSet(DATASET_NAME4,
+	dataset1 = new DataSet (file.createDataSet("Sem3D/Pad",
 			PredType::STD_I64LE, *dataspace1));
 	DataSpace mspace4( RANK, dim );
 
@@ -154,5 +157,6 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 
 
 	fclose (fid);
+
 }
 
