@@ -106,6 +106,7 @@ typedef struct shared_octant
 	double coord[8][3];
 	int listSz;
 	int rankList[4];
+	int rank;
 } shared_octant_t;
 
 typedef struct 
