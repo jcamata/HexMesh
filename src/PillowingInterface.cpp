@@ -1109,9 +1109,9 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 		//en train de bouger que les noeuds que on besoin pas faira la extrution
 		octant_t* elemaux[8];
 		for(int iel = 0; iel < 8; iel++)
-			{
+		{
 			elemaux[iel] = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-			}
+		}
 		for(int iel = 0; iel < 8; iel++)
 		{
 			double cord_in_ref[3];
@@ -2770,7 +2770,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							x = elem->nodes[FaceNodesMap[aux[isurf]][ino]].x;
 							y = elem->nodes[FaceNodesMap[aux[isurf]][ino]].y;
 							z = elem->nodes[FaceNodesMap[aux[isurf]][ino]].z;
-							//corner 0
+							//corner 0 teste 8
 							if(aux[0] == 1 && aux[1] == 3 && aux[2] == 5)
 							{
 								if(aux[isurf] == 1)
@@ -2880,7 +2880,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 1
-							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 5)
+							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 5 && false)
 							{
 								if(aux[isurf] == 0)
 								{//1 5 6 2
@@ -2988,41 +2988,41 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 									}
 								}
 							}
-							//corner 2
+							//corner 2 teste10
 							if(aux[0] == 0 && aux[1] == 2 && aux[2] == 5)
 							{
 								if(aux[isurf] == 0)
-								{//1 5 6 2
+								{//0,4,7,3
 									if(ino == 0)
 									{
 										x += 6;
+										y += 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = -1;
 									}
 									if(ino == 1)
 									{
 										x += 6;
+										y += 6;
 										z -= 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 2)
 									{
 										x += 6;
-										y += 6;
 										z -= 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 0;
+										cord_in_ref[1] = 1;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 3)
 									{
 										x += 6;
-										y += 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 0;
+										cord_in_ref[1] = 1;
 										cord_in_ref[2] = -1;
 									}
 								}
@@ -3030,14 +3030,21 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								{//2 6 7 3
 									if(ino == 0)
 									{
-										x += 6;
 										y += 6;
-										cord_in_ref[0] = 0;
+										cord_in_ref[0] = 1;
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = -1;
 									}
 									if(ino == 1)
 									{
+										y += 6;
+										z -= 6;
+										cord_in_ref[0] = 1;
+										cord_in_ref[1] = 0;
+										cord_in_ref[2] = 0;
+									}
+									if(ino == 2)
+									{
 										x += 6;
 										y += 6;
 										z -= 6;
@@ -3045,18 +3052,11 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
-									if(ino == 2)
-									{
-										y += 6;
-										z -= 6;
-										cord_in_ref[0] = 1;
-										cord_in_ref[1] = 0;
-										cord_in_ref[2] = 0;
-									}
 									if(ino == 3)
 									{
+										x += 6;
 										y += 6;
-										cord_in_ref[0] = 1;
+										cord_in_ref[0] = 0;
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = -1;
 									}
@@ -3065,39 +3065,39 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								{//5 4 7 6
 									if(ino == 0)
 									{
-										x += 6;
 										z -= 6;
-										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 1;
+										y += 6;
+										cord_in_ref[0] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 1)
 									{
+										x += 6;
+										z -= 6;
+										y += 6;
+										cord_in_ref[0] = 0;
+										cord_in_ref[1] = 0;
+										cord_in_ref[2] = 0;
+									}
+									if(ino == 2)
+									{
+										x += 6;
+										z -= 6;
+										cord_in_ref[0] = 0;
+										cord_in_ref[1] = 1;
+										cord_in_ref[2] = 0;
+									}
+									if(ino == 3)
+									{
 										z -= 6;
 										cord_in_ref[0] = 1;
 										cord_in_ref[1] = 1;
 										cord_in_ref[2] = 0;
 									}
-									if(ino == 2)
-									{
-										y += 6;
-										z -= 6;
-										cord_in_ref[0] = 1;
-										cord_in_ref[1] = 0;
-										cord_in_ref[2] = 0;
-									}
-									if(ino == 3)
-									{
-										x += 6;
-										y += 6;
-										z -= 6;
-										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 0;
-										cord_in_ref[2] = 0;
-									}
 								}
 							}
-							//corner 3
+							//corner 3 teste9
 							if(aux[0] == 1 && aux[1] == 2 && aux[2] == 5)
 							{
 								if(aux[isurf] == 1)
@@ -3105,33 +3105,33 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 									if(ino == 0)
 									{
 										x -= 6;
+										y += 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = -1;
 									}
 									if(ino == 1)
 									{
 										x -= 6;
 										z -= 6;
+										y += 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 2)
 									{
 										x -= 6;
-										y += 6;
 										z -= 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 0;
+										cord_in_ref[1] = 1;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 3)
 									{
 										x -= 6;
-										y += 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 0;
+										cord_in_ref[1] = 1;
 										cord_in_ref[2] = -1;
 									}
 								}
@@ -3176,39 +3176,39 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 									{
 										x -= 6;
 										z -= 6;
+										y += 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 1)
 									{
 										z -= 6;
+										y += 6;
 										cord_in_ref[0] = -1;
-										cord_in_ref[1] = 1;
+										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 2)
 									{
-										y += 6;
 										z -= 6;
 										cord_in_ref[0] = -1;
-										cord_in_ref[1] = 0;
+										cord_in_ref[1] = 1;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 3)
 									{
 										x -= 6;
-										y += 6;
 										z -= 6;
 										cord_in_ref[0] = 0;
-										cord_in_ref[1] = 0;
+										cord_in_ref[1] = 1;
 										cord_in_ref[2] = 0;
 									}
 								}
 							}
 
 							//corner 4
-							if(aux[0] == 1 && aux[1] == 3 && aux[2] == 4)
+							if(aux[0] == 1 && aux[1] == 3 && aux[2] == 4 && false)
 							{
 								if(aux[isurf] == 1)
 								{//1 5 6 2
@@ -3317,7 +3317,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 5
-							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 4)
+							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 4 && false)
 							{
 								if(aux[isurf] == 0)
 								{//1 5 6 2
@@ -3426,7 +3426,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 6
-							if(aux[0] == 0 && aux[1] == 2 && aux[2] == 4)
+							if(aux[0] == 0 && aux[1] == 2 && aux[2] == 4 && false)
 							{
 								if(aux[isurf] == 0)
 								{//1 5 6 2
@@ -3535,7 +3535,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 7
-							if(aux[0] == 1 && aux[1] == 2 && aux[2] == 4)
+							if(aux[0] == 1 && aux[1] == 2 && aux[2] == 4 && false)
 							{
 								if(aux[isurf] == 1)
 								{//1 5 6 2
