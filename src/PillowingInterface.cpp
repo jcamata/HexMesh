@@ -231,7 +231,6 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1)
 	elem1->z=elem->z;
 }
 
-
 void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
 	bool deb = false;
@@ -934,9 +933,10 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 	}
 }
 
-void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
+void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat)
+{
 
-	bool deb = false;
+	bool deb = true;
 	bool clamped = true;
 
 	//noeud hash
@@ -983,16 +983,17 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 		}
 	}
 
-
+	int numel = 2;
+	int intel = 1;
 	//faire le pillow mesh->oct.elem_count
-	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++)
+	for(int ioc = 1; ioc < 2; ioc++)
 	{
 		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,ioc);
 		sc_hash_array_t*   pillow  = (sc_hash_array_t *)sc_hash_array_new(sizeof(pillow_t), pillow_hash_fn, pillow_equal_fn, &clamped);
 
 		int elName = -1;
 		//en train de faire la hash du pillowing
-		for(int iel = 0; iel < 8; iel++)
+		for(int iel = intel; iel < numel; iel++)
 		{
 			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 			for (int ino = 0; ino < 8; ino++)
@@ -1104,15 +1105,16 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 			if(aux.size() == 3) elName = iel;
 		}
 
+		// point aux hahs
 		sc_hash_array_t*   pauxhash  = (sc_hash_array_t *)sc_hash_array_new(sizeof(aux_teste_t),aux_teste_fn ,aux_teste_equal_fn , &clamped);
 
 		//en train de bouger que les noeuds que on besoin pas faira la extrution
 		octant_t* elemaux[8];
-		for(int iel = 0; iel < 8; iel++)
+		for(int iel = intel; iel < numel; iel++)
 		{
 			elemaux[iel] = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 		}
-		for(int iel = 0; iel < 8; iel++)
+		for(int iel = intel; iel < numel; iel++)
 		{
 			double cord_in_ref[3];
 
@@ -1136,7 +1138,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 					ncount++;
 				}
 			}
-
+			printf("%d %d\n",iel,ncount);
 			//agora verifica se o no deve ser movido
 			if(ncount == 1)
 			{
@@ -1261,10 +1263,336 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 					paux->pill.id = nodeID;
 				}
 			}
+
+			if(ncount == 3)
+			{
+printf("Entrei aqui \n");
+			}
+
+			if(ncount == 5)
+			{
+				//on cherche le noeud dans que n'appartient pas a la surface
+				bool surf[6];
+				int outnode = -1;
+				for(int isurf = 0; isurf < 6; isurf++)
+				{
+					surf[isurf] = true;
+					for(int ino = 0; ino < 4; ino++)
+					{
+						size_t position;
+						octant_node_t key;
+						key.x = elemaux[iel]->nodes[FaceNodesMap[isurf][ino]].x;
+						key.y = elemaux[iel]->nodes[FaceNodesMap[isurf][ino]].y;
+						key.z = elemaux[iel]->nodes[FaceNodesMap[isurf][ino]].z;
+
+						bool lnode = sc_hash_array_lookup(hash_b_mat, &key, &position);
+						if(!lnode) surf[isurf] = false;
+					}
+
+					if(surf[isurf])
+					{
+						for(int ino = 0; ino < 4; ino++)
+						{
+							for(int ive = 0; ive < 5; ive++)
+							{
+								if(FaceNodesMap[isurf][ino] != nnode[ive])
+								{
+									outnode = nnode[ive];
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				printf("%d\n",outnode);
+
+				int x = elemaux[iel]->nodes[outnode].x;
+				int y = elemaux[iel]->nodes[outnode].y;
+				int z = elemaux[iel]->nodes[outnode].z;
+				// tenho que saber o no (outnode) e o elemento (iel)
+				if(iel == 0)
+				{
+					if(outnode == 2)
+					{
+						x -= 6;
+						y -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 5)
+					{
+						x -= 6;
+						z -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = -1;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 7)
+					{
+						y -= 6;
+						z -= 6;
+						cord_in_ref[0] = -1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+				}
+				if(iel == 1)
+				{
+					if(outnode == 3)
+					{
+						x += 6;
+						y -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 4)
+					{
+						x += 6;
+						z -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = -1;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 6)
+					{
+						y -= 6;
+						z -= 6;
+						cord_in_ref[0] = 1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+				}
+				if(iel == 2)
+				{
+					if(outnode == 0)
+					{
+						x += 6;
+						y += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 5)
+					{
+						y += 6;
+						z -= 6;
+						cord_in_ref[0] = 1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 7)
+					{
+						x += 6;
+						z -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 1;
+						cord_in_ref[2] = 0;
+					}
+				}
+				if(iel == 3)
+				{
+					if(outnode == 1)
+					{
+						x -= 6;
+						y += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 4)
+					{
+						y += 6;
+						z -= 6;
+						cord_in_ref[0] = -1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 6)
+					{
+						x -= 6;
+						z -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 1;
+						cord_in_ref[2] = 0;
+					}
+				}
+
+				if(iel == 4)
+				{
+					if(outnode == 6)
+					{
+						x -= 6;
+						y -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 1)
+					{
+						x -= 6;
+						z += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = -1;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 3)
+					{
+						y -= 6;
+						z += 6;
+						cord_in_ref[0] = -1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+				}
+				if(iel == 5)
+				{
+					if(outnode == 7)
+					{
+						x += 6;
+						y -= 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 0)
+					{
+						x += 6;
+						z += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = -1;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 2)
+					{
+						y -= 6;
+						z += 6;
+						cord_in_ref[0] = 1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+				}
+				if(iel == 6)
+				{
+					if(outnode == 4)
+					{
+						x += 6;
+						y += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 1)
+					{
+						y += 6;
+						z += 6;
+						cord_in_ref[0] = 1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 3)
+					{
+						x += 6;
+						z += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 1;
+						cord_in_ref[2] = 0;
+					}
+				}
+				if(iel == 7)
+				{
+					if(outnode == 5)
+					{
+						x -= 6;
+						y += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = -1;
+					}
+					if(outnode == 0)
+					{
+						y += 6;
+						z += 6;
+						cord_in_ref[0] = -1;
+						cord_in_ref[1] = 0;
+						cord_in_ref[2] = 0;
+					}
+					if(outnode == 2)
+					{
+						x -= 6;
+						z += 6;
+						cord_in_ref[0] = 0;
+						cord_in_ref[1] = 1;
+						cord_in_ref[2] = 0;
+					}
+				}
+
+
+
+				double ref_in_x[8],ref_in_y[8],ref_in_z[8];
+				for (int ino = 0; ino < 8; ino++)
+				{
+					ref_in_x[ino] = coords[3*elemaux[iel]->nodes[ino].id+0];
+					ref_in_y[ino] = coords[3*elemaux[iel]->nodes[ino].id+1];
+					ref_in_z[ino] = coords[3*elemaux[iel]->nodes[ino].id+2];
+				}
+
+				//ajouter sur la hash de noeuds
+				size_t position;
+				octant_node_t key;
+				key.x = x;
+				key.y = y;
+				key.z = z;
+				key.id = elemaux[iel]->nodes[outnode].id;
+
+				GtsPoint* ref_point = LinearMapHex(cord_in_ref, ref_in_x, ref_in_y, ref_in_z);
+				int nodeID;
+				octant_node_t* r = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
+				if(r!=NULL){
+					r->x = x;
+					r->y = y;
+					r->z = z;
+					r->id = hash_nodes->a.elem_count-1;
+					nodeID = r->id;
+					coords.push_back(ref_point->x);
+					coords.push_back(ref_point->y);
+					coords.push_back(ref_point->z);
+				}else{
+					octant_node_t* r = (octant_node_t*) sc_array_index(&hash_nodes->a,position);
+					nodeID = r->id;
+				}
+
+				//colocando o novo no na hash auxiliar
+				aux_teste_t keyaux;
+				keyaux.orig.x = elemaux[iel]->nodes[outnode].x;
+				keyaux.orig.y = elemaux[iel]->nodes[outnode].y;
+				keyaux.orig.z = elemaux[iel]->nodes[outnode].z;
+				keyaux.orig.id = elemaux[iel]->nodes[outnode].id;
+
+				elemaux[iel]->nodes[outnode].id = nodeID;
+				elemaux[iel]->nodes[outnode].x = x;
+				elemaux[iel]->nodes[outnode].y = y;
+				elemaux[iel]->nodes[outnode].z = z;
+
+				aux_teste_t* paux = (aux_teste_t*) sc_hash_array_insert_unique(pauxhash, &keyaux, &position);
+				if(paux!=NULL){
+					paux->orig.x = keyaux.orig.x;
+					paux->orig.y = keyaux.orig.y;
+					paux->orig.z = keyaux.orig.z;
+					paux->orig.id = keyaux.orig.id;
+
+					paux->pill.x = x;
+					paux->pill.y = y;
+					paux->pill.z = z;
+					paux->pill.id = nodeID;
+				}
+			}
 		}
 
 		//en train de bouger que les lignes que on besoin pas faira la extrution
-		for(int iel = 0; iel < 8; iel++)
+		for(int iel = intel; iel < numel; iel++)
 		{
 			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 			double cord_in_ref[3];
@@ -1552,7 +1880,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 		sc_array_t toto;
 		sc_array_init(&toto, sizeof(octant_t));
 		//en train de faire le pillowing
-		for(int iel = 0; iel < 8; iel++)
+		for(int iel = intel; iel < numel; iel++)
 		{
 			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 			octant_t * elemcp = (octant_t*) sc_array_push(&toto);
@@ -1644,7 +1972,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							for(int j = 0; j < p->list_face[i]; j ++)
 							{
 								caux.push_back(p->face[i][j]);
-								if(aux[isurf] == 0 || aux[isurf] == 1 && false)
+								if(aux[isurf] == 0 || aux[isurf] == 1 && true)
 								{
 									if(p->face[i][j] != 0 && p->face[i][j] != 1)
 									{
@@ -1652,7 +1980,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 										caux.push_back(p->face[i][j]);
 									}
 								}
-								if(aux[isurf] == 2 || aux[isurf] == 3 && false)
+								if(aux[isurf] == 2 || aux[isurf] == 3 && true)
 								{
 									if(p->face[i][j] != 2 && p->face[i][j] != 3)
 									{
@@ -1660,7 +1988,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 										caux.push_back(p->face[i][j]);
 									}
 								}
-								if(aux[isurf] == 4 || aux[isurf] == 5 && false)
+								if(aux[isurf] == 4 || aux[isurf] == 5 && true)
 								{
 									if(p->face[i][j] != 4 && p->face[i][j] != 5)
 									{
@@ -2879,8 +3207,8 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 									}
 								}
 							}
-							//corner 1
-							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 5 && false)
+							//corner 1 teste11
+							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 5)
 							{
 								if(aux[isurf] == 0)
 								{//1 5 6 2
@@ -2921,14 +3249,21 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								{//2 6 7 3
 									if(ino == 0)
 									{
-										x += 6;
 										y -= 6;
-										cord_in_ref[0] = 0;
+										cord_in_ref[0] = 1;
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = -1;
 									}
 									if(ino == 1)
 									{
+										y -= 6;
+										z -= 6;
+										cord_in_ref[0] = 1;
+										cord_in_ref[1] = 0;
+										cord_in_ref[2] = 0;
+									}
+									if(ino == 2)
+									{
 										x += 6;
 										y -= 6;
 										z -= 6;
@@ -2936,18 +3271,11 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
-									if(ino == 2)
-									{
-										y -= 6;
-										z -= 6;
-										cord_in_ref[0] = 1;
-										cord_in_ref[1] = 0;
-										cord_in_ref[2] = 0;
-									}
 									if(ino == 3)
 									{
+										x += 6;
 										y -= 6;
-										cord_in_ref[0] = 1;
+										cord_in_ref[0] = 0;
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = -1;
 									}
@@ -2956,33 +3284,33 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								{//5 4 7 6
 									if(ino == 0)
 									{
-										x += 6;
 										z -= 6;
-										cord_in_ref[0] = 0;
+										cord_in_ref[0] = 1;
 										cord_in_ref[1] = -1;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 1)
 									{
+										x += 6;
 										z -= 6;
-										cord_in_ref[0] = 1;
+										cord_in_ref[0] = 0;
 										cord_in_ref[1] = -1;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 2)
 									{
+										x += 6;
 										y -= 6;
 										z -= 6;
-										cord_in_ref[0] = 1;
+										cord_in_ref[0] = 0;
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
 									if(ino == 3)
 									{
-										x += 6;
 										y -= 6;
 										z -= 6;
-										cord_in_ref[0] = 0;
+										cord_in_ref[0] = 1;
 										cord_in_ref[1] = 0;
 										cord_in_ref[2] = 0;
 									}
@@ -3208,7 +3536,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							}
 
 							//corner 4
-							if(aux[0] == 1 && aux[1] == 3 && aux[2] == 4 && false)
+							if(aux[0] == 1 && aux[1] == 3 && aux[2] == 4)
 							{
 								if(aux[isurf] == 1)
 								{//1 5 6 2
@@ -3317,7 +3645,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 5
-							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 4 && false)
+							if(aux[0] == 0 && aux[1] == 3 && aux[2] == 4)
 							{
 								if(aux[isurf] == 0)
 								{//1 5 6 2
@@ -3426,7 +3754,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 6
-							if(aux[0] == 0 && aux[1] == 2 && aux[2] == 4 && false)
+							if(aux[0] == 0 && aux[1] == 2 && aux[2] == 4)
 							{
 								if(aux[isurf] == 0)
 								{//1 5 6 2
@@ -3535,7 +3863,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								}
 							}
 							//corner 7
-							if(aux[0] == 1 && aux[1] == 2 && aux[2] == 4 && false)
+							if(aux[0] == 1 && aux[1] == 2 && aux[2] == 4)
 							{
 								if(aux[isurf] == 1)
 								{//1 5 6 2
@@ -3649,7 +3977,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 						//nao preciso me preocupar com cord_in_ref
 						//teoricamente o no ja existe, entao o ref_point
 						//nao importa
-						if(!exel && true)
+						if(!exel)
 						{
 							aux_teste_t key;
 							size_t position;
@@ -3666,10 +3994,10 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 								y = p->pill.y;
 								z = p->pill.z;
 								new_id[ino] = p->pill.id;
-
-								cord_in_ref[0] = 0;
-								cord_in_ref[1] = 0;
-								cord_in_ref[2] = 0;
+							}
+							else
+							{
+								printf("DEU RUIM CACILDIS %d\n",elem->nodes[FaceNodesMap[aux[isurf]][ino]].id);
 							}
 						}
 
@@ -3743,6 +4071,7 @@ void Pillowing_oct(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 	sc_array_reset(&mesh->nodes);
 	sc_hash_array_rip(hash_nodes,&mesh->nodes);
 }
+
 
 void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords)
 {

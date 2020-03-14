@@ -2110,7 +2110,7 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	printf("     Surface Optimization\n");
 	OptSurface(mesh, coords, hash_FixedNodes);
 
-	if(mesh->mpi_size == 1 || mesh->mpi_size !=1)
+	if(mesh->mpi_size == 1 || mesh->mpi_size !=1 && false)
 	{
 		//Sequential implementation
 		//the exterior boundaries were fixed
