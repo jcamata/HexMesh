@@ -41,7 +41,7 @@ int main(int argc, char** argv)
 	hexa_mesh(&mesh);
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the initialization %lld millisecond(s).\n",elapsed.count());
-	std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	//std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	const char * bathy;
 	const char * topo;
@@ -57,9 +57,9 @@ int main(int argc, char** argv)
 		bathy = "./input/Japan_bathy.gts";
 		topo =  "./input/Japan_topo.gts";
 	}
-	if(true){
-		bathy = "./input/teste1_bathy.gts";
-		topo =  "./input/teste1_topo.gts";
+	if(false){
+		bathy = "./input/teste11_bathy.gts";
+		topo =  "./input/teste11_topo.gts";
 	}
 
 	start = std::chrono::steady_clock::now( );
@@ -100,7 +100,6 @@ int main(int argc, char** argv)
 	fprintf(mesh.profile,"Time in the PillowingInterface %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in PillowingInterface "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
-	/*
 	start = std::chrono::steady_clock::now( );
 	printf(" Mesh Optimization\n\n");
 	MeshOptimization(&mesh, coords, nodes_b_mat);
@@ -114,7 +113,6 @@ int main(int argc, char** argv)
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the ExtrudePMLElements %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in ExtrudePMLElements "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-	 */
 
 	//clean vectors
 	std::vector<int>().swap(element_ids);
@@ -123,8 +121,8 @@ int main(int argc, char** argv)
 	start = std::chrono::steady_clock::now( );
 	printf(" Writing output files \n\n");
 	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
-	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
-	//hexa_mesh_write_h5(&mesh,"mesh", coords);
+	hexa_mesh_write_msh(&mesh, "mesh", &coords);
+	hexa_mesh_write_h5(&mesh,"mesh", coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in Writing output files %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in Writing output files "<< elapsed.count() <<" millisecond(s)."<< std::endl;

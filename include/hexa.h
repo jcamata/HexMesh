@@ -21,20 +21,24 @@
 
 typedef struct pillow
 {
-	uint64_t id;
-	uint64_t a;
-	uint64_t b;
-	int mata;
-	int matb;
+	int32_t id;
+	int32_t a;
+	int32_t b;
+	int8_t mata;
+	int8_t matb;
+	bool pa;
+	bool pb;
 	//	uint64_t elem_a;
 	//	uint64_t elem_b;
 	int32_t x,y,z;
 	int8_t  list_elem;
 	int8_t  list_face[8];
 	int32_t  elem[8]; // we must check this values
-	uint64_t noderef[8];
-	int32_t  octpos[8]; // we must check this values
+	//int32_t  mat[8]; // we must check this values
+	//uint64_t noderef[8];
+	//int32_t  octpos[8]; // we must check this values
 	int8_t   face[8][3]; // we must check this values
+	//int8_t nfaces;
 } pillow_t;
 
 typedef struct octant_node
