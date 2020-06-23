@@ -536,7 +536,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			}
 			if(isurf == 5)
 			{
-				n[2] = 1; n[1] = 0; n[0] = 0;
+				n[2] = -1; n[1] = 0; n[0] = 0;
 			}
 
 			Mesquite::PlanarDomain plane(Vector3D(n[0],n[1],n[2]), Vector3D(Scoors[0],Scoors[1],Scoors[2]));
@@ -563,8 +563,8 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			//Here we use SmartLaplacianSmoother
 			//it tries to avoid the inversion of the element...
 			//try to keep this instead of laplacian
-			SmartLaplacianSmoother lapl1;
-			//LaplacianSmoother lapl1;
+			//SmartLaplacianSmoother lapl1;
+			LaplacianSmoother lapl1;
 			QualityAssessor stop_qa=QualityAssessor(&shape_metric);
 			stop_qa.add_quality_assessment(&lapl_met);
 			stop_qa.disable_printing_results();

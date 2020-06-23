@@ -1247,8 +1247,7 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 			}
 		}
 
-		//update of the elements not
-		//pillow->a.elem_count
+		//element update
 		for(int ive = 0; ive < pillow->a.elem_count; ive++){
 			pillow_t* p = (pillow_t*) sc_array_index(&pillow->a,ive);
 			for(int iel = 0; iel < p->list_elem; iel++){
@@ -1277,15 +1276,21 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							}
 							if(el->nodes[ino].id == -1){
 								printf("Me acharam antes %d, p->a: %d p->b: %d\n",el->id,p->a,p->b);
-								printf("%d %d %d\n",ino,p->id,el->nodes[ino].id);
+								printf("ino: %d pid:%d elnodeid%d or:%d\n",ino,p->id,el->nodes[ino].id,ori);
 								el->nodes[ino].id = ori;
+
+								printf("Sou o octree numero %d\n",ioc);
+								for(int ied = 0; ied < 12; ied++){
+									printf("%d ",oct->edge[ied]);
+								}
+								printf("\n");
 							}
 						}
-
 					}
 				}
 			}
 		}
+
 
 		//TODO check here the bug...
 		//sc_array_destroy(&el_copy);
@@ -1304,25 +1309,8 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 	//faire la atualisation de mon tableau de noeuds
 	sc_array_reset(&mesh->nodes);
 	sc_hash_array_rip(hash_nodes,&mesh->nodes);
-
-	//update the x y z coords in mesh->elements
-	//mesh->oct.elem_count
-	for(int oc = 0; oc < 0; oc++)
-	{
-		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,oc);
-
-		for(int iel = 0; iel < 8; iel++){
-			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-
-				for(int ino = 0; ino <8; ino++){
-					if(elem->nodes[ino].id == -1){
-						printf("sou o elemento %d \n",elem->id);
-					}
-			}
-		}
-	}
-
 }
+
 void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords)
 {
 
