@@ -158,8 +158,12 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 							if (list == NULL) continue;
 							while (list) {
 								GtsBBox *b = GTS_BBOX(list->data);
-								point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+								point[edge] = SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded));
 								if (point[edge]) {
+									//printf("%f %f %f\n",point[edge]->x,point[edge]->y,point[edge]->z);
+									//GtsPoint* pp = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+									//printf("%f %f %f\n",pp->x,pp->y,pp->z);
+									//printf("break no %d\n",edge);
 									break;
 								}
 								list = list->next;

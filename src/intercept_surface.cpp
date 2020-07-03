@@ -11,7 +11,61 @@ using namespace std;
 #include <sc_containers.h>
 
 #include "hexa.h"
+#include "cgal_h.h"
 #include "hilbert.h"
+
+// 		Class used to save and process the intersections.
+//		It inherits Boost's visitor class
+
+class IntersectionPointsVisitor_3
+		: public boost::static_visitor<void>
+{
+protected:
+	// --- Protected members
+	int nbOfIntersections;
+public:
+	// --- Public members
+	std::vector<ExactPoint_3> intersection_vertices;
+
+	// --- Constructors
+	// Empty constructor.
+	IntersectionPointsVisitor_3()
+	{
+		intersection_vertices.resize(1);
+		nbOfIntersections = 0;
+	};
+
+	// --- Visitor operators
+	// Intersection is a point
+	void operator()(const ExactPoint_3& p)
+	{
+		intersection_vertices[nbOfIntersections] = p;
+		++nbOfIntersections;
+	};
+
+	// Intersection is a segment
+	void operator()(const ExactSegment_3& s)
+	{
+		intersection_vertices[nbOfIntersections] = s.source();
+		++nbOfIntersections;
+		intersection_vertices[nbOfIntersections] = s.target();
+		++nbOfIntersections;
+	};
+
+	void clear()
+	{
+		nbOfIntersections = 0;
+	};
+
+	int size()
+	{
+		return nbOfIntersections;
+	};
+
+	// Intersection typedef (boost::variant)
+	typedef CGAL::cpp11::result_of<ExactKernel::Intersect_3(ExactTriangle_3, ExactSegment_3)>::type
+			Triangle_3_Intersection_Variant;
+};
 
 // Read the gts file format and create a gts surface.
 GtsSurface* SurfaceRead(const char* fname) {
@@ -188,7 +242,6 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 				elem->edge[edge].ref = false;
 			}
 		}
-
 	}
 }
 
@@ -257,4 +310,87 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
 			(E->x + D->x) / 2.,
 			(E->y + D->y) / 2.,
 			(E->z + D->z) / 2.);
+}
+
+GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
+
+	GtsPoint * A, * B, * C, * D, * E;
+	GtsEdge * AB, * BC, * CA;
+	GtsPoint * out ;
+
+	//construction exact triangle
+	gts_triangle_vertices_edges(t, NULL,
+			(GtsVertex **) & A,
+			(GtsVertex **) & B,
+			(GtsVertex **) & C,
+			&AB, &BC, &CA);
+
+	//ExactTriangle_3 triangle;
+	ExactTriangle_3 triangle = ExactTriangle_3(	ExactPoint_3( A->x, A->y, A->z),
+			ExactPoint_3( B->x, B->y, B->z),
+			ExactPoint_3( C->x, C->y, C->z));
+
+	//construction exact segment
+	D = GTS_POINT(s->v1);
+	E = GTS_POINT(s->v2);
+
+	//ExactSegment_3 segment;
+	ExactSegment_3 segment = ExactSegment_3(ExactPoint_3(D->x,D->y,D->z), ExactPoint_3(E->x,E->y,E->z));
+
+	//do the intersection
+	//"Triangle_3_Intersection_Variant" is a pretty ugly typedef from CGAL,
+	// used to save data tha can be either a bool, an ExactPoint_3 or an
+	// ExactSegment_3, depending on the context. If you're using C++11
+	// - and you should! - an simple "auto" does the same job.
+	//Triangle_3_Intersection_Variant triangle_segment_intersect;
+
+	// This "visitor" will contain the intersection data, and its operator()
+	// behaves differently depending on whenever the input is an
+	// ExactPoint_3 or an ExactSegment_3
+	IntersectionPointsVisitor_3 intersection_data;
+
+	Triangle_3_Intersection_Variant triangle_segment_intersect = CGAL::intersection(segment,triangle);
+	std::vector<double> aux;
+
+	bool DoIntersect = false;
+	if( triangle_segment_intersect ) // Asked for a bool, got a bool
+	{
+		DoIntersect = true;
+		boost::apply_visitor(intersection_data, *triangle_segment_intersect);
+		const ExactPoint_3 p = ExactPoint_3(intersection_data.intersection_vertices[0].x(),
+				intersection_data.intersection_vertices[0].y(),
+				intersection_data.intersection_vertices[0].z());
+
+		//const ExactPoint_3 p = boost::get<ExactPoint_3>(*triangle_segment_intersect);
+		ExactKernel_to_Kernel toinexact;
+		Point_3 pp = toinexact(p);
+		//Point_3 pp = Point_3(0,0,0);
+		//std::cout << "   " << p << std::endl;
+		//std::cout << "   " << pp << std::endl;
+		//std::cout << "   " << CGAL::to_double(pp.x()) << "   " << CGAL::to_double(pp.y())
+		//<< "   " << CGAL::to_double(pp.z()) << std::endl;
+
+		const double xx = CGAL::to_double(pp.x());
+		const double yy = CGAL::to_double(pp.y());
+		const double zz = CGAL::to_double(pp.z());
+		//std::cout << "   " << xx << "   " << yy
+		//<< "   " << zz << std::endl;
+		aux.push_back(xx);
+		aux.push_back(yy);
+		aux.push_back(zz);
+
+		out = gts_point_new(gts_point_class(),xx,yy,zz);
+
+		//printf("%f %f %f\n",out->x,out->y,out->z);
+	}else{
+		// No intersection was found, do nothing
+	}
+
+	if(DoIntersect){
+		return out;
+		//return gts_point_new(gts_point_class(),out->x,out->y,out->z);
+	}else{
+		return NULL;
+	}
+
 }

@@ -438,6 +438,7 @@ int el_equal_id(const void *v, const void *u, const void *w);
 void hexa_mesh_destroy(hexa_tree_t* mesh);
 int node_comp (const void *v, const void *u);
 GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t);
+GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t);
 GtsPoint* LinearMapHex(const double* cord_in_ref, const double* cord_in_x, const double* cord_in_y, const double* cord_in_z);
 GtsSurface* SurfaceRead(const char* fname);
 gdouble distance(GtsPoint *p, gpointer bounded);
