@@ -1,4 +1,4 @@
-function dt = altimetryCoastline( Xb, Cl, lp )
+function dt = altimetryCoastline( Xb, Cl, lp ,zz)
 % BATHYMETRYCOASTLINE to integrate the information from bathymetry and 
 % coastlines
 % 
@@ -31,7 +31,7 @@ cy = zeros(0,1);
 box = [min(lon) max(lon) min(lat) max(lat)];
 
 % add nodes based on Coastlines
-[lon,lat,z,cx,cy] = integrateCoastlines(Cl,lon,lat,z,cx,cy,lp);
+[lon,lat,z,cx,cy] = integrateCoastlines(Cl,lon,lat,z,cx,cy,lp,zz);
 
 % construct delaunay triangulation
 dt = delaunayTriangulation(lon,lat,[cx cy]);
@@ -56,13 +56,13 @@ dt = triangulation( T, X(:,1), X(:,2), X(:,3) );
 
 %==================================
 % FUNCTION INTEGRATECOASTLINES
-function [lon,lat,z,cx,cy] = integrateCoastlines(Cl,lon,lat,z,cx,cy,lp)
+function [lon,lat,z,cx,cy] = integrateCoastlines(Cl,lon,lat,z,cx,cy,lp,zz)
 if ~isempty(Cl)
     for i1 = 1:length(Cl.Ocean)
-        [lon,lat,z,cx,cy] = integrateSingleCoastline(Cl.Ocean{i1},lon,lat,z,cx,cy,lp);
+        [lon,lat,z,cx,cy] = integrateSingleCoastline(Cl.Ocean{i1},lon,lat,z,cx,cy,lp,zz);
     end    
     for i1 = 1:length(Cl.Land)
-        [lon,lat,z,cx,cy] = integrateSingleCoastline(Cl.Land{i1},lon,lat,z,cx,cy,lp);
+        [lon,lat,z,cx,cy] = integrateSingleCoastline(Cl.Land{i1},lon,lat,z,cx,cy,lp,zz);
     end    
 else
     disp('no water body information found')
@@ -70,7 +70,7 @@ end
 
 %==================================
 % FUNCTION INTEGRATESINGLECOASTLINE
-function [lon,lat,z,cx,cy] = integrateSingleCoastline(Cl,lon,lat,z,cx,cy,lp)
+function [lon,lat,z,cx,cy] = integrateSingleCoastline(Cl,lon,lat,z,cx,cy,lp,zz)
 
 % initialization
 lon1 = Cl(1,1:end-1)';
@@ -134,6 +134,6 @@ end
 Nl = length(lon(:));
 lon = [lon(:); lon1];
 lat = [lat(:); lat1];
-z = [z(:); zeros(size(lon1))];
+z = [z(:); double(zz)*ones(size(lon1))];
 cx = [cx(:); Nl+cx1 ];
 cy = [cy(:); Nl+cy1 ];
