@@ -129,7 +129,7 @@ cropflag = 0;
 crop = [];
 
 if nargin > 0 
-	makeplot = any(strcmp(varargin,'plot'));
+	makeplot = 1;%any(strcmp(varargin,'plot'));
 	merge = any(strcmp(varargin,'merge'));
 	kcrop = find(strcmp(varargin,'crop'));
     if ~isempty(kcrop)

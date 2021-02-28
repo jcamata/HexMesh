@@ -120,7 +120,7 @@ sz3 = [1201,1201]; % SRTM3 tile size
 novalue = intmin('int16'); % -32768
 n = 1;
 
-makeplot = 0;
+makeplot = 1;
 merge = 0;
 srtm3 = 0;
 decimflag = 0;
@@ -130,7 +130,7 @@ cropflag = 0;
 crop = [];
 
 if nargin > 0
-    makeplot = any(strcmp(varargin,'plot'));
+    makeplot = 1;%any(strcmp(varargin,'plot'));
     merge = any(strcmp(varargin,'merge'));
     kcrop = find(strcmp(varargin,'crop'));
     if ~isempty(kcrop)
