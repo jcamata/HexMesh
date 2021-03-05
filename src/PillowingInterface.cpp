@@ -215,708 +215,7 @@ void CopyPropEl(hexa_tree_t* mesh, int id, octant_t *elem1)
 	elem1->z=elem->z;
 }
 
-void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat){
-
-	bool deb = false;
-	bool clamped = true;
-	bool createPillow = true;
-
-	//criando a hash de nos para evitar nos duplicados no pillowing
-	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
-	//hash nodes
-	for(int ino = 0; ino < mesh->nodes.elem_count; ino++)
-	{
-		size_t position;
-		octant_node_t *r;
-		octant_node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
-		key.x = node->x;
-		key.y = node->y;
-		key.z = node->z;
-		r = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
-		if(r!=NULL){
-			r->x = node->x;
-			r->y = node->y;
-			r->z = node->z;
-			r->id = node->id;
-		}
-	}
-
-	//assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
-	//hash nodes nodes_b_mat
-	sc_hash_array_t*   hash_b_mat  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn, node_equal_fn, &clamped);
-
-	//fazendo hash nos nodes_b_mat
-	for(int ino = 0; ino < nodes_b_mat.size(); ino++)
-	{
-		size_t position;
-		octant_node_t *r;
-		octant_node_t key;
-		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, nodes_b_mat[ino]);
-		key.x = node->x;
-		key.y = node->y;
-		key.z = node->z;
-
-		r = (octant_node_t*) sc_hash_array_insert_unique(hash_b_mat, &key, &position);
-		if(r!=NULL){
-			r->x = key.x;
-			r->y = key.y;
-			r->z = key.z;
-			r->id = node->id;
-		}
-	}
-
-	//fazendo o pillow
-	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++)
-	{
-		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,ioc);
-		sc_hash_array_t*   pillow  = (sc_hash_array_t *)sc_hash_array_new(sizeof(pillow_t), pillow_hash_fn, pillow_equal_fn, &clamped);
-
-		//en train de faire la hash du pillowing
-		for(int iel = 0; iel < 8; iel++)
-		{
-			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-			for (int ino = 0; ino < 8; ino++)
-			{
-				//check si le noeud est sur la hahs
-				//hash_b_mat
-				size_t position;
-				octant_node_t key;
-				key.x = elem->nodes[ino].x;
-				key.y = elem->nodes[ino].y;
-				key.z = elem->nodes[ino].z;
-				key.id = elem->nodes[ino].id;
-
-				bool lnode = sc_hash_array_lookup(hash_b_mat, &key, &position);
-
-				if(lnode)
-				{
-					if(deb) printf("J'ai trouvée le noeud %d (nombre:%d) élémént %d (nombre:%d) du octree %d\n",ino,key.id,iel,elem->id,ioc);
-
-					//on commance a ajouter les noeuds dans la hahs de pillow
-					pillow_t keyP;
-					size_t positionP;
-					keyP.x = elem->nodes[ino].x;
-					keyP.y = elem->nodes[ino].y;
-					keyP.z = elem->nodes[ino].z;
-					pillow_t* p = (pillow_t*) sc_hash_array_insert_unique(pillow, &keyP, &positionP);
-					if(p!=NULL)
-					{
-						p->id = elem->nodes[ino].id;
-						p->a = -1;
-						p->b = -1;
-						p->x = keyP.x;
-						p->y = keyP.y;
-						p->z = keyP.z;
-						p->elem[0] = elem->id;
-						p->list_elem = 1;
-						// on doit gerer les surfaces que sont fixes...
-						p->list_face[0] = 0;
-						for(int isurf = 0; isurf < 3; isurf++)
-						{
-							bool surf = true;
-							if(deb) printf("Essaye de la surface %d dans le élément %d nombre du noeud %d",VertexSurfMap[ino][isurf], iel,elem->nodes[ino].id);
-							for(int ive = 0; ive < 4; ive++)
-							{
-								size_t positionSurfVert;
-								octant_node_t SurfVert;
-								int refnode = FaceNodesMap[VertexSurfMap[ino][isurf]][ive];
-								SurfVert.x = elem->nodes[refnode].x;
-								SurfVert.y = elem->nodes[refnode].y;
-								SurfVert.z = elem->nodes[refnode].z;
-								bool lvert = sc_hash_array_lookup(hash_b_mat, &SurfVert, &positionSurfVert);
-								if(!lvert) surf = false;
-							}
-							if(deb) printf("surface nombre:%d\n",surf);
-							if(surf) p->face[0][p->list_face[0]] = VertexSurfMap[ino][isurf];
-							if(surf) p->list_face[0]++;
-						}
-					}
-					else
-					{
-						pillow_t* p1 = (pillow_t*) sc_array_index(&pillow->a,positionP);
-						p1->elem[p1->list_elem] = elem->id;
-						p1->list_face[p1->list_elem] = 0;
-
-						for(int isurf = 0; isurf < 3; isurf++)
-						{
-							bool surf = true;
-							if(deb) printf("Essaye de la surface %d dans le élément %d nombre du noeud %d",VertexSurfMap[ino][isurf], iel,elem->nodes[ino].id);
-							for(int ive = 0; ive < 4; ive++)
-							{
-								size_t positionSurfVert;
-								octant_node_t SurfVert;
-								int refnode = FaceNodesMap[VertexSurfMap[ino][isurf]][ive];
-								SurfVert.x = elem->nodes[refnode].x;
-								SurfVert.y = elem->nodes[refnode].y;
-								SurfVert.z = elem->nodes[refnode].z;
-								bool lvert = sc_hash_array_lookup(hash_b_mat, &SurfVert, &positionSurfVert);
-								if(!lvert) surf = false;
-							}
-							if(deb) printf("surface nombre:%d\n",surf);
-							if(surf) p1->face[p1->list_elem][p1->list_face[p1->list_elem]] = VertexSurfMap[ino][isurf];
-							if(surf) p1->list_face[p1->list_elem]++;
-						}
-						p1->list_elem++;
-					}
-				}
-			}
-		}
-
-		if(false)
-		{
-			printf("Nombre de éléments dans Pillow:%d\n", pillow->a.elem_count);
-			for(int ino = 0; ino < pillow->a.elem_count; ino ++)
-			{
-				pillow_t* p = (pillow_t*) sc_array_index(&pillow->a, ino);
-				printf("    Noeud %d x:%d y:%d z:%d\n",p->id,p->x,p->y,p->z);
-				printf("        les éléments que partagent le noeud sont: ");
-				for(int i = 0; i < p->list_elem; i++)
-				{
-					printf("%d ",p->elem[i]);
-				}
-				printf("\n");
-				printf("        les surfaces sur les éléments que partagent le noeud sont: \n");
-				for(int i = 0; i < p->list_elem; i++)
-				{
-					printf("        pour le élément:%d Surface:",p->elem[i]);
-					for(int j = 0; j < p->list_face[i]; j++) printf(" %d",p->face[i][j]);
-					printf("\n");
-				}
-			}
-		}
-
-		bool move_node = false;
-		//faire la géneration des noeuds
-		for(int ino = 0; ino < pillow->a.elem_count; ino ++)
-		{
-			pillow_t* p = (pillow_t*) sc_array_index(&pillow->a, ino);
-			if(deb)printf("    Noeud %d x:%d y:%d z:%d\n",p->id,p->x,p->y,p->z);
-
-			bool saux[3] = {false,false,false};
-			for(int iel = 0; iel < p->list_elem; iel++)
-			{
-				for(int isurf = 0; isurf < p->list_face[iel]; isurf++)
-				{
-					if(p->face[iel][isurf] == 0 || p->face[iel][isurf] == 1)
-					{
-						saux[0] = true;
-					}
-					if(p->face[iel][isurf] == 2 || p->face[iel][isurf] == 3)
-					{
-						saux[1] = true;
-					}
-					if(p->face[iel][isurf] == 4 || p->face[iel][isurf] == 5)
-					{
-						saux[2] = true;
-					}
-				}
-			}
-			std::vector<int>auxsurf;
-			for(int i = 0; i < 3; i++) if(saux[i])auxsurf.push_back(2*i);
-
-			if(deb) printf("%d %d %d %d %d\n",p->id,auxsurf.size(),saux[0],saux[1],saux[2]);
-			if(auxsurf.size()!=0)
-			{
-				//le noeud base:
-				int32_t x = p->x;
-				int32_t y = p->y;
-				int32_t z = p->z;
-				//noeud a
-				int32_t xa = p->x;
-				int32_t ya = p->y;
-				int32_t za = p->z;
-				//noeud b
-				int32_t xb = p->x;
-				int32_t yb = p->y;
-				int32_t zb = p->z;
-
-				if(auxsurf.size() == 1)
-				{
-					if(auxsurf[0] == 0)
-					{
-						xa += 6;
-						xb -= 6;
-					}
-					if(auxsurf[0] == 2)
-					{
-						ya += 6;
-						yb -= 6;
-					}
-					if(auxsurf[0] == 4)
-					{
-						za += 6;
-						zb -= 6;
-					}
-				}
-				if(auxsurf.size() == 2)
-				{
-					//on a deux possibilité à chaque surface
-					std::vector<int> aux;
-					for(int iel = 0; iel < p->list_elem; iel ++)
-					{
-						if(p->list_face[iel] == 2)
-						{
-							aux.push_back(p->face[iel][0]);
-							aux.push_back(p->face[iel][1]);
-							break;
-						}
-					}
-					std::sort(aux.begin(), aux.end());
-
-					//surface x et y
-					if(auxsurf[0] == 0 && auxsurf[1] == 2)
-					{
-						//diagonal noeud 1-3
-						if((aux[0] == 1 && aux[1] == 2) || (aux[0] == 0 && aux[1] == 3))
-						{
-							xa += 6;
-							ya -= 6;
-							xb -= 6;
-							yb += 6;
-						}
-						//diagonal noeud 0-2
-						if((aux[0] == 1 && aux[1] == 3) || (aux[0] == 0 && aux[1] == 2))
-						{
-							xa += 6;
-							ya += 6;
-							xb -= 6;
-							yb -= 6;
-						}
-					}
-
-					//surface x et z
-					if(auxsurf[0] == 0 && auxsurf[1] == 4)
-					{
-						//diagonal noeud 0-5
-						if((aux[0] == 1 && aux[1] == 5) || (aux[0] == 0 && aux[1] == 4))
-						{
-							xa += 6;
-							za += 6;
-							xb -= 6;
-							zb -= 6;
-						}
-						//diagonal noeud 1-4
-						if((aux[0] == 1 && aux[1] == 4) || (aux[0] == 0 && aux[1] == 5))
-						{
-							xa += 6;
-							za -= 6;
-							xb -= 6;
-							zb += 6;
-						}
-					}
-
-					//surface y et z
-					if(auxsurf[0] == 2 && auxsurf[1] == 4)
-					{
-						//diagonal noeud 0-7
-						if((aux[0] == 2 && aux[1] == 4) || (aux[0] == 3 && aux[1] == 5))
-						{
-							za -= 6;
-							ya -= 6;
-							zb += 6;
-							yb += 6;
-						}
-						//diagonal noeud 4-3
-						if((aux[0] == 2 && aux[1] == 5) || (aux[0] == 3 && aux[1] == 4))
-						{
-							za += 6;
-							ya -= 6;
-							zb -= 6;
-							yb += 6;
-						}
-					}
-
-				}
-				if(auxsurf.size() == 3)
-				{
-					//on a quatre possibilité
-					std::vector<int> aux;
-					for(int iel = 0; iel < p->list_elem; iel ++)
-					{
-						if(p->list_face[iel] == 3)
-						{
-							aux.push_back(p->face[iel][0]);
-							aux.push_back(p->face[iel][1]);
-							aux.push_back(p->face[iel][2]);
-							break;
-						}
-					}
-					//on doit regarder si on a que 2 surface...
-					if(aux.size() == 0)
-					{
-						if(deb)printf("Je suis ici, je suis le noeud %d\n",p->id);
-						int elemId = 0;
-						for(int iel = 0; iel < p->list_elem; iel ++)
-						{
-							if(p->list_face[iel] == 2){
-								if(p->face[iel][1] == 4 || p->face[iel][1] == 5) continue;
-								elemId = p->elem[iel];
-								aux.push_back(p->face[iel][0]);
-								aux.push_back(p->face[iel][1]);
-								if(deb)printf("%d %d\n",aux[0],aux[1]);
-								//break;
-							}
-						}
-						for(int iel = 0; iel < 8; iel++)
-						{
-							if(oct->id[iel] == elemId)
-							{
-								if(iel < 4)
-								{
-									aux.push_back(5);
-								}
-								else
-								{
-									aux.push_back(4);
-								}
-							}
-						}
-						move_node = true;
-					}
-					std::sort(aux.begin(), aux.end());
-
-					if(deb) printf("%d %d %d\n",aux[0],aux[1],aux[2]);
-
-					//diagonal 0-6
-					if((aux[0] == 1 && aux[1] == 3 && aux[2] == 5) ||
-							(aux[0] == 0 && aux[1] == 2 && aux[2] == 4))
-					{
-						if(deb)printf("Diagonal 0-6\n");
-						xa += 6;
-						ya += 6;
-						za += 6;
-						xb -= 6;
-						yb -= 6;
-						zb -= 6;
-					}
-					//diagonal 1-7
-					if((aux[0] == 0 && aux[1] == 3 && aux[2] == 5) ||
-							(aux[0] == 1 && aux[1] == 2 && aux[2] == 4))
-					{
-						if(deb)printf("Diagonal 1-7\n");
-						xa -= 6;
-						ya += 6;
-						za += 6;
-						xb += 6;
-						yb -= 6;
-						zb -= 6;
-					}
-					//diagonal 2-4
-					if((aux[0] == 0 && aux[1] == 2 && aux[2] == 5) ||
-							(aux[0] == 1 && aux[1] == 3 && aux[2] == 4))
-					{
-						if(deb)printf("Diagonal 2-4\n");
-						xa -= 6;
-						ya -= 6;
-						za += 6;
-						xb += 6;
-						yb += 6;
-						zb -= 6;
-					}
-					//diagonal 3-5
-					if((aux[0] == 1 && aux[1] == 2 && aux[2] == 5) ||
-							(aux[0] == 0 && aux[1] == 3 && aux[2] == 4))
-					{
-						if(deb)printf("Diagonal 3-5\n");
-						xa += 6;
-						ya -= 6;
-						za += 6;
-						xb -= 6;
-						yb += 6;
-						zb -= 6;
-					}
-				}
-
-				if(deb)printf("Node id %d Surface %d\n",p->id,auxsurf.size());
-				if(deb)printf("xa %d ya %d za %d\n",xa,ya,za);
-				if(deb)printf("xb %d yb %d zb %d\n",xb,yb,zb);
-
-				//ajouter sur la hash de noeuds
-				size_t position;
-				octant_node_t key;
-				key.x = xa;
-				key.y = ya;
-				key.z = za;
-				octant_node_t* ra = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
-				if(ra!=NULL){
-					ra->x = xa;
-					ra->y = ya;
-					ra->z = za;
-					ra->id = hash_nodes->a.elem_count-1;
-					p->a = ra->id;
-					ra->fixed = 0;
-					ra->color = 0;
-					coords.push_back(0);
-					coords.push_back(0);
-					coords.push_back(0);
-				}else{
-					octant_node_t* ra = (octant_node_t*) sc_array_index(&hash_nodes->a,position);
-					p->a = ra->id;
-				}
-
-				key.x = xb;
-				key.y = yb;
-				key.z = zb;
-				octant_node_t* rb = (octant_node_t*) sc_hash_array_insert_unique(hash_nodes, &key, &position);
-				if(rb!=NULL){
-					rb->x = xb;
-					rb->y = yb;
-					rb->z = zb;
-					rb->id = hash_nodes->a.elem_count-1;
-					p->b = rb->id;
-					rb->fixed = 0;
-					rb->color = 0;
-					coords.push_back(0);
-					coords.push_back(0);
-					coords.push_back(0);
-				}else{
-					octant_node_t* rb = (octant_node_t*) sc_array_index(&hash_nodes->a,position);
-					p->b = rb->id;
-				}
-			}
-
-			//trouver les coords
-			octant_node_t * a = (octant_node_t*) sc_array_index(&hash_nodes->a,p->a);
-			octant_node_t * b = (octant_node_t*) sc_array_index(&hash_nodes->a,p->b);
-			bool ina[8];
-			bool inb[8];
-			for(int iel = 0; iel < 8; iel++)
-			{
-				octant_t* elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-				ina[iel] = false;
-				inb[iel] = false;
-				if(elem->nodes[0].x <= a->x && elem->nodes[6].x >= a->x &&
-						elem->nodes[0].y <= a->y && elem->nodes[6].y >= a->y &&
-						elem->nodes[0].z <= a->z && elem->nodes[6].z >= a->z) ina[iel] = true;
-				if(elem->nodes[0].x <= b->x && elem->nodes[6].x >= b->x &&
-						elem->nodes[0].y <= b->y && elem->nodes[6].y >= b->y &&
-						elem->nodes[0].z <= b->z && elem->nodes[6].z >= b->z) inb[iel] = true;
-
-				if(ina[iel] || inb[iel])
-				{
-					if(deb)printf("%d %d\n",elem->id,p->id);
-					if(deb)printf("%d %d %d %d %s\n",a->id,a->x,a->y,a->z, ina[iel] ? "true" : "false");
-					if(deb)printf("%d %d %d %d %s\n",b->id,b->x,b->y,b->z, inb[iel] ? "true" : "false");
-					if(deb)printf("%d %d %d %d %d %d\n",elem->nodes[0].x,elem->nodes[6].x,elem->nodes[0].y,elem->nodes[6].y,
-							elem->nodes[0].z,elem->nodes[6].z);
-
-					double cord_in_ref[3];
-					int nnode;
-					double ref_in_x[8],ref_in_y[8],ref_in_z[8];
-					int color = 0;
-					int colorc = 0;
-					for (int ino = 0; ino < 8; ino++)
-					{
-						ref_in_x[ino]=coords[3*elem->nodes[ino].id+0];
-						ref_in_y[ino]=coords[3*elem->nodes[ino].id+1];
-						ref_in_z[ino]=coords[3*elem->nodes[ino].id+2];
-						if(elem->nodes[ino].color != 0)
-						{
-							color += elem->nodes[ino].color;
-							colorc++;
-						}
-					}
-
-					if(ina[iel])
-					{
-						cord_in_ref[0] = (a->x - elem->nodes[0].x)/6 -1;
-						cord_in_ref[1] = (a->y - elem->nodes[0].y)/6 -1;
-						cord_in_ref[2] = (a->z - elem->nodes[0].z)/6 -1;
-						nnode = p->a;
-						p->mata = elem->n_mat;
-						a->color = int(color)/int(colorc);
-						if(deb)printf("Id do no %d, aqui achei no a:%d no elemento %d que tem o material %d\n",
-								p->id,p->a,elem->id,elem->n_mat);
-					}
-					if(inb[iel])
-					{
-						cord_in_ref[0] = (b->x - elem->nodes[0].x)/6 -1;
-						cord_in_ref[1] = (b->y - elem->nodes[0].y)/6 -1;
-						cord_in_ref[2] = (b->z - elem->nodes[0].z)/6 -1;
-						nnode = p->b;
-						p->matb = elem->n_mat;
-						b->color = int(color)/int(colorc);
-						if(deb)printf("Id do no %d, aqui achei no b:%d no elemento %d que tem o material %d\n",
-								p->id,p->b,elem->id,elem->n_mat);
-					}
-					GtsPoint* ref_point = LinearMapHex(cord_in_ref, ref_in_x, ref_in_y, ref_in_z);
-
-					coords[3*nnode + 0] = ref_point->x;
-					coords[3*nnode + 1] = ref_point->y;
-					coords[3*nnode + 2] = ref_point->z;
-				}
-			}
-		}
-
-		//faire la criation des éléments pour le pillowing
-		sc_array_t toto;
-		sc_array_init(&toto, sizeof(octant_t));
-		for(int iel = 0; iel < 8; iel++)
-		{
-			octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-			octant_t * elem = (octant_t*) sc_array_push(&toto);
-
-			hexa_element_copy(elemOrig,elem);
-
-			//on doit voir si le élément demande de extrusion...
-			bool surf[6];
-			std::vector<int> aux;
-			int surf_count = 0;
-			for(int isurf = 0; isurf < 6; isurf++)
-			{
-				surf[isurf] = true;
-				for(int ino = 0; ino < 4; ino++)
-				{
-					size_t position;
-					octant_node_t key;
-					key.x = elem->nodes[FaceNodesMap[isurf][ino]].x;
-					key.y = elem->nodes[FaceNodesMap[isurf][ino]].y;
-					key.z = elem->nodes[FaceNodesMap[isurf][ino]].z;
-
-					bool lnode = sc_hash_array_lookup(hash_b_mat, &key, &position);
-					if(!lnode) surf[isurf] = false;
-				}
-				if(surf[isurf]) surf_count++;
-				if(surf[isurf]) aux.push_back(isurf);
-			}
-
-			if(deb) printf("Para o elemento %d eu vou extrudar %d elementos\n",elem->id,aux.size());
-
-			//on garde la connectivite original...
-			int connec[8];
-			for(int ino = 0; ino <8; ino++){
-				connec[ino] = elem->nodes[ino].id;
-			}
-
-			//extrusion se fait à chaque surface du élément
-			for(int isurf = 0; isurf < aux.size(); isurf++)
-			{
-				int new_nodes[4];
-				for(int ino = 0; ino < 4; ino++)
-				{
-					size_t position;
-					pillow_t key;
-					key.x = elem->nodes[FaceNodesMap[aux[isurf]][ino]].x;
-					key.y = elem->nodes[FaceNodesMap[aux[isurf]][ino]].y;
-					key.z = elem->nodes[FaceNodesMap[aux[isurf]][ino]].z;
-
-					bool lnode = sc_hash_array_lookup(pillow, &key, &position);
-					pillow_t* p = (pillow_t*) sc_array_index(&pillow->a,position);
-					if(deb) printf("Id do no %d, mata:%d matb:%d elem mat %d\n",p->id,p->mata,p->matb,elem->n_mat);
-					if(elem->n_mat == p->mata)
-					{
-						new_nodes[ino] = p->a;
-					}
-					else
-					{
-						new_nodes[ino] = p->b;
-					}
-				}
-
-				if(createPillow)
-				{
-					//créer l'élément
-					octant_t* pelem;
-					pelem = (octant_t*) sc_array_push(&mesh->elements);
-					pelem->id = mesh->elements.elem_count-1;
-					pelem->n_mat = elem->n_mat;
-					pelem->pad = elem->pad;
-					pelem->x = elem->x;
-					pelem->y = elem->y;
-					pelem->z = elem->z;
-
-					//printf("  Face:%d\n",aux[isurf]);
-					for(int ino = 0; ino < 4; ino++)
-					{
-						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].id = connec[FaceNodesMap[aux[isurf]][ino]];
-						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].fixed = elem->nodes[FaceNodesMap[aux[isurf]][ino]].fixed;
-						pelem->nodes[FaceNodesMap_inv[aux[isurf]][ino]].id= new_nodes[ino];
-
-						elemOrig->nodes[FaceNodesMap[aux[isurf]][ino]].id = new_nodes[ino];
-
-						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].fixed= 0;
-						octant_node_t* node = (octant_node_t*) sc_array_index(&hash_nodes->a,connec[FaceNodesMap[aux[isurf]][ino]]);
-						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].x = node->x;
-						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].y = node->y;
-						pelem->nodes[FaceNodesMap[aux[isurf]][ino]].z = node->z;
-						node = (octant_node_t*) sc_array_index(&hash_nodes->a,new_nodes[ino]);
-						pelem->nodes[FaceNodesMap_inv[aux[isurf]][ino]].x = node->x;
-						pelem->nodes[FaceNodesMap_inv[aux[isurf]][ino]].y = node->y;
-						pelem->nodes[FaceNodesMap_inv[aux[isurf]][ino]].z = node->z;
-					}
-				}
-			}
-
-			if(aux.size() == 0 || move_node)
-			{
-				//chercher le noeuds pour trouver la bonne connectivite dans les éléments
-				for (int ino = 0; ino < 8; ino++)
-				{
-					int ina = 0;
-					int inb = 0;
-					pillow_t keyP;
-					size_t positionP;
-					keyP.x = elem->nodes[ino].x;
-					keyP.y = elem->nodes[ino].y;
-					keyP.z = elem->nodes[ino].z;
-					bool lnode = sc_hash_array_lookup(pillow, &keyP, &positionP);
-					if(lnode)
-					{
-						pillow_t * p = (pillow_t*) sc_array_index(&pillow->a,positionP);
-
-						octant_node_t * a = (octant_node_t*) sc_array_index(&hash_nodes->a,p->a);
-						octant_node_t * b = (octant_node_t*) sc_array_index(&hash_nodes->a,p->b);
-						if(deb) printf("%d %d %d %d %d %d\n",elem->id,p->id,p->a, a->id,p->b,b->id);
-
-						if(createPillow)
-						{
-							if(elem->n_mat == p->mata)
-							{
-								elemOrig->nodes[ino].id = p->a;
-								elemOrig->nodes[ino].x = a->x;
-								elemOrig->nodes[ino].y = a->y;
-								elemOrig->nodes[ino].z = a->z;
-							}
-							else
-							{
-								elemOrig->nodes[ino].id = p->b;
-								elemOrig->nodes[ino].x = b->x;
-								elemOrig->nodes[ino].y = b->y;
-								elemOrig->nodes[ino].z = b->z;
-							}
-						}
-					}
-				}
-			}
-			sc_array_reset(&toto);
-		}
-		sc_hash_array_destroy(pillow);
-	}
-
-	//faire la atualisation de mon tableau de noeuds
-	sc_array_reset(&mesh->nodes);
-	sc_hash_array_rip(hash_nodes,&mesh->nodes);
-
-	//update the x y z coords in mesh->elements
-	for(int oc = 0; oc < mesh->oct.elem_count; oc++)
-	{
-		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct,oc);
-		for(int iel = 0; iel < 8; iel++)
-		{
-			octant_t* elem = (octant_t*) sc_array_index(&mesh->elements,oct->id[iel]);
-			for(int ino = 0; ino < 8; ino ++)
-			{
-				octant_node_t* node = (octant_node_t*) sc_array_index(&mesh->nodes,elem->nodes[ino].id);
-				elem->nodes[ino].x = node->x;
-				elem->nodes[ino].y = node->y;
-				elem->nodes[ino].z = node->z;
-			}
-		}
-	}
-}
-
-void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat)
+void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat)
 {
 
 	bool deb = false;
@@ -1086,7 +385,6 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 
 			for(int isurf = 0; isurf < 6; isurf++){
 				bool surf = true;
-				//int aux[3][4] = {-1};
 				int new_nodes[4] = {-1};
 
 				//check if the surface should be pillowed
@@ -1187,7 +485,10 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							if(elem->n_mat == 1) p->b = ra->id;
 							if(elem->n_mat == 0) p->pa = true;
 							if(elem->n_mat == 1) p->pb = true;
-
+							if(ra->id == -1)
+							{
+								printf("ra->id == -1 id:%d",ra->id);
+							}
 							double cord_in_ref[3];
 							cord_in_ref[0] = (x - elem->nodes[0].x)/6 -1;
 							cord_in_ref[1] = (y - elem->nodes[0].y)/6 -1;
@@ -1197,15 +498,15 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							coords.push_back(ref_point->x);
 							coords.push_back(ref_point->y);
 							coords.push_back(ref_point->z);
-
-							//coords.push_back(ref_point->x);
-							//coords.push_back(ref_point->y);
-							//coords.push_back(ref_point->z);
 						}else{
 							octant_node_t* ra = (octant_node_t*) sc_array_index(&hash_nodes->a,position);
 							new_nodes[ive] = ra->id;
 							if(elem->n_mat == 0) p->a = ra->id;
 							if(elem->n_mat == 1) p->b = ra->id;
+							if(ra->id == -1)
+							{
+								printf("no else ra->id == -1 id:%d",ra->id);
+							}
 						}
 					}
 
@@ -1214,8 +515,7 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 					{
 						//printf("entrei para fazer elementos\n");
 						//créer l'élément
-						octant_t* pelem;
-						pelem = (octant_t*) sc_array_push(&mesh->elements);
+						octant_t* pelem = (octant_t*) sc_array_push(&mesh->elements);
 						pelem->id = mesh->elements.elem_count-1;
 						pelem->n_mat = elem->n_mat;
 						pelem->pad = elem->pad;
@@ -1241,6 +541,10 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							pelem->nodes[FaceNodesMap_inv[isurf][ino]].z = node->z;
 
 							elemOrig->nodes[FaceNodesMap[isurf][ino]].id = new_nodes[ino];
+
+							if(new_nodes[ino]==-1){
+								printf("New node == -1");
+							}
 						}
 					}
 				}
@@ -1248,6 +552,7 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 		}
 
 		//element update
+		//TODO bug here when I have an element tha there are no surface only a vertex or an edge
 		for(int ive = 0; ive < pillow->a.elem_count; ive++){
 			pillow_t* p = (pillow_t*) sc_array_index(&pillow->a,ive);
 			for(int iel = 0; iel < p->list_elem; iel++){
@@ -1276,7 +581,7 @@ void Pillowing_new(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<i
 							}
 							if(el->nodes[ino].id == -1){
 								printf("Me acharam antes %d, p->a: %d p->b: %d\n",el->id,p->a,p->b);
-								printf("ino: %d pid:%d elnodeid%d or:%d\n",ino,p->id,el->nodes[ino].id,ori);
+								printf("ino: %d pid:%d elnodeid: %d or %d\n",ino,p->id,el->nodes[ino].id,ori);
 								el->nodes[ino].id = ori;
 
 								printf("Sou o octree numero %d\n",ioc);
@@ -1893,9 +1198,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	//Make the pillow
 	start = std::chrono::steady_clock::now( );
 	printf("     Pillow Layer\n");
-	//Pillowing(mesh, coords,nodes_b_mat);
-	//Pillowing_oct(mesh, coords,nodes_b_mat);
-	Pillowing_new(mesh, coords,nodes_b_mat);
+	Pillowing(mesh, coords,nodes_b_mat);
 	fprintf(mesh->profile,"    Time in PillowLayer %lld millisecond(s).\n",elapsed.count());
 	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
