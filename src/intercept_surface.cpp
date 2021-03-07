@@ -375,9 +375,9 @@ GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
 		const double zz = CGAL::to_double(pp.z());
 		//std::cout << "   " << xx << "   " << yy
 		//<< "   " << zz << std::endl;
-		aux.push_back(xx);
-		aux.push_back(yy);
-		aux.push_back(zz);
+		//aux.push_back(xx);
+		//aux.push_back(yy);
+		//aux.push_back(zz);
 
 		out = gts_point_new(gts_point_class(),xx,yy,zz);
 

@@ -92,6 +92,7 @@ void Adjust_material(hexa_tree_t *mesh) {
 	}
 }
 
+
 void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& element_ids, const char* surface_bathy) {
 
 	bool over, over1;
@@ -100,9 +101,57 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 	GtsBBox* bbox = mesh->gdata.bbox;
 	GNode *bbt_bathymetry = mesh->gdata.bbt;
 
+
+	//TODO redo using triangle interception
 	//for all the mesh
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		/*
+		elem->n_mat = -1;
+		GtsPoint * point;
+
+		//getting the baricenter of the upper surface;
+		//find the centroid of the upper surface
+		double cord_in_x[8], cord_in_y[8], cord_in_z[8];
+		//add the nodes in the coord vector
+		for (int ii = 0; ii < 8; ii++) {
+			cord_in_x[ii] = coords[3 * elem->nodes[ii].id + 0];
+			cord_in_y[ii] = coords[3 * elem->nodes[ii].id + 1];
+			cord_in_z[ii] = coords[3 * elem->nodes[ii].id + 2];
+		}
+
+		//superficie superior
+		double cord_in_ref[3];
+		cord_in_ref[0] = 0;
+		cord_in_ref[1] = 0;
+		cord_in_ref[2] = 1;
+		point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
+
+		GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), point->x,point->y,point->z);
+		GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), point->x,point->y,2*bbox->z2);
+		point = NULL;
+
+		GtsSegment * segments = gts_segment_new(gts_segment_class(), v1, v2);
+		GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments);
+		GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+		if (list == NULL) continue;
+		while (list) {
+			GtsBBox *b = GTS_BBOX(list->data);
+			point = SegmentTriangleIntersectionCgal(segments, GTS_TRIANGLE(b->bounded));
+			if (point) {
+				break;
+			}
+			list = list->next;
+		}
+
+		if(point){
+			elem->n_mat = 0;
+		} else {
+			elem->n_mat = 1;
+		}
+		 */
+
 		elem->n_mat = -1;
 		GtsPoint * point;
 
@@ -137,10 +186,12 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 			elem->n_mat = 0;
 		}
 		gts_object_destroy(GTS_OBJECT(point));
+
 	}
 
 	//now we check only the elements in the interface region aka mesh->octree
-	for (int ioc = 0; ioc <  mesh->oct.elem_count; ++ioc) {
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc)
+	{
 		octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 		octant_t *elem[8];
 		GtsPoint * point;

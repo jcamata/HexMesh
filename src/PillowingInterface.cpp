@@ -428,45 +428,29 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						for(int ielp = 0; ielp < p->list_elem; ielp++){
 							octant_t* el = (octant_t*) sc_array_index(&mesh->elements,p->elem[ielp]);
 							if(el->n_mat == elem->n_mat && p->list_face[ielp] != 0){
-								//printf("eu o elemento %d sou irmãozinho do elemento %d pq tenho o memso material\n",el->id,elem->id);
-								//printf("Tenho %d faces para alterar\n",p->list_face[ielp]);
 								for(int iisu = 0; iisu < p->list_face[ielp]; iisu++){
-									//printf("face: %d\n",p->face[ielp][iisu]);
-									//printf("%d %d %d %d %d %d\n",flag[0],flag[1],flag[2],flag[3],flag[4],flag[5]);
 									if(p->face[ielp][iisu]==0 && flag[0]){
-										//printf("entrei no 0\n");
 										x += 6;
 										flag[0] = false;
 									}else if(p->face[ielp][iisu]==1 && flag[1]){
-										//printf("entrei no 1\n");
 										x -= 6;
 										flag[1] = false;
 									}else if(p->face[ielp][iisu]==2 && flag[2]){
-										//printf("entrei no 2\n");
 										y += 6;
 										flag[2] = false;
 									}else if(p->face[ielp][iisu]==3 && flag[3]){
-										//printf("entrei no 3\n");
 										y -= 6;
 										flag[3] = false;
 									}else if(p->face[ielp][iisu]==4 && flag[4]){
-										//printf("entrei no 4\n");
 										z += 6;
 										flag[4] = false;
 									}else if(p->face[ielp][iisu]==5 && flag[5]){
-										//printf("entrei no 5\n");
 										z -= 6;
 										flag[5] = false;
 									}
-									//printf("%d %d %d %d %d %d\n",flag[0],flag[1],flag[2],flag[3],flag[4],flag[5]);
 								}
 							}
 						}
-						//printf("I found the node: %d for this node I have %d faces\n",p->id,p->list_face[iel]);
-
-						//printf("Node Alterado: %d %d %d\n",x,y,z);
-						//printf("%d %d %d\n",x,y,z);
-
 						//ajouter sur la hash de noeuds
 						octant_node_t key;
 						key.x = x;
@@ -485,9 +469,9 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 							if(elem->n_mat == 1) p->b = ra->id;
 							if(elem->n_mat == 0) p->pa = true;
 							if(elem->n_mat == 1) p->pb = true;
-							if(ra->id == -1)
+							if(p->a == -1 && p->b == -1)
 							{
-								printf("ra->id == -1 id:%d",ra->id);
+								printf("if id:%d pid:%d pa:%d pb:%d\n",ra->id,p->id,p->a,p->b);
 							}
 							double cord_in_ref[3];
 							cord_in_ref[0] = (x - elem->nodes[0].x)/6 -1;
@@ -503,9 +487,9 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 							new_nodes[ive] = ra->id;
 							if(elem->n_mat == 0) p->a = ra->id;
 							if(elem->n_mat == 1) p->b = ra->id;
-							if(ra->id == -1)
+							if(p->a == -1 && p->b == -1)
 							{
-								printf("no else ra->id == -1 id:%d",ra->id);
+								printf("else d:%d pid:%d pa:%d pb:%d\n",ra->id,p->id,p->a,p->b);
 							}
 						}
 					}
@@ -552,18 +536,25 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 		}
 
 		//element update
-		//TODO bug here when I have an element tha there are no surface only a vertex or an edge
+		//TODO bug here when I have some elements that there are no surface only a vertex or an edge
+		// and no valid pillow
+		int edgecount = 0;
+		for(int ied = 0; ied < 12; ied++){
+			if(oct->edge[ied]){
+				edgecount++;
+			}
+		}
+
+		bool checkFlag = false;
 		for(int ive = 0; ive < pillow->a.elem_count; ive++){
 			pillow_t* p = (pillow_t*) sc_array_index(&pillow->a,ive);
 			for(int iel = 0; iel < p->list_elem; iel++){
 				octant_t* el = (octant_t*) sc_array_index(&mesh->elements,p->elem[iel]);
-				if(p->list_face[iel] == 0){
-					//printf("para o pillow %d, ive:%d, sou o elemento %d\n",p->id,ive,el->id);
+				//if(p->list_face[iel] == 0) {
+				if(p->list_face[iel] == 0 && (edgecount > 2 && edgecount < 7)){
 					for(int ino = 0; ino < 8; ino++){
 						if(el->nodes[ino].id == p->id){
 							int ori = el->nodes[ino].id;
-							//printf("Sou o ino:%d e sou o no:%d\n",ino,p->id);
-							//printf("o id do no pode ser %d ou %d\n",p->a,p->b);
 							if(el->n_mat == 0){
 								octant_node_t* node = (octant_node_t*) sc_array_index(&hash_nodes->a,p->a);
 								el->nodes[ino].id = p->a;
@@ -580,15 +571,21 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 								el->nodes[ino].z = node->z;
 							}
 							if(el->nodes[ino].id == -1){
-								printf("Me acharam antes %d, p->a: %d p->b: %d\n",el->id,p->a,p->b);
-								printf("ino: %d pid:%d elnodeid: %d or %d\n",ino,p->id,el->nodes[ino].id,ori);
+								printf("element id: %d, p->a: %d p->b: %d\n",el->id,p->a,p->b);
+								printf("ino: %d p->id:%d elment node id: %d or %d\n",ino,p->id,el->nodes[ino].id,ori);
 								el->nodes[ino].id = ori;
-
-								printf("Sou o octree numero %d\n",ioc);
+								octant_node_t* nodea = (octant_node_t*) sc_array_index(&hash_nodes->a,p->a);
+								octant_node_t* nodeb = (octant_node_t*) sc_array_index(&hash_nodes->a,p->b);
+								printf("node from p->a: %d node from p->b: %d\n",nodea->id,nodeb->id);
+								printf("I'm the octree number: %d the cut edge were: ",ioc);
 								for(int ied = 0; ied < 12; ied++){
-									printf("%d ",oct->edge[ied]);
+									//printf("%d ",oct->edge[ied]);
+									if(oct->edge[ied]){
+										printf("%d ",ied);
+									}
 								}
 								printf("\n");
+								checkFlag = true;
 							}
 						}
 					}
@@ -596,7 +593,10 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 			}
 		}
 
-
+		if(checkFlag)
+		{
+			printf("Please verify the mesh. Maybe, there are some elements with the wrong connectivity\n");
+		}
 		//TODO check here the bug...
 		//sc_array_destroy(&el_copy);
 		for(int iel = 0; iel < 0; iel++)

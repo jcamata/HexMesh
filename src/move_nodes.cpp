@@ -79,6 +79,7 @@ int no_equal_fn1(const void *v, const void *u, const void *w) {
 
 }
 
+/*
 GtsPoint* FoundInterception(hexa_tree_t* mesh,std::vector<double>& coords,int node1, int node2){
 	GtsPoint *point = NULL;
 	GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
@@ -90,7 +91,7 @@ GtsPoint* FoundInterception(hexa_tree_t* mesh,std::vector<double>& coords,int no
 	//if (list == NULL) continue;
 	while (list) {
 		GtsBBox *b = GTS_BBOX(list->data);
-		point = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
+		point = SegmentTriangleIntersectionCgal(segments, GTS_TRIANGLE(b->bounded));
 		if (point) {
 			break;
 		}
@@ -98,7 +99,7 @@ GtsPoint* FoundInterception(hexa_tree_t* mesh,std::vector<double>& coords,int no
 	}
 	return point;
 }
-
+*/
 void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector<int>& nodes_b_mat){
 
 	bool deb = false;
@@ -143,7 +144,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					if (list == NULL) continue;
 					while (list) {
 						GtsBBox *b = GTS_BBOX(list->data);
-						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						point[edge] = SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded));
 						if (point[edge]) {
 							break;
 						}
