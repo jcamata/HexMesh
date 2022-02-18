@@ -93,22 +93,16 @@ void Adjust_material(hexa_tree_t *mesh) {
 }
 
 
-void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<int>& element_ids, const char* surface_bathy) {
+void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* surface_bathy) {
 
-	bool over, over1;
 	bool deb = false;
-
 	GtsBBox* bbox = mesh->gdata.bbox;
-	GNode *bbt_bathymetry = mesh->gdata.bbt;
 
-
-	//TODO redo using triangle interception
 	//for all the mesh
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-		/*
-		elem->n_mat = -1;
+		elem->n_mat = 1;
 		GtsPoint * point;
 
 		//getting the baricenter of the upper surface;
@@ -125,7 +119,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 		double cord_in_ref[3];
 		cord_in_ref[0] = 0;
 		cord_in_ref[1] = 0;
-		cord_in_ref[2] = 1;
+		cord_in_ref[2] = 0;
 		point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
 
 		GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), point->x,point->y,point->z);
@@ -148,48 +142,10 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, std::vector<
 		if(point){
 			elem->n_mat = 0;
 		} else {
-			elem->n_mat = 1;
 		}
-		 */
-
-		elem->n_mat = -1;
-		GtsPoint * point;
-
-		//getting the baricenter of the upper surface;
-		//find the centroid of the upper surface
-		double cord_in_x[8], cord_in_y[8], cord_in_z[8];
-		//add the nodes in the coord vector
-		for (int ii = 0; ii < 8; ii++) {
-			cord_in_x[ii] = coords[3 * elem->nodes[ii].id + 0];
-			cord_in_y[ii] = coords[3 * elem->nodes[ii].id + 1];
-			cord_in_z[ii] = coords[3 * elem->nodes[ii].id + 2];
-		}
-
-		//superficie superior
-		double cord_in_ref[3];
-		cord_in_ref[0] = 0;
-		cord_in_ref[1] = 0;
-		cord_in_ref[2] = -1;
-		point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
-		over = is_point_over_surface(point, bbt_bathymetry);
-
-		//superficie inferior
-		cord_in_ref[0] = 0;
-		cord_in_ref[1] = 0;
-		cord_in_ref[2] = 0.9;
-		point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
-		over1 = is_point_over_surface(point, bbt_bathymetry);
-
-		if(over && over1){
-			elem->n_mat = 1;
-		} else {
-			elem->n_mat = 0;
-		}
-		gts_object_destroy(GTS_OBJECT(point));
-
 	}
 
-	//now we check only the elements in the interface region aka mesh->octree
+	//now we check only the elements in the interface region aka mesh->octree mesh->oct.elem_count
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc)
 	{
 		octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);

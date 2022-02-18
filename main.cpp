@@ -41,27 +41,20 @@ int main(int argc, char** argv)
 	hexa_mesh(&mesh);
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the initialization %lld millisecond(s).\n",elapsed.count());
-	//std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	const char * bathy;
 	const char * topo;
-	if(false){
-		bathy = "./input/Argostoli_bathy.gts";
-		topo =  "./input/Argostoli_topo.gts";
+	if(true){
+		bathy = "./input/KefaloniaSmall1_bathy.gts";
+		topo =  "./input/KefaloniaSmall1_topo.gts";
 	}
 	if(true){
-		bathy = "./input/Kefalonia_bathy.gts";
-		topo =  "./input/Kefalonia_topo.gts";
-	}
-	if(true){
-		bathy = "./input/Japan_bathy.gts";
-		topo =  "./input/Japan_topo.gts";
-	}
-	if(false){
-		bathy = "./input/teste11_bathy.gts";
-		topo =  "./input/teste11_topo.gts";
+		bathy = "./input/Kashiwazaki_bathy.gts";
+		topo =  "./input/Kashiwazaki_topo.gts";
 	}
 
+	printf("Loading files:\n \t %s \n \t %s \n",bathy,topo);
 	start = std::chrono::steady_clock::now( );
 	// Note that here we use a gts file.
 	// There is a tool called stl2gts that convert STL files to GTS.
@@ -88,7 +81,7 @@ int main(int argc, char** argv)
 	start = std::chrono::steady_clock::now( );
 	printf(" Applying material \n\n");
 	element_ids.clear();
-	Apply_material(&mesh, coords, element_ids, bathy);
+	Apply_material(&mesh, coords, bathy);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the Apply_material %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in Apply_material "<< elapsed.count() <<" millisecond(s)."<< std::endl;
@@ -99,21 +92,21 @@ int main(int argc, char** argv)
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the PillowingInterface %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in PillowingInterface "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-
+	/*
 	start = std::chrono::steady_clock::now( );
 	printf(" Mesh Optimization\n\n");
-	MeshOptimization(&mesh, coords, nodes_b_mat);
+	//MeshOptimization(&mesh, coords, nodes_b_mat);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the MeshOptimization %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in MeshOptimization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	start = std::chrono::steady_clock::now( );
 	printf(" Extrude elements\n\n");
-	ExtrudePMLElements(&mesh,coords);
+	//ExtrudePMLElements(&mesh,coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the ExtrudePMLElements %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in ExtrudePMLElements "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-
+*/
 	//clean vectors
 	std::vector<int>().swap(element_ids);
 	std::vector<int>().swap(nodes_b_mat);
@@ -121,13 +114,13 @@ int main(int argc, char** argv)
 	start = std::chrono::steady_clock::now( );
 	printf(" Writing output files \n\n");
 	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
-	hexa_mesh_write_msh(&mesh, "mesh", &coords);
-	hexa_mesh_write_h5(&mesh,"mesh", coords);
+	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
+	//hexa_mesh_write_h5(&mesh,"mesh", coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in Writing output files %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in Writing output files "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
-	hexa_mesh_write_vtk(&mesh, "test",NULL);
+	//hexa_mesh_write_vtk(&mesh, "test",NULL);
 	start = std::chrono::steady_clock::now( );
 
 	printf(" Cleaning variables \n\n");
