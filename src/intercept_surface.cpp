@@ -312,6 +312,7 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
 			(E->z + D->z) / 2.);
 }
 
+//Found the intersection between a line and a triangle
 GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
 
 	GtsPoint * A, * B, * C, * D, * E;

@@ -370,7 +370,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 
 	Mesquite::MsqPrintError err(std::cout);
 
-	for(int isurf = 0; isurf < 4 ; isurf ++)
+	for(int isurf = 0; isurf < 6 ; isurf ++)
 	{
 		//hash of the fixed nodes
 		//I need this...
@@ -508,7 +508,7 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			}
 		}
 
-		if(nelem!=0)
+		if(nelem!=0 && isurf < 4)
 		{
 			//finalmente mandando a malha pro mesquite...
 			Mesquite::MeshImpl mesq_mesh(nvertices,nelem,Mesquite::QUADRILATERAL, &fixed_nodes[0], &Scoors[0], &conn_local[0]);
@@ -611,16 +611,98 @@ void OptSurface(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t*
 			mesq_mesh.clear();
 		}
 
+		else if(isurf == 4 || isurf == 5){
+
+			for(int iter = 0; iter < 20; iter++){
+				for(int ive = 0 ; ive < nvertices ;ive++ ){
+					octant_node_t * gnode = (octant_node_t*) sc_array_index(&hash_SurfaceNodes->a, ive);
+
+					octant_node_t key;
+					size_t position;
+					//central node
+					key.x = gnode->x;
+					key.y = gnode->y;
+					key.z = gnode->z;
+					bool lnode;
+					double x,y,z;
+					x = coords[3*gnode->id+0];
+					y = coords[3*gnode->id+1];
+					z = coords[3*gnode->id+2];
+
+					bool tre = sc_hash_array_lookup(hash_Fixed,&key,&position);
+					if(tre && gnode->fixed == -1){
+						//printf("Sou o no %d e sou fixo\n",gnode->id);
+					}
+					if(!tre && gnode->fixed != -1)
+					{
+						//printf("Sou o no %d e sou livre\n",gnode->id);
+						//printf("Meus amigos sao: ");
+						double xx = 0;
+						double yy = 0;
+						int countx = 0;
+						//node x+
+						key.x = gnode->x+12;
+						key.y = gnode->y;
+						lnode = sc_hash_array_lookup(hash_SurfaceNodes,&key,&position);
+						if(lnode){
+							octant_node_t * ln1 = (octant_node_t*) sc_array_index(&hash_SurfaceLocal->a, position);
+							xx += coords[3*ln1->id+0];
+							yy += coords[3*ln1->id+1];
+							//printf("%d ",ln1->id);
+							countx++;
+						}
+						//node x-
+						key.x = gnode->x-12;
+						key.y = gnode->y;
+						lnode = sc_hash_array_lookup(hash_SurfaceNodes,&key,&position);
+						if(lnode){
+							octant_node_t * ln2 = (octant_node_t*) sc_array_index(&hash_SurfaceLocal->a, position);
+							xx += coords[3*ln2->id+0];
+							yy += coords[3*ln2->id+1];
+							//printf("%d ",ln2->id);
+							countx++;
+						}
+						//node y+
+						key.x = gnode->x;
+						key.y = gnode->y+12;
+						lnode = sc_hash_array_lookup(hash_SurfaceNodes,&key,&position);
+						if(lnode){
+							octant_node_t * ln3 = (octant_node_t*) sc_array_index(&hash_SurfaceLocal->a, position);
+							xx += coords[3*ln3->id+0];
+							yy += coords[3*ln3->id+1];
+							//printf("%d ",ln3->id);
+							countx++;
+						}
+						//node y-
+						key.x = gnode->x;
+						key.y = gnode->y-12;
+						lnode = sc_hash_array_lookup(hash_SurfaceNodes,&key,&position);
+						if(lnode){
+							octant_node_t * ln4 = (octant_node_t*) sc_array_index(&hash_SurfaceLocal->a, position);
+							xx += coords[3*ln4->id+0];
+							yy += coords[3*ln4->id+1];
+							//printf("%d ",ln4->id);
+							countx++;
+						}
+						//printf("\n");
+						if(countx > 0){
+							//printf("Coords: x:%f y:%f z:%f\n",x,y,z);
+							//printf("Coords: x:%f y:%f z:%f\n",xx/countx,yy/countx,z);
+							coords[3*gnode->id+0] = x+0.001*xx/countx;
+							coords[3*gnode->id+1] = y+0.001*yy/countx;
+							coords[3*gnode->id+2] = z;
+						}
+					}
+				}
+			}
+		}
 		elem_aux.clear();
 		conn_local.clear();
 		Scoors.clear();
 		free(fixed_nodes);
 		sc_hash_array_destroy(hash_SurfaceNodes);
 	}
-
-	//TODO opt surf for isurf four and five
 }
-
 
 void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* hash_FixedNodes){
 
@@ -640,6 +722,9 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		for(int j = 0; j < 8; j++)
 		{
 			tmp[j] = elem->nodes[j].id;
+			if(elem->nodes[j].fixed == -1){
+				fixed_nodes[elem->nodes[j].id] = true;
+			}
 		}
 		conn[c] = tmp[4]; c++;
 		conn[c] = tmp[5]; c++;
@@ -650,14 +735,6 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 		conn[c] = tmp[2]; c++;
 		conn[c] = tmp[3]; c++;
 
-		if(elem->tem == -1)
-		{
-			for(int j = 0; j < 8; j++)
-			{
-				fixed_nodes[elem->nodes[j].id] = true;
-			}
-		}
-
 		int isurf;
 		isurf = 0;
 		elem->surf[isurf].ext = false;
@@ -666,7 +743,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_start &&
 				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_start)
 		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
 		}
 
 		isurf = 1;
@@ -676,7 +753,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 				elem->nodes[FaceNodesMap[isurf][2]].x == mesh->x_end &&
 				elem->nodes[FaceNodesMap[isurf][3]].x == mesh->x_end)
 		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
 		}
 
 		isurf = 2;
@@ -686,7 +763,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_start &&
 				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_start)
 		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
 		}
 
 		isurf = 3;
@@ -696,7 +773,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 				elem->nodes[FaceNodesMap[isurf][2]].y == mesh->y_end &&
 				elem->nodes[FaceNodesMap[isurf][3]].y == mesh->y_end)
 		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
 		}
 
 		isurf = 4;
@@ -706,7 +783,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 				elem->nodes[FaceNodesMap[isurf][2]].z == 0 &&
 				elem->nodes[FaceNodesMap[isurf][3]].z == 0)
 		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
 		}
 
 		isurf = 5;
@@ -716,7 +793,7 @@ void OptVolume(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_array_t* 
 				elem->nodes[FaceNodesMap[isurf][2]].z == 3*mesh->max_z  &&
 				elem->nodes[FaceNodesMap[isurf][3]].z == 3*mesh->max_z )
 		{
-			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][0]].id] = true;
+			for(int ino = 0; ino < 4; ino++) fixed_nodes[elem->nodes[FaceNodesMap[isurf][ino]].id] = true;
 		}
 	}
 
@@ -2001,7 +2078,7 @@ void OptVolumeParallel(hexa_tree_t* mesh, std::vector<double>& coords, sc_hash_a
 		queue1.run_instructions(&mesq_mesh, err);
 	}
 
-	if(true)
+	if(false)
 	{
 		// creates an intruction queue
 		InstructionQueue queue1;
@@ -2109,8 +2186,9 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 
 	printf("     Surface Optimization\n");
 	OptSurface(mesh, coords, hash_FixedNodes);
+	//LaplaceSurface(mesh, coords, hash_FixedNodes);
 
-	if(mesh->mpi_size == 1 || mesh->mpi_size !=1)
+	if(mesh->mpi_size == 1 || mesh->mpi_size !=1 && false)
 	{
 		//Sequential implementation
 		//the exterior boundaries were fixed

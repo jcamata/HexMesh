@@ -111,7 +111,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 	int coord_count = 0;
 
-	//only for the complet octrees
+	//only for the complete octrees
 	//moving the nodes in the edges...
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 		octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
@@ -895,6 +895,7 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 		node->fixed = 2;
 	}
 
+	//loop in octree structure
 	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++){
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 
