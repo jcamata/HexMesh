@@ -42,7 +42,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	std::vector<int>pad;
 	for(int i = 0; i<mesh->elements.elem_count;i++){
 		octant_t* h = (octant_t*) sc_array_index(&mesh->elements, i);
-		mat.push_back(h->n_mat);
+		mat.push_back(h->n_mat+1);
 		pad.push_back(h->pad);
 		for(int j=0;j<8;j++){
 			connect.push_back(h->nodes[j].id);
