@@ -132,7 +132,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 		if (list == NULL) continue;
 		while (list) {
 			GtsBBox *b = GTS_BBOX(list->data);
-			point = SegmentTriangleIntersectionCgal(segments, GTS_TRIANGLE(b->bounded));
+			point = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
 			if (point) {
 				break;
 			}

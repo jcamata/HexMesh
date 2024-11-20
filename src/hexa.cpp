@@ -236,13 +236,17 @@ void hexa_tree_cube(hexa_tree_t* mesh)
 	//TODO
 	//preciso achar aqui o numero para dividir esse negocio... assim eu consigo ajustar o numero de camadas e tal...
 	nz = 0;
+        std::vector<int> aa = {40, 40, 60,100};
+	int ccount = 0;
 	//int nz_test = nz+internal_step;
 	while( (nz+internal_step) <= mesh->ncellz)
 	{
-		if((nlayer+1)%60 == 0) {
+		//if((nlayer+1)%aa[ccount] == 0) {
+		if((nlayer+1)%30 == 0) {
 			coarse_step*=3;
 			hexa_transient_layer(mesh,nz,coarse_step, internal_step, level);
 			internal_step*=3;
+			ccount++;
 		} else {
 			bool nz_ext= false;
 			if(nz == 0 || !((nz+2*internal_step) <= mesh->ncellz)) nz_ext = true;

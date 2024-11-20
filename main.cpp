@@ -42,6 +42,7 @@ int main(int argc, char** argv)
 
 	//deal with the mpi com
 	hexa_mesh(&mesh);
+	
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the initialization %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
@@ -52,15 +53,26 @@ int main(int argc, char** argv)
 	if(true){
 		bathy = "./input/KefaloniaSmall1_bathy.gts";
 		topo =  "./input/KefaloniaSmall1_topo.gts";
-		bathy = "./input/Kefalonia_bathy.gts";
-		topo =  "./input/Kefalonia_topo.gts";
+		bathy = "./input/ArgostoliGEBCO_bathy.gts";
+		topo =  "./input/ArgostoliGEBCO_topo.gts";
 	}
-	if(false){
+	if(true){
 		bathy = "./input/Kashiwazaki_bathy.gts";
 		topo =  "./input/Kashiwazaki_topo.gts";
 		//bathy = "./input/Japon_Gatti_bathy.gts";
 		//topo =  "./input/Japon_Gatti_topo.gts";
 	}
+        if(false){
+               bathy = "./input/GiensGEBCO_bathy.gts";
+               topo  = "./input/GiensGEBCO_topo.gts";
+
+        }
+        if(false){
+		topo = "GiensVadim_topo.gts";
+                bathy = "GiensVadim_bathy.gts";
+        }
+
+//topo = "GiensVadim_mesh.gts";
 
 	printf("Loading files:\n \t %s \n \t %s \n",bathy,topo);
 	start = std::chrono::steady_clock::now( );
@@ -105,7 +117,7 @@ int main(int argc, char** argv)
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the PillowingInterface %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in PillowingInterface "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-/*
+
 	//opt mesh
 	start = std::chrono::steady_clock::now( );
 	printf(" Mesh Optimization\n\n");
@@ -117,26 +129,26 @@ int main(int argc, char** argv)
 	//add pml
 	start = std::chrono::steady_clock::now( );
 	printf(" Extrude elements\n\n");
-	//ExtrudePMLElements(&mesh,coords);
+	ExtrudePMLElements(&mesh,coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the ExtrudePMLElements %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in ExtrudePMLElements "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	//clean vectors
-	std::vector<int>().swap(element_ids);
-	std::vector<int>().swap(nodes_b_mat);
-*/
+	//std::vector<int>().swap(element_ids);
+	//std::vector<int>().swap(nodes_b_mat);
+
 	start = std::chrono::steady_clock::now( );
 	printf(" Writing output files \n\n");
-	hexa_mesh_write_vtk(&mesh, "mesh", &coords);
+	//hexa_mesh_write_vtk(&mesh, "/Users/lac/Desktop/chedar/mesh", &coords);
 	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
-	//hexa_mesh_write_h5(&mesh,"mesh", coords);
+	hexa_mesh_write_h5(&mesh,"mesh", coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in Writing output files %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in Writing output files "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 
-	hexa_mesh_write_vtk(&mesh, "test",NULL);
+	//hexa_mesh_write_vtk(&mesh, "test",NULL);
 	start = std::chrono::steady_clock::now( );
 
 	printf(" Cleaning variables \n\n");

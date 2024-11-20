@@ -11,12 +11,13 @@ using namespace std;
 #include <sc_containers.h>
 
 #include "hexa.h"
-#include "cgal_h.h"
+//#include "cgal_h.h"
 #include "hilbert.h"
 
 // 		Class used to save and process the intersections.
 //		It inherits Boost's visitor class
 
+/*
 class IntersectionPointsVisitor_3
 		: public boost::static_visitor<void>
 {
@@ -66,6 +67,7 @@ public:
 	typedef CGAL::cpp11::result_of<ExactKernel::Intersect_3(ExactTriangle_3, ExactSegment_3)>::type
 			Triangle_3_Intersection_Variant;
 };
+*/
 
 // Read the gts file format and create a gts surface.
 GtsSurface* SurfaceRead(const char* fname) {
@@ -311,7 +313,7 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
 			(E->y + D->y) / 2.,
 			(E->z + D->z) / 2.);
 }
-
+/*
 //Found the intersection between a line and a triangle
 GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
 
@@ -395,3 +397,5 @@ GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
 	}
 
 }
+*/
+

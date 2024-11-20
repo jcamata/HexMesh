@@ -111,7 +111,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 
 	int coord_count = 0;
 
-	//only for the complete octrees
+	//only for the complet octrees
 	//moving the nodes in the edges...
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 		octree_t* oct = (octree_t*)sc_array_index(&mesh->oct,ioc);
@@ -144,7 +144,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					if (list == NULL) continue;
 					while (list) {
 						GtsBBox *b = GTS_BBOX(list->data);
-						point[edge] = SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded));
+						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
 						if (point[edge]) {
 							break;
 						}
@@ -895,7 +895,6 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 		node->fixed = 2;
 	}
 
-	//loop in octree structure
 	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++){
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 

@@ -195,7 +195,7 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 	bool deb = false;
 	bool clamped = true;
 
-	//create a hash for the noeud
+	//noeud hash
 	sc_hash_array_t*   hash_nodes  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn , node_equal_fn, &clamped);
 	for(int iel = 0; iel < mesh->elements.elem_count; iel++)
 	{
@@ -218,7 +218,7 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 		}
 	}
 
-	//faire noeud hash nodes_b_mat (nodes between materials)
+	//faire noeud hash nodes_b_mat
 	sc_hash_array_t*   hash_b_mat  = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn, node_equal_fn, &clamped);
 	for(int ino = 0; ino < nodes_b_mat.size(); ino++)
 	{
@@ -248,7 +248,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 	sc_hash_array_t* pillow = (sc_hash_array_t*) sc_hash_array_new(sizeof(pillow_t),pillow_hash_fn,pillow_equal_fn,&clamped);
 	bool uniqueflag = true;
 
-	//loop in the octree
 	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc++){
 		octree_t* oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 
@@ -264,8 +263,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 				key.z = elem->nodes[ino].z;
 				key.id = elem->nodes[ino].id;
 
-				//check if the node is in the nodes that where moved
-				// in other words, nodes in the split surface
 				bool lnode = sc_hash_array_lookup(hash_b_mat, &key, &position);
 
 				if(lnode)
@@ -273,7 +270,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 					if(deb) printf("J'ai trouvée le noeud %d (nombre:%d) élémént %d (nombre:%d) du octree %d\n",ino,key.id,iel,elem->id,ioc);
 
 					//on commance a ajouter les noeuds dans la hahs de pillow
-					// add the node in the hash that will be pillowed
 					pillow_t keyP;
 					size_t positionP;
 					keyP.x = elem->nodes[ino].x;
@@ -294,8 +290,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						p->pb = false;
 						// on doit gerer les surfaces que sont fixes...
 						p->list_face[0] = 0;
-						// loop in the surfaces that can be constrained or not...
-						// if a surface is not constrained it will be "extruded" to create a new element...
 						for(int isurf = 0; isurf < 3; isurf++)
 						{
 							bool surf = true;
@@ -322,8 +316,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 						p1->elem[p1->list_elem] = elem->id;
 						p1->list_face[p1->list_elem] = 0;
 
-						// the node is in more then one element
-						// we add the surfaces of the other element also...
 						for(int isurf = 0; isurf < 3; isurf++)
 						{
 							bool surf = true;
@@ -359,7 +351,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 			octant_t* elemOrig = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 			octant_t * elem = (octant_t*) sc_array_push(&toto);
 
-			// I have the original element and a copy of the
 			hexa_element_copy(elemOrig,elem);
 
 			double ref_in_x[8],ref_in_y[8],ref_in_z[8];
@@ -550,18 +541,14 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 		}
 
 		bool checkFlag = false;
-		//loop in the vertex of nodes between materials
 		for(int ive = 0; ive < pillow->a.elem_count; ive++){
 			pillow_t* p = (pillow_t*) sc_array_index(&pillow->a,ive);
-			//loop in the elements that share the node
-			// here I update the node id, x,y, and z of the "main mesh"
 			for(int iel = 0; iel < p->list_elem; iel++){
 				octant_t* el = (octant_t*) sc_array_index(&mesh->elements,p->elem[iel]);
 				if(p->list_face[iel] == 0 ) {
 					for(int ino = 0; ino < 8; ino++){
 						if(el->nodes[ino].id == p->id){
 							int ori = el->nodes[ino].id;
-							// split by material to understand if the node is in one side or another
 							if(el->n_mat == 0){
 								octant_node_t* node = (octant_node_t*) sc_array_index(&hash_nodes->a,p->a);
 								el->nodes[ino].id = p->a;
@@ -577,7 +564,6 @@ void Pillowing(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>&
 								el->nodes[ino].y = node->y;
 								el->nodes[ino].z = node->z;
 							}
-							// the node was not created and we have some problem here...
 							if(el->nodes[ino].id == -1 ){
 								//loohup no pg global
 								//printf("Sou o elemento:%d %d meu no estranho eh o %d\n",el->id,p->elem[iel],ino);
