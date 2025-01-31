@@ -98,7 +98,6 @@ void RedoMap(hexa_tree_t *mesh, int layers_x, int layers_y, int layers_z)
 		octant_node_t *node = (octant_node_t *)sc_array_index(&mesh->nodes, ino);
 		node->x = node->x + 12 * layers_x;
 		node->y = node->y + 12 * layers_y;
-		;
 		node->z = node->z + 12 * layers_z;
 	}
 }
@@ -134,8 +133,6 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	bool clamped = true;
 	sc_hash_array_t *hash_nodes = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_node_t), node_hash_fn, node_equal_fn, &clamped);
 
-	double xinit = coords[0];
-	double yinit = coords[1];
 	for (int ino = 0; ino < mesh->nodes.elem_count; ino++)
 	{
 		size_t position;
@@ -153,8 +150,6 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 			r->z = node->z;
 			r->id = node->id;
 		}
-	    coords[3*ino + 0] =  coords[3*ino + 0] - xinit;
-		coords[3*ino + 1] =  coords[3*ino + 1] - yinit;
 	}
 
 	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);

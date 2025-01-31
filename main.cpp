@@ -62,15 +62,15 @@ int main(int argc, char** argv)
 		//bathy = "./input/Japon_Gatti_bathy.gts";
 		//topo =  "./input/Japon_Gatti_topo.gts";
 	}
-        if(false){
-               bathy = "./input/GiensGEBCO_bathy.gts";
-               topo  = "./input/GiensGEBCO_topo.gts";
+	if(false){
+			bathy = "./input/GiensGEBCO_bathy.gts";
+			topo  = "./input/GiensGEBCO_topo.gts";
 
-        }
-        if(false){
-		topo = "GiensVadim_topo.gts";
-                bathy = "GiensVadim_bathy.gts";
-        }
+	}
+	if(false){
+	topo = "GiensVadim_topo.gts";
+			bathy = "GiensVadim_bathy.gts";
+	}
 
 //topo = "GiensVadim_mesh.gts";
 
@@ -140,7 +140,7 @@ int main(int argc, char** argv)
 
 	start = std::chrono::steady_clock::now( );
 	printf(" Writing output files \n\n");
-	//hexa_mesh_write_vtk(&mesh, "/Users/lac/Desktop/chedar/mesh", &coords);
+    // hexa_mesh_write_vtk(&mesh, "mesh", &coords); //there is some bug in the connectivity
 	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
 	hexa_mesh_write_h5(&mesh,"mesh", coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
