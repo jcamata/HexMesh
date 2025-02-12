@@ -61,6 +61,10 @@ int main(int argc, char** argv)
 		topo =  "./input/Kashiwazaki_topo.gts";
 		//bathy = "./input/Japon_Gatti_bathy.gts";
 		//topo =  "./input/Japon_Gatti_topo.gts";
+		topo = "./input/KKNPP_SRTM3_utm.gts";
+		bathy = "./input/KKNPP_basin_WGS84_SRTM3_utm.gts";
+                //bathy = "./input/JapanEBCO_bathy.gts";
+                //topo =  "./input/JapanEBCO_topo.gts";
 	}
 	if(false){
 			bathy = "./input/GiensGEBCO_bathy.gts";
@@ -96,7 +100,7 @@ int main(int argc, char** argv)
 	//apply a deformation in the mesh to fit the bathy
 	start = std::chrono::steady_clock::now( );
 	printf(" Project nodes to the surface\n\n");
-	MovingNodes(&mesh,coords, nodes_b_mat,bathy);
+	//MovingNodes(&mesh,coords, nodes_b_mat,bathy);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the MovingNodes %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in MovingNodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;

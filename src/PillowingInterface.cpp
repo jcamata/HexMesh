@@ -1228,7 +1228,7 @@ void PillowingInterface(hexa_tree_t* mesh, std::vector<double>& coords, std::vec
 	//Make the pillow
 	start = std::chrono::steady_clock::now( );
 	printf("     Pillow Layer\n");
-	Pillowing(mesh, coords,nodes_b_mat);
+	//Pillowing(mesh, coords,nodes_b_mat);
 	fprintf(mesh->profile,"    Time in PillowLayer %lld millisecond(s).\n",elapsed.count());
 	//std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 

@@ -120,6 +120,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 		cord_in_ref[0] = 0;
 		cord_in_ref[1] = 0;
 		cord_in_ref[2] = 0;
+		cord_in_ref[2] = -1;
 		point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
 
 		GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), point->x,point->y,point->z);
