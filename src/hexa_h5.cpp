@@ -35,7 +35,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	hsize_t dims[RANK];               // dataset dimensions
 	hsize_t dim[1];
 	///////
-	
+	unsigned int assign_elem_nodes[8];
 	if (coords == NULL) {
 		assign_elem_nodes[0] = 0;
 		assign_elem_nodes[1] = 1;
