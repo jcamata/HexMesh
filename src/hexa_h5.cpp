@@ -35,7 +35,27 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	hsize_t dims[RANK];               // dataset dimensions
 	hsize_t dim[1];
 	///////
-
+	
+	if (coords == NULL) {
+		assign_elem_nodes[0] = 0;
+		assign_elem_nodes[1] = 1;
+		assign_elem_nodes[2] = 2;
+		assign_elem_nodes[3] = 3;
+		assign_elem_nodes[4] = 4;
+		assign_elem_nodes[5] = 5;
+		assign_elem_nodes[6] = 6;
+		assign_elem_nodes[7] = 7;
+	} else {
+		assign_elem_nodes[0] = 4;
+		assign_elem_nodes[1] = 5;
+		assign_elem_nodes[2] = 6;
+		assign_elem_nodes[3] = 7;
+		assign_elem_nodes[4] = 0;
+		assign_elem_nodes[5] = 1;
+		assign_elem_nodes[6] = 2;
+		assign_elem_nodes[7] = 3;
+	}
+	
 	// put the data in vectors
 	std::vector<int> connect;
 	std::vector<int> mat;
@@ -45,7 +65,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 		mat.push_back(h->n_mat);
 		pad.push_back(h->pad);
 		for(int j=0;j<8;j++){
-			connect.push_back(h->nodes[j].id);
+			connect.push_back(h->nodes[assign_elem_nodes[j]].id);
 		}
 	}
 
