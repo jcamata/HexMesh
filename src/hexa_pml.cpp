@@ -154,9 +154,9 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
 	bool edge, face, point;
-	point = true;
+	point = false;
 	face = true;
-	edge = true;
+	edge = false;
 
 	sc_hash_array_t *hash_matpml = (sc_hash_array_t *)sc_hash_array_new(sizeof(pmlmat_t), pml_hash_fn, pml_equal_fn, &clamped);
 
@@ -314,23 +314,23 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					int node3 = elem->nodes[aux[3]].id;
 					double x[8], y[8], z[8];
 
-					x[0] = coords[3 * node0 + 0] - n_l * X_pml / layers_x;
-					x[1] = coords[3 * node1 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[2] = coords[3 * node2 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[3] = coords[3 * node3 + 0] - n_l * X_pml / layers_x;
-					x[4] = coords[3 * node0 + 0] - n_l * X_pml / layers_x;
-					x[5] = coords[3 * node1 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[6] = coords[3 * node2 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[7] = coords[3 * node3 + 0] - n_l * X_pml / layers_x;
+					x[1] = coords[3 * node0 + 0] - n_l * X_pml / layers_x;
+					x[0] = coords[3 * node1 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[3] = coords[3 * node2 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[2] = coords[3 * node3 + 0] - n_l * X_pml / layers_x;
+					x[5] = coords[3 * node0 + 0] - n_l * X_pml / layers_x;
+					x[4] = coords[3 * node1 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[7] = coords[3 * node2 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[6] = coords[3 * node3 + 0] - n_l * X_pml / layers_x;
 
-					pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12 * (n_l + 0);
-					pml_e->nodes[1].x = elem->nodes[aux[1]].x - 12 * (n_l + 1);
-					pml_e->nodes[2].x = elem->nodes[aux[2]].x - 12 * (n_l + 1);
-					pml_e->nodes[3].x = elem->nodes[aux[3]].x - 12 * (n_l + 0);
-					pml_e->nodes[4].x = elem->nodes[aux[0]].x - 12 * (n_l + 0);
-					pml_e->nodes[5].x = elem->nodes[aux[1]].x - 12 * (n_l + 1);
-					pml_e->nodes[6].x = elem->nodes[aux[2]].x - 12 * (n_l + 1);
-					pml_e->nodes[7].x = elem->nodes[aux[3]].x - 12 * (n_l + 0);
+					pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12 * (n_l + 1);
+					pml_e->nodes[1].x = elem->nodes[aux[1]].x - 12 * (n_l + 0);
+					pml_e->nodes[2].x = elem->nodes[aux[2]].x - 12 * (n_l + 0);
+					pml_e->nodes[3].x = elem->nodes[aux[3]].x - 12 * (n_l + 1);
+					pml_e->nodes[4].x = elem->nodes[aux[0]].x - 12 * (n_l + 1);
+					pml_e->nodes[5].x = elem->nodes[aux[1]].x - 12 * (n_l + 0);
+					pml_e->nodes[6].x = elem->nodes[aux[2]].x - 12 * (n_l + 0);
+					pml_e->nodes[7].x = elem->nodes[aux[3]].x - 12 * (n_l + 1);
 
 					y[0] = coords[3 * node0 + 1];
 					y[1] = coords[3 * node0 + 1];
