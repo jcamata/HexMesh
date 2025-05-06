@@ -17,12 +17,12 @@
 #include <ctime>
 
 #include <chrono>
-
+#include <iostream> 
 /*
  * 
  */
 
-int main(int argc, char** argv)
+ int main(int argc, char** argv)
 {
 
 	hexa_tree_t mesh;
@@ -33,11 +33,13 @@ int main(int argc, char** argv)
 	auto start = std::chrono::steady_clock::now( );
 	int l = atoi(argv[1]);
 
+	//read input file
+	inpreader(&mesh);
 	//mpi init
 	hexa_init(argc, argv, &mesh);
 	// set the initial number of elements in x,y,z
 	hexa_tree_init(&mesh, l);
-	// build the referene mesh
+	// build the reference mesh
 	hexa_tree_cube(&mesh);
 
 	//deal with the mpi com
@@ -47,36 +49,11 @@ int main(int argc, char** argv)
 	fprintf(mesh.profile,"Time in the initialization %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
-
 	const char * bathy;
 	const char * topo;
-	if(true){
-		bathy = "./input/KefaloniaSmall1_bathy.gts";
-		topo =  "./input/KefaloniaSmall1_topo.gts";
-		bathy = "./input/ArgostoliGEBCO_bathy.gts";
-		topo =  "./input/ArgostoliGEBCO_topo.gts";
-	}
-	if(true){
-		bathy = "./input/Kashiwazaki_bathy.gts";
-		topo =  "./input/Kashiwazaki_topo.gts";
-		//bathy = "./input/Japon_Gatti_bathy.gts";
-		//topo =  "./input/Japon_Gatti_topo.gts";
-		topo = "./input/KKNPP_SRTM3_utm.gts";
-		bathy = "./input/KKNPP_basin_WGS84_SRTM3_utm.gts";
-                //bathy = "./input/JapanEBCO_bathy.gts";
-                //topo =  "./input/JapanEBCO_topo.gts";
-	}
-	if(false){
-			bathy = "./input/GiensGEBCO_bathy.gts";
-			topo  = "./input/GiensGEBCO_topo.gts";
-
-	}
-	if(false){
-	topo = "GiensVadim_topo.gts";
-			bathy = "GiensVadim_bathy.gts";
-	}
-
-//topo = "GiensVadim_mesh.gts";
+	
+	topo = mesh.input.topo.c_str();
+	bathy = mesh.input.inter.c_str();
 
 	printf("Loading files:\n \t %s \n \t %s \n",bathy,topo);
 	start = std::chrono::steady_clock::now( );

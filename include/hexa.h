@@ -19,6 +19,26 @@
 
 #define HEXA_DEBUG_
 
+struct Material {
+    std::string type;
+    double vp;
+    double vs;
+    double rho;
+};
+
+struct Input {
+    std::string topo;
+    int interfaceNumber;
+    std::string inter;
+    int ref;
+    int nmat;
+    std::vector<Material> materials;
+    bool PML;
+    double pmlx, pmly, pmlz;
+	double A , npow;
+    int nlayersx, nlayersy, nlayersz;
+    bool meshOpt;
+};
 typedef struct pmlmat
 {
 	double xmin =  1e10;
@@ -183,6 +203,8 @@ typedef struct
 
 typedef struct
 {
+
+	Input   input;
 
 	int64_t total_n_elements;
 	int64_t total_n_nodes;
@@ -419,7 +441,8 @@ void hexa_finalize(hexa_tree_t *mesh);
 void hexa_tree_init(hexa_tree_t *mesh, int max_levels);
 void hexa_tree_destroy(hexa_tree_t *mesh);
 void hexa_tree_cube(hexa_tree_t *mesh);
-int hexa_tree_write_vtk(hexa_tree_t *mesh, const char *filename);
+int  inpreader(hexa_tree_t *mesh);
+int  hexa_tree_write_vtk(hexa_tree_t *mesh, const char *filename);
 void hexa_transition_element(hexa_tree_t *mesh, int i, int j, int k, int step, int level, int ext);
 void hexa_processors_interval(hexa_tree_t *mesh);
 void hexa_mesh(hexa_tree_t *tree);

@@ -105,13 +105,13 @@ void RedoMap(hexa_tree_t *mesh, int layers_x, int layers_y, int layers_z)
 void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 {
 
-	const double X_pml = 10e3;
-	const double Y_pml = 10e3;
-	const double Z_pml = 10e3;
+	const double X_pml = mesh->input.pmlx;
+	const double Y_pml = mesh->input.pmly;
+	const double Z_pml = mesh->input.pmlz;
 
-	const int layers_x = 2;
-	const int layers_y = 2;
-	const int layers_z = 2;
+	const int layers_x = mesh->input.nlayersx;
+	const int layers_y = mesh->input.nlayersy;
+	const int layers_z = mesh->input.nlayersz;
 
 	// material.input file 2 SEM3D
 	FILE *fp;
@@ -383,8 +383,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 					pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 					pml_e->n_mat = pmlT->mat;
-					pmlT->xmin = std::min(pmlT->xmin, x[1]);
-					pmlT->xmax = std::max(pmlT->xmax, x[0]);
+					pmlT->xmin = std::min(pmlT->xmin, x[0]);
+					pmlT->xmax = std::max(pmlT->xmax, x[1]);
 					pmlT->ymin = 0;
 					pmlT->ymax = 0;
 					pmlT->zmin = 0;
@@ -1340,8 +1340,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 						pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 						pml_e->n_mat = pmlT->mat;
-						pmlT->xmin = std::min(pmlT->xmin, x[1]);
-						pmlT->xmax = std::max(pmlT->xmax, x[0]);
+						pmlT->xmin = std::min(pmlT->xmin, x[0]);
+						pmlT->xmax = std::max(pmlT->xmax, x[1]);
 						pmlT->ymin = std::min(pmlT->ymin, y[2]);
 						pmlT->ymax = std::max(pmlT->ymax, y[0]);
 						pmlT->zmin = 0;
@@ -1625,8 +1625,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 						pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 						pml_e->n_mat = pmlT->mat;
-						pmlT->xmin = std::min(pmlT->xmin, x[1]);
-						pmlT->xmax = std::max(pmlT->xmax, x[0]);
+						pmlT->xmin = std::min(pmlT->xmin, x[0]);
+						pmlT->xmax = std::max(pmlT->xmax, x[1]);
 						pmlT->ymin = std::min(pmlT->ymin, y[0]);
 						pmlT->ymax = std::max(pmlT->ymax, y[2]);
 						pmlT->zmin = 0;
@@ -1816,8 +1816,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 						pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 						pml_e->n_mat = pmlT->mat;
-						pmlT->xmin = std::min(pmlT->xmin, x[1]);
-						pmlT->xmax = std::max(pmlT->xmax, x[0]);
+						pmlT->xmin = std::min(pmlT->xmin, x[0]);
+						pmlT->xmax = std::max(pmlT->xmax, x[1]);
 						pmlT->ymin = 0;
 						pmlT->ymax = 0;
 						pmlT->zmin = std::min(pmlT->zmin, z[0]);
@@ -2512,8 +2512,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 							pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 							pml_e->n_mat = pmlT->mat;
-							pmlT->xmin = std::min(pmlT->xmin, x[1]);
-							pmlT->xmax = std::max(pmlT->xmax, x[0]);
+							pmlT->xmin = std::min(pmlT->xmin, x[0]);
+							pmlT->xmax = std::max(pmlT->xmax, x[1]);
 							pmlT->ymin = std::min(pmlT->ymin, y[2]);
 							pmlT->ymax = std::max(pmlT->ymax, y[0]);
 							pmlT->zmin = std::min(pmlT->zmin, z[0]);
@@ -2806,8 +2806,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 							pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 							pml_e->n_mat = pmlT->mat;
-							pmlT->xmin = std::min(pmlT->xmin, x[1]);
-							pmlT->xmax = std::max(pmlT->xmax, x[0]);
+							pmlT->xmin = std::min(pmlT->xmin, x[0]);
+							pmlT->xmax = std::max(pmlT->xmax, x[1]);
 							pmlT->ymin = std::min(pmlT->ymin, y[0]);
 							pmlT->ymax = std::max(pmlT->ymax, y[2]);
 							pmlT->zmin = std::min(pmlT->zmin, z[0]);
@@ -2837,9 +2837,6 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	{
 		mesh->part_nodes[ino] = mesh->mpi_rank;
 	}
-
-	//printf(" Ajust material properties\n\n");
-	//Adjust_material(mesh);
 
 	if (mesh->mpi_rank == 0)
 	{
@@ -2889,29 +2886,46 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	}
 
 	double vp, vs, rho;
-	vp = 6300;
-	vs = 2300;
-	rho = 5000;
+	std::string type;
 	tot_n_mat++;
 	fprintf(fp1, "%d\n", tot_n_mat+hash_matpml->a.elem_count);
 	for(int imat = 0; imat < tot_n_mat; imat++){
-		fprintf(fp1, "S %f %f %f %f %f\n",vp,vs,rho,0.0,0.0 );
+		vp = mesh->input.materials[imat].vp;
+		vs = mesh->input.materials[imat].vs;
+		rho = mesh->input.materials[imat].rho;
+		type = mesh->input.materials[imat].type; 
+		fprintf(fp1, "%s %f %f %f %f %f\n",type.c_str(),vp,vs,rho,0.0,0.0 );
 	}
+	printf("Total number of materials: %d\n",tot_n_mat+hash_matpml->a.elem_count);
 	for(int imat = 0; imat < hash_matpml->a.elem_count; imat++){
-		fprintf(fp1, "P %f %f %f %f %f\n",vp,vs,rho,0.0,0.0);
+		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, imat);
+		vp = mesh->input.materials[pmlT->matref].vp;
+		vs = mesh->input.materials[pmlT->matref].vs;
+		rho = mesh->input.materials[pmlT->matref].rho;
+		type = mesh->input.materials[pmlT->matref].type; 
+		if(type == "F"){
+			type = "L";
+		}else{
+			type = "P";
+		}
+		fprintf(fp1, "%s %f %f %f %f %f\n",type.c_str(),vp,vs,rho,0.0,0.0);
 	}
 	fprintf(fp1, "# PML properties\n");
 	fprintf(fp1, "# npow,Apow,posX,widthX,posY,widthY,posZ,widthZ,mat\n");
 
 	for(int imat = 0; imat < hash_matpml->a.elem_count; imat++){
 		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, imat);
+		
 		double xx = pmlT->xmin;
 		double yy = pmlT->ymin;
 		double zz = pmlT->zmin;
+
 		double dx = pmlT->xmax - pmlT->xmin;
 		double dy = pmlT->ymax - pmlT->ymin;
 		double dz = pmlT->zmax - pmlT->zmin;
-		fprintf(fp1, "2 10.000000 %f %f %f %f %f %f %d\n",xx,dx,yy,dy,zz,dz,pmlT->matref+1);
+		double A = mesh->input.A;
+		double npow = mesh->input.npow;
+		fprintf(fp1, "%f %f %f %f %f %f %f %f %d\n",npow,A,xx,dx,yy,dy,zz,dz,pmlT->matref+1);
 	}
 
 	fclose(fp1);
