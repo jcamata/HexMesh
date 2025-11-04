@@ -31,11 +31,13 @@ struct Input {
     int interfaceNumber;
     std::string inter;
     int ref;
+    int movingNodes;
     int nmat;
     std::vector<Material> materials;
     bool PML;
     double pmlx, pmly, pmlz;
-	double A , npow;
+    double z;
+    double A , npow;
     int nlayersx, nlayersy, nlayersz;
     bool meshOpt;
 };
@@ -485,6 +487,8 @@ void CopyPropEl(hexa_tree_t *mesh, int id, octant_t *elem1);
 void SetElemPML(hexa_tree_t *tree, octant_t *elem);
 void ApplyElement(hexa_tree_t *mesh, std::vector<double> &coords, int id, int iel, int *id_node,
 				  double *local_ref_x, double *local_ref_y, double *local_ref_z, std::vector<int> &ord, sc_hash_array_t *hash_nodes);
+void SurfaceIdentification(hexa_tree_t* mesh, std::vector<double>& coords);
+void RedoNodeMapping(hexa_tree_t* mesh);
 
 // void communicate_global_ids(hexa_tree_t* mesh);
 

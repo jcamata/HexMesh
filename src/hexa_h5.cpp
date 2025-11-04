@@ -15,7 +15,6 @@ using namespace std;
 
 #include "hexa.h"
 
-
 void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords)
 {
 
@@ -99,7 +98,6 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	delete dataset1;
 	delete dataspace1;
 
-
 	//write the Material:
 	//
 	dim[0] = mesh->local_n_elements;
@@ -166,23 +164,5 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 
 
 	fclose (fid);
-
-/*
-	fid = fopen("united.xmf", "w");
-
-    fprintf(fid, "<?xml version=\"1.0\" ?>\n");
-    fprintf(fid, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\">\n");
-    fprintf(fid, "<Xdmf Version=\"2.0\" xmlns:xi=\"http://www.w3.org/2001/XInclude\">\n");
-    fprintf(fid, "<Domain>\n");
-
-    for (const auto& filename : filenames) {
-        fprintf(fid, "<xi:include href=\"%s\" />\n", filename.c_str());
-    }
-
-    fprintf(fid, "</Domain>\n");
-    fprintf(fid, "</Xdmf>\n");
-
-    fclose(fid);
-*/
 }
 

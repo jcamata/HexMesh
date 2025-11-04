@@ -22,7 +22,7 @@
  * 
  */
 
- int main(int argc, char** argv)
+ int main(int argc,char** argv)
 {
 
 	hexa_tree_t mesh;
@@ -31,30 +31,30 @@
 	std::vector<int> element_ids;
 	std::vector<int> nodes_b_mat;
 	auto start = std::chrono::steady_clock::now( );
-	int l = atoi(argv[1]);
 
 	//read input file
 	inpreader(&mesh);
+    int l = mesh.input.ref;
 	//mpi init
-	hexa_init(argc, argv, &mesh);
+	hexa_init(l, argv, &mesh);
 	// set the initial number of elements in x,y,z
-	hexa_tree_init(&mesh, l);
+	//hexa_tree_init(&mesh, l);
+	hexa_tree_init(&mesh, mesh.input.ref);
 	// build the reference mesh
 	hexa_tree_cube(&mesh);
 
 	//deal with the mpi com
 	hexa_mesh(&mesh);
-	
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in the initialization %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in the initialization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	const char * bathy;
 	const char * topo;
-	
+	printf("GetMeshFromSurface\n");
 	topo = mesh.input.topo.c_str();
 	bathy = mesh.input.inter.c_str();
-
+	printf("GetMeshFromSurface\n");
 	printf("Loading files:\n \t %s \n \t %s \n",bathy,topo);
 	start = std::chrono::steady_clock::now( );
 	// Note that here we use a gts file.
@@ -66,6 +66,10 @@
 	fprintf(mesh.profile,"Time in the GetMeshFromSurface %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in the GetMeshFromSurface "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
+	if (mesh.input.interfaceNumber == 0) {
+
+
+	} else {
 	//find the elements intercepted by the bathy
 	start = std::chrono::steady_clock::now( );
 	GetInterceptedElements(&mesh, coords, element_ids, bathy);
@@ -74,14 +78,16 @@
 	fprintf(mesh.profile,"Time in the GetInterceptedElements %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in GetInterceptedElements "<< elapsed.count() <<" millisecondsecond(s)."<< std::endl;
 
-	//apply a deformation in the mesh to fit the bathy
-	start = std::chrono::steady_clock::now( );
-	printf(" Project nodes to the surface\n\n");
-	//MovingNodes(&mesh,coords, nodes_b_mat,bathy);
-	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-	fprintf(mesh.profile,"Time in the MovingNodes %lld millisecond(s).\n",elapsed.count());
-	std::cout << "Time in MovingNodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-	
+	if (mesh.input.movingNodes == 1){
+	    //apply a deformation in the mesh to fit the bathy
+	    start = std::chrono::steady_clock::now( );
+	    printf(" Project nodes to the surface\n\n");
+	    MovingNodes(&mesh,coords, nodes_b_mat,bathy);
+	    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+	    fprintf(mesh.profile,"Time in the MovingNodes %lld millisecond(s).\n",elapsed.count());
+	    std::cout << "Time in MovingNodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	}
+}
 	//apply material
 	start = std::chrono::steady_clock::now( );
 	printf(" Applying material \n\n");
@@ -91,30 +97,46 @@
 	fprintf(mesh.profile,"Time in the Apply_material %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in Apply_material "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
-	//do the pillow
-	start = std::chrono::steady_clock::now( );
-	printf(" Applying pillowing process\n\n");
-	PillowingInterface(&mesh,coords, nodes_b_mat);
-	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-	fprintf(mesh.profile,"Time in the PillowingInterface %lld millisecond(s).\n",elapsed.count());
-	std::cout << "Time in PillowingInterface "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-
+	if (mesh.input.movingNodes == 0) {
+		// do nothing
+	} else {
+		//do the pillow
+		start = std::chrono::steady_clock::now( );
+		printf(" Applying pillowing process\n\n");
+		PillowingInterface(&mesh,coords, nodes_b_mat);
+		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh.profile,"Time in the PillowingInterface %lld millisecond(s).\n",elapsed.count());
+		std::cout << "Time in PillowingInterface "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	}
+	
 	//opt mesh
-	start = std::chrono::steady_clock::now( );
-	printf(" Mesh Optimization\n\n");
-	//MeshOptimization(&mesh, coords, nodes_b_mat);
-	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-	fprintf(mesh.profile,"Time in the MeshOptimization %lld millisecond(s).\n",elapsed.count());
-	std::cout << "Time in MeshOptimization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-
-	//add pml
-	start = std::chrono::steady_clock::now( );
-	printf(" Extrude elements\n\n");
-	ExtrudePMLElements(&mesh,coords);
-	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
-	fprintf(mesh.profile,"Time in the ExtrudePMLElements %lld millisecond(s).\n",elapsed.count());
-	std::cout << "Time in ExtrudePMLElements "<< elapsed.count() <<" millisecond(s)."<< std::endl;
-
+	if (mesh.input.meshOpt == 0 || true) {
+		// do nothing
+	} else {
+		start = std::chrono::steady_clock::now( );
+		printf(" Mesh Optimization\n\n");
+		MeshOptimization(&mesh, coords, nodes_b_mat);
+		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh.profile,"Time in the MeshOptimization %lld millisecond(s).\n",elapsed.count());
+		std::cout << "Time in MeshOptimization "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	}
+	if (mesh.input.PML == 0) {
+		// do nothing
+	} else {
+		//add pml
+		if (mesh.input.movingNodes == 0) {
+			RedoNodeMapping(&mesh);
+			SurfaceIdentification(&mesh, coords);
+		} else {
+			// do nothing
+		}
+		start = std::chrono::steady_clock::now( );
+		printf(" Extrude elements\n\n");
+		ExtrudePMLElements(&mesh,coords);
+		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
+		fprintf(mesh.profile,"Time in the ExtrudePMLElements %lld millisecond(s).\n",elapsed.count());
+		std::cout << "Time in ExtrudePMLElements "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	}
 	//clean vectors
 	//std::vector<int>().swap(element_ids);
 	//std::vector<int>().swap(nodes_b_mat);

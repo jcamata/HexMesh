@@ -313,15 +313,15 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					int node2 = elem->nodes[aux[2]].id;
 					int node3 = elem->nodes[aux[3]].id;
 					double x[8], y[8], z[8];
-
-					x[1] = coords[3 * node0 + 0] - n_l * X_pml / layers_x;
-					x[0] = coords[3 * node1 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[3] = coords[3 * node2 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[2] = coords[3 * node3 + 0] - n_l * X_pml / layers_x;
-					x[5] = coords[3 * node0 + 0] - n_l * X_pml / layers_x;
-					x[4] = coords[3 * node1 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[7] = coords[3 * node2 + 0] - (n_l + 1) * X_pml / layers_x;
-					x[6] = coords[3 * node3 + 0] - n_l * X_pml / layers_x;
+					
+					x[0] = coords[3 * node0 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[1] = coords[3 * node1 + 0] - n_l * X_pml / layers_x;
+					x[2] = coords[3 * node2 + 0] - n_l * X_pml / layers_x;
+					x[3] = coords[3 * node3 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[4] = coords[3 * node0 + 0] - (n_l + 1) * X_pml / layers_x;
+					x[5] = coords[3 * node1 + 0] - n_l * X_pml / layers_x;
+					x[6] = coords[3 * node2 + 0] - n_l * X_pml / layers_x;
+					x[7] = coords[3 * node3 + 0] - (n_l + 1) * X_pml / layers_x;
 
 					pml_e->nodes[0].x = elem->nodes[aux[0]].x - 12 * (n_l + 1);
 					pml_e->nodes[1].x = elem->nodes[aux[1]].x - 12 * (n_l + 0);
@@ -383,8 +383,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 					pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 					pml_e->n_mat = pmlT->mat;
-					pmlT->xmin = std::min(pmlT->xmin, x[0]);
 					pmlT->xmax = std::max(pmlT->xmax, x[1]);
+					pmlT->xmin = std::min(pmlT->xmin, x[0]);
 					pmlT->ymin = 0;
 					pmlT->ymax = 0;
 					pmlT->zmin = 0;
@@ -613,15 +613,15 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					pml_e->nodes[5].x = elem->nodes[aux[2]].x;
 					pml_e->nodes[6].x = elem->nodes[aux[3]].x;
 					pml_e->nodes[7].x = elem->nodes[aux[3]].x;
-
-					y[1] = coords[3 * node0 + 1] + n_l * Y_pml / layers_y;
-					y[0] = coords[3 * node1 + 1] + (n_l + 1) * Y_pml / layers_y;
-					y[3] = coords[3 * node2 + 1] + (n_l + 1) * Y_pml / layers_y;
-					y[2] = coords[3 * node3 + 1] + n_l * Y_pml / layers_y;
-					y[5] = coords[3 * node0 + 1] + n_l * Y_pml / layers_y;
-					y[4] = coords[3 * node1 + 1] + (n_l + 1) * Y_pml / layers_y;
-					y[7] = coords[3 * node2 + 1] + (n_l + 1) * Y_pml / layers_y;
-					y[6] = coords[3 * node3 + 1] + n_l * Y_pml / layers_y;
+					
+					y[0] = coords[3 * node0 + 1] + (n_l + 1) * Y_pml / layers_y;
+					y[1] = coords[3 * node1 + 1] + n_l * Y_pml / layers_y;
+					y[2] = coords[3 * node2 + 1] + n_l * Y_pml / layers_y;
+					y[3] = coords[3 * node3 + 1] + (n_l + 1) * Y_pml / layers_y;
+					y[4] = coords[3 * node0 + 1] + (n_l + 1) * Y_pml / layers_y;
+					y[5] = coords[3 * node1 + 1] + n_l * Y_pml / layers_y;
+					y[6] = coords[3 * node2 + 1] + n_l * Y_pml / layers_y;
+					y[7] = coords[3 * node3 + 1] + (n_l + 1) * Y_pml / layers_y;
 
 					pml_e->nodes[1].y = elem->nodes[aux[0]].y + 12 * (n_l + 0);
 					pml_e->nodes[0].y = elem->nodes[aux[1]].y + 12 * (n_l + 1);
@@ -727,23 +727,23 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					pml_e->nodes[6].y = elem->nodes[aux[2]].y;
 					pml_e->nodes[7].y = elem->nodes[aux[3]].y;
 
-					z[4] = coords[3 * node0 + 2] - (n_l + 1) * Z_pml / layers_z;
-					z[5] = coords[3 * node1 + 2] - (n_l + 1) * Z_pml / layers_z;
-					z[6] = coords[3 * node2 + 2] - (n_l + 1) * Z_pml / layers_z;
-					z[7] = coords[3 * node3 + 2] - (n_l + 1) * Z_pml / layers_z;
 					z[0] = coords[3 * node0 + 2] - (n_l)*Z_pml / layers_z;
 					z[1] = coords[3 * node1 + 2] - (n_l)*Z_pml / layers_z;
 					z[2] = coords[3 * node2 + 2] - (n_l)*Z_pml / layers_z;
 					z[3] = coords[3 * node3 + 2] - (n_l)*Z_pml / layers_z;
+					z[4] = coords[3 * node0 + 2] - (n_l + 1) * Z_pml / layers_z;
+					z[5] = coords[3 * node1 + 2] - (n_l + 1) * Z_pml / layers_z;
+					z[6] = coords[3 * node2 + 2] - (n_l + 1) * Z_pml / layers_z;
+					z[7] = coords[3 * node3 + 2] - (n_l + 1) * Z_pml / layers_z;
 
-					pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12 * (n_l + 1);
-					pml_e->nodes[5].z = elem->nodes[aux[1]].z + 12 * (n_l + 1);
-					pml_e->nodes[6].z = elem->nodes[aux[2]].z + 12 * (n_l + 1);
-					pml_e->nodes[7].z = elem->nodes[aux[3]].z + 12 * (n_l + 1);
 					pml_e->nodes[0].z = elem->nodes[aux[0]].z + 12 * (n_l + 0);
 					pml_e->nodes[1].z = elem->nodes[aux[1]].z + 12 * (n_l + 0);
 					pml_e->nodes[2].z = elem->nodes[aux[2]].z + 12 * (n_l + 0);
 					pml_e->nodes[3].z = elem->nodes[aux[3]].z + 12 * (n_l + 0);
+					pml_e->nodes[4].z = elem->nodes[aux[0]].z + 12 * (n_l + 1);
+					pml_e->nodes[5].z = elem->nodes[aux[1]].z + 12 * (n_l + 1);
+					pml_e->nodes[6].z = elem->nodes[aux[2]].z + 12 * (n_l + 1);
+					pml_e->nodes[7].z = elem->nodes[aux[3]].z + 12 * (n_l + 1);
 
 					for (int ino = 0; ino < 8; ino++)
 					{
@@ -764,8 +764,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					pmlT->xmax = 0;
 					pmlT->ymin = 0;
 					pmlT->ymax = 0;
-					pmlT->zmin = std::min(pmlT->zmin, z[0]);
-					pmlT->zmax = std::max(pmlT->zmax, z[4]);
+					pmlT->zmin = std::min(pmlT->zmin, z[4]);
+					pmlT->zmax = std::max(pmlT->zmax, z[0]);
 				}
 			}
 
@@ -1340,8 +1340,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 						pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 						pml_e->n_mat = pmlT->mat;
-						pmlT->xmin = std::min(pmlT->xmin, x[0]);
-						pmlT->xmax = std::max(pmlT->xmax, x[1]);
+						pmlT->xmin = std::min(pmlT->xmin, x[1]);
+						pmlT->xmax = std::max(pmlT->xmax, x[0]);
 						pmlT->ymin = std::min(pmlT->ymin, y[2]);
 						pmlT->ymax = std::max(pmlT->ymax, y[0]);
 						pmlT->zmin = 0;
@@ -1437,8 +1437,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						pml_e->n_mat = pmlT->mat;
 						pmlT->xmin = std::min(pmlT->xmin, x[0]);
 						pmlT->xmax = std::max(pmlT->xmax, x[1]);
-						pmlT->ymin = std::min(pmlT->ymin, y[2]);
-						pmlT->ymax = std::max(pmlT->ymax, y[0]);
+						pmlT->ymin = std::min(pmlT->ymin, y[0]);
+						pmlT->ymax = std::max(pmlT->ymax, y[2]);
 						pmlT->zmin = 0;
 						pmlT->zmax = 0;
 					}
@@ -1820,8 +1820,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						pmlT->xmax = std::max(pmlT->xmax, x[1]);
 						pmlT->ymin = 0;
 						pmlT->ymax = 0;
-						pmlT->zmin = std::min(pmlT->zmin, z[0]);
-						pmlT->zmax = std::max(pmlT->zmax, z[4]);
+						pmlT->zmin = std::min(pmlT->zmin, z[4]);
+						pmlT->zmax = std::max(pmlT->zmax, z[0]);
 					}
 				}
 			}
@@ -1915,8 +1915,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						pmlT->xmax = 0;
 						pmlT->ymin = std::min(pmlT->ymin, y[0]);
 						pmlT->ymax = std::max(pmlT->ymax, y[2]);
-						pmlT->zmin = std::min(pmlT->zmin, z[0]);
-						pmlT->zmax = std::max(pmlT->zmax, z[4]);
+						pmlT->zmin = std::min(pmlT->zmin, z[4]);
+						pmlT->zmax = std::max(pmlT->zmax, z[0]);
 					}
 				}
 			}
@@ -2006,8 +2006,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 						pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 						pml_e->n_mat = pmlT->mat;
-						pmlT->xmin = std::min(pmlT->xmin, x[0]);
-						pmlT->xmax = std::max(pmlT->xmax, x[1]);
+						pmlT->xmin = std::min(pmlT->xmin, x[1]);
+						pmlT->xmax = std::max(pmlT->xmax, x[0]);
 						pmlT->ymin = 0;
 						pmlT->ymax = 0;
 						pmlT->zmin = std::min(pmlT->zmin, z[0]);
@@ -2512,12 +2512,12 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 							pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 							pml_e->n_mat = pmlT->mat;
-							pmlT->xmin = std::min(pmlT->xmin, x[0]);
-							pmlT->xmax = std::max(pmlT->xmax, x[1]);
+							pmlT->xmin = std::min(pmlT->xmin, x[1]);
+							pmlT->xmax = std::max(pmlT->xmax, x[0]);
 							pmlT->ymin = std::min(pmlT->ymin, y[2]);
 							pmlT->ymax = std::max(pmlT->ymax, y[0]);
-							pmlT->zmin = std::min(pmlT->zmin, z[0]);
-							pmlT->zmax = std::max(pmlT->zmax, z[4]);
+							pmlT->zmin = std::min(pmlT->zmin, z[4]);
+							pmlT->zmax = std::max(pmlT->zmax, z[0]);
 						}
 					}
 				}
@@ -2712,8 +2712,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							pmlT->xmax = std::max(pmlT->xmax, x[1]);
 							pmlT->ymin = std::min(pmlT->ymin, y[0]);
 							pmlT->ymax = std::max(pmlT->ymax, y[2]);
-							pmlT->zmin = std::min(pmlT->zmin, z[0]);
-							pmlT->zmax = std::max(pmlT->zmax, z[4]);
+							pmlT->zmin = std::min(pmlT->zmin, z[4]);
+							pmlT->zmax = std::max(pmlT->zmax, z[0]);
 						}
 					}
 				}
@@ -2806,8 +2806,8 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							bool lmat = sc_hash_array_lookup(hash_matpml, &key, &position);
 							pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, position);
 							pml_e->n_mat = pmlT->mat;
-							pmlT->xmin = std::min(pmlT->xmin, x[0]);
-							pmlT->xmax = std::max(pmlT->xmax, x[1]);
+							pmlT->xmin = std::min(pmlT->xmin, x[1]);
+							pmlT->xmax = std::max(pmlT->xmax, x[0]);
 							pmlT->ymin = std::min(pmlT->ymin, y[0]);
 							pmlT->ymax = std::max(pmlT->ymax, y[2]);
 							pmlT->zmin = std::min(pmlT->zmin, z[0]);
@@ -2849,12 +2849,12 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	fprintf(fp, "Test\n");
 	for(int i = 0; i < hash_matpml->a.elem_count; i++){
 		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
-		if(pmlT->id < 8){
-			fprintf(fp, "Hash id: %d, mat: %d, matref: %d\n", pmlT->id, pmlT->mat, pmlT->matref);
+		//if(pmlT->id < 8){
+			fprintf(fp, "Hash id: %d, mat: %d, matref: %d, tag: %d\n", pmlT->id, pmlT->mat, pmlT->matref, pmlT->tag);
 			fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
 			fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
 			fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
-		}
+		//}
 	}
 	for(int i = 0; i < hash_matpml->a.elem_count; i++){
 		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
@@ -2915,19 +2915,282 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 	for(int imat = 0; imat < hash_matpml->a.elem_count; imat++){
 		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, imat);
-		
+
 		double xx = pmlT->xmin;
 		double yy = pmlT->ymin;
 		double zz = pmlT->zmin;
 
-		double dx = pmlT->xmax - pmlT->xmin;
-		double dy = pmlT->ymax - pmlT->ymin;
-		double dz = pmlT->zmax - pmlT->zmin;
+		double dx = std::abs(pmlT->xmin - pmlT->xmax);
+		double dy = std::abs(pmlT->ymin - pmlT->ymax);
+		double dz = std::abs(pmlT->zmin - pmlT->zmax);
+	}
+
+	for (int imat = 0; imat < hash_matpml->a.elem_count; imat++)
+	{
+		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, imat);
+
+		double dx, dy, dz = 0.0;
+		double xx = 0;
+		double yy = 0;
+		double zz = 0;
+
+		// face
+		//face = false;
+		if (face)
+		{
+			if (pmlT->id == 1)
+			{
+				dx = -mesh->input.pmlx;
+				dy = 0;
+				dz = 0;
+				xx = pmlT->xmax;
+				yy = 0;
+				zz = 0;
+			}
+			if (pmlT->id == 2)
+			{
+				dx = mesh->input.pmlx;
+				dy = 0;
+				dz = 0;
+				xx = pmlT->xmin;
+				yy = 0;
+				zz = 0;
+			}
+			if (pmlT->id == 3)
+			{
+				dx = 0;
+				dy = -mesh->input.pmly;
+				dz = 0;
+				xx = 0;
+				yy = pmlT->ymax;
+				zz = 0;
+			}
+			if (pmlT->id == 4)
+			{
+				dx = 0;
+				dy = mesh->input.pmly;
+				dz = 0;
+				xx = 0;
+				yy = pmlT->ymin;
+				zz = 0;
+			}
+			if (pmlT->id == 5)
+			{
+				dx = 0;
+				dy = 0;
+				dz = mesh->input.pmlz;
+				xx = 0;
+				yy = 0;
+				zz = pmlT->zmin;
+			}
+			if (pmlT->id == 6)
+			{
+				dx = 0;
+				dy = 0;
+				dz = -mesh->input.pmlz;
+				xx = 0;
+				yy = 0;
+				zz = pmlT->zmax;
+			}
+		}
+		// edge
+		//edge = true;
+		if (edge)
+		{
+
+			if (pmlT->id == 10 && false)
+			{
+				dx = -mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 20 && false)
+			{
+				dx = mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 30 && false)
+			{
+				dx = mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 40 && false)
+			{
+				dx = mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = 0;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 50)
+			{
+				dx = -mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = 0;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = 0;
+			}
+			if (pmlT->id == 60)
+			{
+				dx = mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = 0;
+				xx = pmlT->xmin;
+				yy = pmlT->ymax;
+				zz = 0;
+			}
+			if (pmlT->id == 70)
+			{
+				dx = mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = 0;
+				xx = pmlT->xmin;
+				yy = pmlT->ymin;
+				zz = 0;
+			}
+			if (pmlT->id == 80)
+			{
+				dx = -mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = 0;
+				xx = pmlT->xmax;
+				yy = pmlT->ymin;
+				zz = 0;
+			}
+			if (pmlT->id == 90)
+			{
+				dx = 0;
+				dy = -mesh->input.pmly;
+				dz = -mesh->input.pmlz;
+				xx = 0;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 100)
+			{
+				dx = mesh->input.pmlx;
+				dy = 0;
+				dz = -mesh->input.pmlz;
+				xx = pmlT->xmin;
+				yy = 0;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 110)
+			{
+				dx = 0;
+				dy = mesh->input.pmly;
+				dz = -mesh->input.pmlz;
+				xx = 0;
+				yy = pmlT->ymin;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 120)
+			{
+				dx = -mesh->input.pmlx;
+				dy = 0;
+				dz = -mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = 0;
+				zz = pmlT->zmax;
+			}
+		}
+		//point
+		//point = false;
+		if (point)
+		{
+			// point
+			if (pmlT->id == 1000)
+			{
+				dx = -mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = pmlT->zmin;
+			}
+			if (pmlT->id == 2000)
+			{
+				dx = mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmin;
+				yy = pmlT->ymax;
+				zz = pmlT->zmin;
+			}
+			if (pmlT->id == 3000)
+			{
+				dx = mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmin;
+				yy = pmlT->ymin;
+				zz = pmlT->zmin;
+			}
+			if (pmlT->id == 4000)
+			{
+				dx = -mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymin;
+				zz = pmlT->zmin;
+			}
+			if (pmlT->id == 5000)
+			{
+				dx = -mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = -mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 6000)
+			{
+				dx = mesh->input.pmlx;
+				dy = -mesh->input.pmly;
+				dz = -mesh->input.pmlz;
+				xx = pmlT->xmin;
+				yy = pmlT->ymax;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 7000)
+			{
+				dx = mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = -mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymin;
+				zz = pmlT->zmax;
+			}
+			if (pmlT->id == 8000)
+			{
+				dx = -mesh->input.pmlx;
+				dy = mesh->input.pmly;
+				dz = -mesh->input.pmlz;
+				xx = pmlT->xmax;
+				yy = pmlT->ymin;
+				zz = pmlT->zmax;
+			}
+		}
+
 		double A = mesh->input.A;
-		double npow = mesh->input.npow;
-		fprintf(fp1, "%f %f %f %f %f %f %f %f %d\n",npow,A,xx,dx,yy,dy,zz,dz,pmlT->matref+1);
+		int8_t npow = std::floor(mesh->input.npow);
+		fprintf(fp1, "%d %f %f %f %f %f %f %f %d\n", npow, A, xx, dx, yy, dy, zz, dz, pmlT->matref );
+		//fprintf(fp1, "%f %f %f %f %f %f %d %d\n", xx, dx, yy, dy, zz, dz, pmlT->matref + 1, pmlT->id);
 	}
 
 	fclose(fp1);
-
 }

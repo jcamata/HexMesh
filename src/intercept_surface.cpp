@@ -107,7 +107,6 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 	double dx, dy, dz;
 	double d;
 	double zmax;
-
 	sc_array_t *nodes = &mesh->nodes;
 
 	mesh->tdata.s = SurfaceRead(surface_topo);
@@ -126,7 +125,7 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 	}
 
 	// Change the box size to cut the external elements
-	double factor = 0.05;
+	double factor = 0.005;
 	double x_factor = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1)*factor;
 	double y_factor = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1)*factor;
 
@@ -138,7 +137,8 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 
 	double Lx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1);
 	double Ly = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1);
-	double zmin = ((Lx < Ly) ? -Lx : -Ly);
+	//double zmin = ((Lx < Ly) ? -Lx : -Ly);
+	double zmin = - mesh->input.z;
 
 	// Get grid-spacing at x and y direction
 	dx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1) / (double) mesh->ncellx;
