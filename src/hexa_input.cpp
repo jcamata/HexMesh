@@ -6,12 +6,59 @@
 #include <unordered_map>
 #include "hexa.h"
 #include "pml.h"
+#include <regex>
+
 void parseMaterial(const std::string &line, std::vector<Material> &materials)
 {
     std::istringstream iss(line);
     Material mat;
     iss >> mat.type >> mat.vp >> mat.vs >> mat.rho;
     materials.push_back(mat);
+}
+
+// trim helpers
+static inline void ltrim(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(),
+        [](unsigned char ch){ return !std::isspace(ch); }));
+}
+static inline void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(),
+        [](unsigned char ch){ return !std::isspace(ch); }).base(), s.end());
+}
+static inline void trim(std::string &s) { ltrim(s); rtrim(s); }
+
+// parse_zcuts: accept a RHS like "4000; 5000; 20000" (may contain leading spaces)
+// and populate `out` with the numeric values. This implementation splits on
+// ';', trims tokens and uses std::stod with basic error handling.
+void parse_zcuts(const std::string &line, std::vector<double> &out) {
+    out.clear();
+    std::string s = line;
+    // remove everything after inline comment markers just in case
+    size_t cpos = s.find('#');
+    if (cpos != std::string::npos) s.erase(cpos);
+    cpos = s.find("//");
+    if (cpos != std::string::npos) s.erase(cpos);
+
+    std::stringstream ss(s);
+    std::string token;
+    while (std::getline(ss, token, ';')) {
+        trim(token);
+        if (token.empty()) continue;
+        try {
+            size_t idx = 0;
+            double v = std::stod(token, &idx);
+            std::string rest = token.substr(idx);
+            trim(rest);
+            if (!rest.empty()) {
+                std::cerr << "Warning: trailing characters after number in zcuts token '" << token << "'\n";
+                continue;
+            }
+            out.push_back(v);
+        } catch (const std::exception &e) {
+            std::cerr << "Warning: failed to parse zcuts token '" << token << "': " << e.what() << "\n";
+            // continue parsing remaining tokens
+        }
+    }
 }
 
 Input readInputFile(const std::string &filePath)
@@ -111,11 +158,14 @@ Input readInputFile(const std::string &filePath)
         {
             input.meshOpt = std::stoi(line.substr(line.find('=') + 1)) == 1;
         }
+        else if (line.find("zcuts") == 0)
+        {
+            parse_zcuts(line.substr(line.find('=') + 1), input.zcut);
+        }
         else if (line.find("z") == 0) {
             input.z = std::stoi(line.substr(line.find('=') + 1));
         }
     }
-
     file.close();
     return input;
 }
@@ -131,6 +181,12 @@ int inpreader(hexa_tree_t *mesh)
     std::cout << "Inter: " << input.inter << std::endl;
     std::cout << "Refinement Level: " << input.ref << std::endl;
     std::cout << "Z-Depth: " << input.z << std::endl;
+    std::cout << "Z-Cuts: ";
+    for (const auto &zcut : input.zcut)
+    {
+        std::cout << zcut << " ";
+    }
+    std::cout << std::endl;
     std::cout << "Number of Materials: " << input.nmat << std::endl;
     for (const auto &mat : input.materials)
     {

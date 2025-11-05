@@ -40,6 +40,7 @@ struct Input {
     double A , npow;
     int nlayersx, nlayersy, nlayersz;
     bool meshOpt;
+	std::vector<double> zcut;
 };
 typedef struct pmlmat
 {
