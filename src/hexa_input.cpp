@@ -16,7 +16,6 @@ void parseMaterial(const std::string &line, std::vector<Material> &materials)
     materials.push_back(mat);
 }
 
-// trim helpers
 static inline void ltrim(std::string &s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
         [](unsigned char ch){ return !std::isspace(ch); }));
@@ -27,13 +26,10 @@ static inline void rtrim(std::string &s) {
 }
 static inline void trim(std::string &s) { ltrim(s); rtrim(s); }
 
-// parse_zcuts: accept a RHS like "4000; 5000; 20000" (may contain leading spaces)
-// and populate `out` with the numeric values. This implementation splits on
-// ';', trims tokens and uses std::stod with basic error handling.
 void parse_zcuts(const std::string &line, std::vector<double> &out) {
     out.clear();
     std::string s = line;
-    // remove everything after inline comment markers just in case
+
     size_t cpos = s.find('#');
     if (cpos != std::string::npos) s.erase(cpos);
     cpos = s.find("//");
@@ -56,7 +52,6 @@ void parse_zcuts(const std::string &line, std::vector<double> &out) {
             out.push_back(v);
         } catch (const std::exception &e) {
             std::cerr << "Warning: failed to parse zcuts token '" << token << "': " << e.what() << "\n";
-            // continue parsing remaining tokens
         }
     }
 }
@@ -87,7 +82,6 @@ Input readInputFile(const std::string &filePath)
         if (line.empty())
             continue;
 
-        // Parse key-value pairs
         if (line.find("topo") == 0)
         {
             input.topo = line.substr(line.find('=') + 1);
@@ -166,7 +160,7 @@ Input readInputFile(const std::string &filePath)
             input.z = std::stoi(line.substr(line.find('=') + 1));
         }
     }
-    file.close();
+    file.close();    
     return input;
 }
 
@@ -175,7 +169,7 @@ int inpreader(hexa_tree_t *mesh)
     std::string filePath = "./HexMesh.input";
     Input input = readInputFile(filePath);
     mesh->input = input;
-    // Output the parsed data for verification
+
     std::cout << "Topo: " << input.topo << std::endl;
     std::cout << "Interface Number: " << input.interfaceNumber << std::endl;
     std::cout << "Inter: " << input.inter << std::endl;
@@ -192,11 +186,28 @@ int inpreader(hexa_tree_t *mesh)
     {
         std::cout << "Material: " << mat.type << " " << mat.vp << " " << mat.vs << " " << mat.rho << std::endl;
     }
+    
+    std::cout << "Moving Nodes: " << input.movingNodes << std::endl;
+
     std::cout << "PML: " << (input.PML ? "Enabled" : "Disabled") << std::endl;
     std::cout << "PML X: " << input.pmlx << ", Layers X: " << input.nlayersx << std::endl;
     std::cout << "PML Y: " << input.pmly << ", Layers Y: " << input.nlayersy << std::endl;
     std::cout << "PML Z: " << input.pmlz << ", Layers Z: " << input.nlayersz << std::endl;
     std::cout << "Mesh Optimization: " << (input.meshOpt ? "Enabled" : "Disabled") << std::endl;
+
+    // Verify material count matches declaration
+    if (input.nmat != input.materials.size()) {
+        std::cerr << "Warning: Declared number of materials (nmat=" << input.nmat 
+                  << ") differs from actual number of materials defined (" 
+                  << input.materials.size() << ")\n";
+    }
+
+    // Verify Refinement Level count matches Z-Cuts
+    if (input.ref != (input.zcut.size()-1)) {
+        std::cerr << "Warning: Declared refinement level (ref=" << input.ref 
+                  << ") differs from actual number of Z-Cuts defined (" 
+                  << input.zcut.size() << ")\n";
+    }
 
     return 0;
 }
