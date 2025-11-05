@@ -236,13 +236,34 @@ void hexa_tree_cube(hexa_tree_t* mesh)
 	//TODO
 	//preciso achar aqui o numero para dividir esse negocio... assim eu consigo ajustar o numero de camadas e tal...
 	nz = 0;
-        std::vector<int> aa = {40, 40, 60,100};
+    std::vector<int> nelZ;
+
+	double dz = mesh->input.z / mesh->ncellz;
+	printf(" Number of elements in z %d \n", mesh->ncellz);
+	printf("Size of z: %d and dz: %f \n", mesh->input.z, dz);
+
+	for (int i = 0; i < mesh->input.zcut.size(); i++){
+		//if (i==0){
+			nelZ.push_back((mesh->input.zcut[i] / dz));
+		//} else {
+		//	nelZ.push_back((mesh->input.zcut[i] / dz)/(3*i));
+		//}
+		printf(" Number of elements in Z Cut %d : %d \n", i, nelZ[i]);
+	}
+
 	int ccount = 0;
-	//int nz_test = nz+internal_step;
 	while( (nz+internal_step) <= mesh->ncellz)
 	{
-		//if((nlayer+1)%aa[ccount] == 0) {
+		//if((nlayer+1) == nelZ[ccount]) {
 		if((nlayer+1)%30 == 0) {
+			/* 
+			printf(" Entrei \n");
+			printf(" nlayer: %d \n", nlayer);
+			printf(" coarse_step: %d \n", coarse_step);
+			printf(" internal_step: %d \n", internal_step);
+			printf(" nz: %d \n", nelZ[ccount]);
+			printf(" ccount: %d \n", ccount);
+			*/
 			coarse_step*=3;
 			hexa_transient_layer(mesh,nz,coarse_step, internal_step, level);
 			internal_step*=3;

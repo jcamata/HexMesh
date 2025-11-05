@@ -143,7 +143,7 @@
 
 	start = std::chrono::steady_clock::now( );
 	printf(" Writing output files \n\n");
-    // hexa_mesh_write_vtk(&mesh, "mesh", &coords); //there is some bug in the connectivity
+    //hexa_mesh_write_vtk(&mesh, "mesh", &coords); //there is some bug in the connectivity
 	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
 	hexa_mesh_write_h5(&mesh,"mesh", coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );

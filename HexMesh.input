@@ -8,12 +8,16 @@ inter = ./input/ArgostoliGEBCO_bathy.gts
 # it should change when more than one interface is allowed
 
 # refinement level
-ref = 4
+ref = 4 # the mesh is a cube with 2*3^ref elements in x and y coord
+# example : ref = 3, nel = 91,044
+# example : ref = 4, nel = 888,732
+# example : ref = 5, nel = 8,079,264
 
 # depth of the model
 z = 75000
-# in the future it gonna have the depth of the changes from 3->1 elements
-zcuts = 4000; 5000; 20000 # ref - 1 numbers here, they are the thickness of the layer
+# it should be function in the near future
+# the depth for changes from 3->1 elements 
+zcuts = 4000; 5000; 20000 
 
 # move nodes in smart octree 
 movingNodes = 1 # zero to dont apply and 1 to apply

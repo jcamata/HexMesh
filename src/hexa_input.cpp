@@ -202,12 +202,5 @@ int inpreader(hexa_tree_t *mesh)
                   << input.materials.size() << ")\n";
     }
 
-    // Verify Refinement Level count matches Z-Cuts
-    if (input.ref != (input.zcut.size()-1)) {
-        std::cerr << "Warning: Declared refinement level (ref=" << input.ref 
-                  << ") differs from actual number of Z-Cuts defined (" 
-                  << input.zcut.size() << ")\n";
-    }
-
     return 0;
 }
