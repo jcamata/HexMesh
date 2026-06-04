@@ -152,18 +152,28 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 			}
 		}
 
+		// The octree neighborhood map is only required by node-moving workflows.
+		// When node moving is disabled, this pass may contain incomplete connectivity.
+		if (mesh->input.movingNodes == 0 || mesh->oct.elem_count == 0) {
+			return;
+		}
 		//now we check only the elements in the interface region aka mesh->octree mesh->oct.elem_count
 		for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc)
 		{
 			octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 			octant_t *elem[8];
 			GtsPoint * point;
+			bool valid_oct = true;
 
 			int mat1 = 0;
 			int mat2 = 0;
 			int color1 = 0;
 			int color2 = 0;
 			for(int iel = 0; iel < 8; iel++){
+				if (oct->id[iel] < 0 || oct->id[iel] >= mesh->elements.elem_count) {
+					valid_oct = false;
+					break;
+				}
 				elem[iel] = (octant_t *)sc_array_index(&mesh->elements,oct->id[iel]);
 
 				if(elem[iel]->n_mat == 0) mat1++;
@@ -172,6 +182,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 				if(elem[iel]->nodes[iel].color == 1) color1++;
 				if(elem[iel]->nodes[iel].color == 2) color2++;
 			}
+			if (!valid_oct) continue;
 
 			if((mat1 == color1 || mat1 == color2) && (mat2 == color1 || mat2 == color2)){
 
@@ -190,12 +201,15 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 					elem[5]->n_mat = 0;
 					elem[6]->n_mat = 0;
 					elem[7]->n_mat = 0;
-				}else{
-					for(int iel = 0; iel < 8; iel++){
-						int node = elem[iel]->nodes[iel].id;
-						double xx = coords[3*node+0];
-						double yy = coords[3*node+1];
-						double zz = coords[3*node+2];
+					}else{
+						for(int iel = 0; iel < 8; iel++){
+							int node = elem[iel]->nodes[iel].id;
+							if (node < 0 || (3 * node + 2) >= (int) coords.size()) {
+								continue;
+							}
+							double xx = coords[3*node+0];
+							double yy = coords[3*node+1];
+							double zz = coords[3*node+2];
 						GtsPoint* p = NULL;
 						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), xx, yy, zz);
 						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), xx, yy, 2*bbox->z2);

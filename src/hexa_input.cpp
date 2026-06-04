@@ -104,6 +104,10 @@ Input readInputFile(const std::string &filePath)
         {
             input.movingNodes = std::stoi(line.substr(line.find('=') + 1));
         }
+        else if (line.find("CgalUse") == 0)
+        {
+            input.CgalUse = std::stoi(line.substr(line.find('=') + 1));
+        }
         else if (line.find("nmat") == 0)
         {
             input.nmat = std::stoi(line.substr(line.find('=') + 1));
@@ -201,6 +205,9 @@ int inpreader(hexa_tree_t *mesh)
                   << ") differs from actual number of materials defined (" 
                   << input.materials.size() << ")\n";
     }
+
+    // use CGAL 
+    std::cout << "Using CGAL exact kernel: " << input.CgalUse << std::endl;
 
     return 0;
 }

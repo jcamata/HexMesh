@@ -233,29 +233,27 @@ void hexa_tree_cube(hexa_tree_t* mesh)
 	mesh->max_step = 0;
 
 	hexa_processors_interval(mesh);
-	//TODO
-	//preciso achar aqui o numero para dividir esse negocio... assim eu consigo ajustar o numero de camadas e tal...
 	nz = 0;
-    std::vector<int> nelZ;
+    std::vector<uint32_t> nelZ;
 
 	double dz = mesh->input.z / mesh->ncellz;
-	printf(" Number of elements in z %d \n", mesh->ncellz);
-	printf("Size of z: %d and dz: %f \n", mesh->input.z, dz);
+	//printf(" Number of elements in z %d \n", mesh->ncellz);
+	//printf("Size of z: %d and dz: %f \n", mesh->input.z, dz);
 
 	for (int i = 0; i < mesh->input.zcut.size(); i++){
 		//if (i==0){
-			nelZ.push_back((mesh->input.zcut[i] / dz));
+			nelZ.push_back(uint32_t(mesh->input.zcut[i] / dz));
 		//} else {
 		//	nelZ.push_back((mesh->input.zcut[i] / dz)/(3*i));
 		//}
-		printf(" Number of elements in Z Cut %d : %d \n", i, nelZ[i]);
+		//printf(" Number of elements in Z Cut %d : %d \n", i, nelZ[i]);
 	}
 
 	int ccount = 0;
 	while( (nz+internal_step) <= mesh->ncellz)
 	{
-		//if((nlayer+1) == nelZ[ccount]) {
-		if((nlayer+1)%30 == 0) {
+		if((nlayer+1) == nelZ[ccount]) {
+		//if((nlayer+1)%30 == 0) {
 			/* 
 			printf(" Entrei \n");
 			printf(" nlayer: %d \n", nlayer);

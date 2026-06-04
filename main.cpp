@@ -25,7 +25,7 @@
  int main(int argc,char** argv)
 {
 
-	hexa_tree_t mesh;
+	hexa_tree_t mesh{};
 
 	std::vector<double> coords;
 	std::vector<int> element_ids;

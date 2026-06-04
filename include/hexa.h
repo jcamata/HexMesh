@@ -35,6 +35,7 @@ struct Input {
     int nmat;
     std::vector<Material> materials;
     bool PML;
+	bool CgalUse;
     double pmlx, pmly, pmlz;
     double z;
     double A , npow;
@@ -65,6 +66,7 @@ typedef struct pillow
 	int32_t id;
 	int32_t a;
 	int32_t b;
+	bool treta;
 	// int8_t mata;
 	// int8_t matb;
 	bool pa;
@@ -128,7 +130,7 @@ typedef struct octant
 {
 	int32_t x, y, z;
 	int8_t level;
-	int pad;
+	int64_t pad;
 	int8_t pml_id;
 	int n_mat;
 	int tem;
@@ -146,6 +148,15 @@ typedef struct octree
 	bool cut;
 	bool face[6];
 	bool edge[12];
+	struct
+	{
+		int32_t n_neighbors;
+		int32_t neighbors[26];
+		int32_t n_intercepted_edges;
+		int32_t intercepted_edges[12];
+		int32_t n_intercepted_edges_by_neighbor[26];
+		int32_t intercepted_edges_by_neighbor[26][12];
+	} edge_info;
 } octree_t;
 
 typedef struct shared_node

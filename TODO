@@ -1,0 +1,10 @@
+TODO
+
+1 - filtrar o arquivo de entrada para \lambda < \lambda_{min}
+2 - adicionar f_{max}
+3 - ler arquivos de velocidade 
+4 - recuperar branch de templates para branch smart octree
+5 - adicionar loop na quantidade de superficies
+6 - tirar metricas de qualidade de malha do codigo
+7 - trabalhar num otimizador
+8 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}

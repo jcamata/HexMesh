@@ -3,6 +3,8 @@
 #include <glib.h>
 #include <vector>
 #include <iostream>
+#include <unordered_map>
+#include <cmath>
 using namespace std;
 #include <set>
 #include <algorithm>
@@ -11,13 +13,13 @@ using namespace std;
 #include <sc_containers.h>
 
 #include "hexa.h"
-//#include "cgal_h.h"
+#include "cgal_h.h"
 #include "hilbert.h"
 
 // 		Class used to save and process the intersections.
 //		It inherits Boost's visitor class
 
-/*
+
 class IntersectionPointsVisitor_3
 		: public boost::static_visitor<void>
 {
@@ -67,7 +69,126 @@ public:
 	typedef CGAL::cpp11::result_of<ExactKernel::Intersect_3(ExactTriangle_3, ExactSegment_3)>::type
 			Triangle_3_Intersection_Variant;
 };
-*/
+
+namespace {
+
+struct VertexIndex {
+	std::vector<GtsVertex*> verts;
+	std::unordered_map<GtsVertex*, size_t> index;
+};
+
+static int CollectVertex(gpointer item, gpointer data) {
+	VertexIndex* vtx = static_cast<VertexIndex*>(data);
+	GtsVertex* v = static_cast<GtsVertex*>(item);
+	if (vtx->index.emplace(v, vtx->verts.size()).second) {
+		vtx->verts.push_back(v);
+	}
+	return FALSE;
+}
+
+struct EdgeAdjacency {
+	VertexIndex* vtx;
+	std::vector<std::vector<int>>* adj;
+};
+
+static int CollectEdgeAdjacency(gpointer item, gpointer data) {
+	EdgeAdjacency* ctx = static_cast<EdgeAdjacency*>(data);
+	GtsEdge* edge = static_cast<GtsEdge*>(item);
+	GtsSegment* seg = GTS_SEGMENT(edge);
+	auto it1 = ctx->vtx->index.find(seg->v1);
+	auto it2 = ctx->vtx->index.find(seg->v2);
+	if (it1 == ctx->vtx->index.end() || it2 == ctx->vtx->index.end()) return FALSE;
+	int i = static_cast<int>(it1->second);
+	int j = static_cast<int>(it2->second);
+	(*ctx->adj)[i].push_back(j);
+	(*ctx->adj)[j].push_back(i);
+	return FALSE;
+}
+
+struct EdgeLengthAccumulator {
+	double sum = 0.0;
+	uint64_t count = 0;
+};
+
+static int AccumulateEdgeLength(gpointer item, gpointer data) {
+	EdgeLengthAccumulator* acc = static_cast<EdgeLengthAccumulator*>(data);
+	GtsEdge* edge = static_cast<GtsEdge*>(item);
+	GtsSegment* seg = GTS_SEGMENT(edge);
+	GtsPoint* p1 = GTS_POINT(seg->v1);
+	GtsPoint* p2 = GTS_POINT(seg->v2);
+	double dx = p1->x - p2->x;
+	double dy = p1->y - p2->y;
+	double dz = p1->z - p2->z;
+	acc->sum += std::sqrt(dx * dx + dy * dy + dz * dz);
+	acc->count++;
+	return FALSE;
+}
+
+static double AverageEdgeLength(GtsSurface* s) {
+	EdgeLengthAccumulator acc;
+	gts_surface_foreach_edge(s, AccumulateEdgeLength, &acc);
+	if (acc.count == 0) return 0.0;
+	return acc.sum / static_cast<double>(acc.count);
+}
+
+static void SmoothGtsSurfaceLaplacian(GtsSurface* s, double target_h, int max_iters = 50, double lambda = 0.5) {
+	if (!s || target_h <= 0.0) return;
+
+	VertexIndex vtx;
+	gts_surface_foreach_vertex(s, CollectVertex, &vtx);
+	const size_t n = vtx.verts.size();
+	if (n == 0) return;
+
+	std::vector<std::vector<int>> adj(n);
+	EdgeAdjacency ctx{&vtx, &adj};
+	gts_surface_foreach_edge(s, CollectEdgeAdjacency, &ctx);
+
+	const double mean_edge = AverageEdgeLength(s);
+	if (mean_edge <= 0.0) return;
+	int iters = static_cast<int>(std::ceil(target_h / mean_edge));
+	if (iters < 1) iters = 1;
+	if (iters > max_iters) iters = max_iters;
+
+	std::vector<double> nx(n), ny(n), nz(n);
+
+	for (int iter = 0; iter < iters; ++iter) {
+		for (size_t i = 0; i < n; ++i) {
+			const auto& nei = adj[i];
+			if (nei.empty()) {
+				GtsPoint* p = GTS_POINT(vtx.verts[i]);
+				nx[i] = p->x;
+				ny[i] = p->y;
+				nz[i] = p->z;
+				continue;
+			}
+			double ax = 0.0, ay = 0.0, az = 0.0;
+			for (int j : nei) {
+				GtsPoint* pj = GTS_POINT(vtx.verts[j]);
+				ax += pj->x;
+				ay += pj->y;
+				az += pj->z;
+			}
+			const double inv = 1.0 / static_cast<double>(nei.size());
+			ax *= inv;
+			ay *= inv;
+			az *= inv;
+			GtsPoint* p = GTS_POINT(vtx.verts[i]);
+			nx[i] = p->x + lambda * (ax - p->x);
+			ny[i] = p->y + lambda * (ay - p->y);
+			nz[i] = p->z + lambda * (az - p->z);
+		}
+
+		for (size_t i = 0; i < n; ++i) {
+			GtsPoint* p = GTS_POINT(vtx.verts[i]);
+			p->x = nx[i];
+			p->y = ny[i];
+			p->z = nz[i];
+		}
+	}
+}
+
+}
+
 
 // Read the gts file format and create a gts surface.
 GtsSurface* SurfaceRead(const char* fname) {
@@ -111,7 +232,20 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 
 	mesh->tdata.s = SurfaceRead(surface_topo);
 
-	FILE *fout = fopen("surface.dat", "w");
+	if (mesh->gdata.s) {
+		GtsBBox* tmp_bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+		if (tmp_bbox) {
+			double hx = (tmp_bbox->x2 - tmp_bbox->x1) / static_cast<double>(mesh->ncellx);
+			double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
+			double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
+			double h = 1*std::min(hx, std::min(hy, hz));
+			printf("Smoothing bathymetry surface with target edge length %f\n", h);
+			SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
+		}
+		mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+	}
+
+	FILE *fout = fopen("surfaceOut.dat", "w");
 	gts_surface_print_stats(mesh->tdata.s, fout);
 	fclose(fout);
 
@@ -125,7 +259,7 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 	}
 
 	// Change the box size to cut the external elements
-	double factor = 0.005;
+	double factor = 0.02;
 	double x_factor = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1)*factor;
 	double y_factor = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1)*factor;
 
@@ -174,7 +308,19 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 	GtsBBox *box;
 
 	mesh->gdata.s = SurfaceRead(surface_bathy);
-	mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+	if (mesh->gdata.s) {
+		GtsBBox* tmp_bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+		if (tmp_bbox) {
+			double hx = (tmp_bbox->x2 - tmp_bbox->x1) / static_cast<double>(mesh->ncellx);
+			double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
+			double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
+			double h = 500*std::min(hx, std::min(hy, hz));
+			printf("Smoothing bathymetry surface with target edge length %f\n", h);
+			SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
+		}
+		mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+	}
+
 	mesh->gdata.bbt = gts_bb_tree_surface(mesh->gdata.s);
 
 	box = gts_bbox_new(gts_bbox_class(), 0, 0, 0, 0, 1, 1, 1);
@@ -224,7 +370,11 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 			if (list == NULL) continue;
 			while (list) {
 				GtsBBox *b = GTS_BBOX(list->data);
-				point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+				if (mesh->input.CgalUse){
+					point[edge] = SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded));
+				} else {
+					point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+				}
 				if (point[edge]) {
 					elem->edge[edge].ref = true;
 					elem->pad = -1;
@@ -313,7 +463,7 @@ GtsPoint* SegmentTriangleIntersection(GtsSegment * s, GtsTriangle * t) {
 			(E->y + D->y) / 2.,
 			(E->z + D->z) / 2.);
 }
-/*
+
 //Found the intersection between a line and a triangle
 GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
 
@@ -397,5 +547,5 @@ GtsPoint* SegmentTriangleIntersectionCgal(GtsSegment * s, GtsTriangle * t){
 	}
 
 }
-*/
+
 

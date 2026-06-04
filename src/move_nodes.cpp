@@ -5,6 +5,7 @@
 using namespace std;
 #include <set>
 #include <algorithm>
+#include <unordered_map>
 #include <sc.h>
 #include <sc_io.h>
 #include <sc_containers.h>
@@ -79,6 +80,405 @@ int no_equal_fn1(const void *v, const void *u, const void *w) {
 
 }
 
+static unsigned node_hash_id(const void *v, const void *u)
+{
+	const node_t *q = (const node_t *) v;
+	uint32_t a, b, c;
+
+	a = (uint32_t) q->node_id;
+	b = 0;
+	c = 0;
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+static int node_equal_id(const void *v, const void *u, const void *w)
+{
+	const node_t *e1 = (const node_t *) v;
+	const node_t *e2 = (const node_t *) u;
+	return (unsigned) (e1->node_id == e2->node_id);
+}
+
+static void InitializeOctreeEdgeInfo(octree_t *oct)
+{
+	oct->edge_info.n_neighbors = 0;
+	oct->edge_info.n_intercepted_edges = 0;
+
+	for (int i = 0; i < 26; i++) {
+		oct->edge_info.neighbors[i] = -1;
+		oct->edge_info.n_intercepted_edges_by_neighbor[i] = 0;
+		for (int j = 0; j < 12; j++) {
+			oct->edge_info.intercepted_edges_by_neighbor[i][j] = -1;
+		}
+	}
+
+	for (int i = 0; i < 12; i++) {
+		oct->edge_info.intercepted_edges[i] = -1;
+	}
+}
+
+static bool HasNeighborEdge(const octree_t *oct, int ineighbor, int iedge)
+{
+	int n = oct->edge_info.n_intercepted_edges_by_neighbor[ineighbor];
+	for (int i = 0; i < n; i++) {
+		if (oct->edge_info.intercepted_edges_by_neighbor[ineighbor][i] == iedge) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void AddNeighborEdgeInfo(octree_t *oct, int neighbor_octree, int iedge)
+{
+	int ineighbor = -1;
+	for (int i = 0; i < oct->edge_info.n_neighbors; i++) {
+		if (oct->edge_info.neighbors[i] == neighbor_octree) {
+			ineighbor = i;
+			break;
+		}
+	}
+
+	if (ineighbor == -1) {
+		if (oct->edge_info.n_neighbors >= 26) {
+			return;
+		}
+		ineighbor = oct->edge_info.n_neighbors++;
+		oct->edge_info.neighbors[ineighbor] = neighbor_octree;
+		oct->edge_info.n_intercepted_edges_by_neighbor[ineighbor] = 0;
+	}
+
+	if (!HasNeighborEdge(oct, ineighbor, iedge) &&
+			oct->edge_info.n_intercepted_edges_by_neighbor[ineighbor] < 12) {
+		int n = oct->edge_info.n_intercepted_edges_by_neighbor[ineighbor];
+		oct->edge_info.intercepted_edges_by_neighbor[ineighbor][n] = iedge;
+		oct->edge_info.n_intercepted_edges_by_neighbor[ineighbor]++;
+	}
+}
+
+static uint64_t GetOctreeEdgeId(hexa_tree_t *mesh, octree_t *oct, int iedge)
+{
+	int iel0 = EdgeElemOctMap[iedge][0];
+	int iel1 = EdgeElemOctMap[iedge][1];
+
+	if (oct->id[iel0] != -1) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel0]);
+		return elem->edge[iedge].id;
+	}
+	if (oct->id[iel1] != -1) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel1]);
+		return elem->edge[iedge].id;
+	}
+	return 0;
+}
+
+static void BuildOctreeNeighborEdgeInfo(hexa_tree_t *mesh)
+{
+	std::unordered_map<uint64_t, std::vector<std::pair<int, int> > > edge_to_octree;
+
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t *) sc_array_index(&mesh->oct, ioc);
+		InitializeOctreeEdgeInfo(oct);
+
+		for (int iedge = 0; iedge < 12; iedge++) {
+			if (!oct->edge[iedge]) {
+				continue;
+			}
+
+			if (oct->edge_info.n_intercepted_edges < 12) {
+				int n = oct->edge_info.n_intercepted_edges++;
+				oct->edge_info.intercepted_edges[n] = iedge;
+			}
+
+			uint64_t edge_id = GetOctreeEdgeId(mesh, oct, iedge);
+			if (edge_id != 0) {
+				edge_to_octree[edge_id].push_back(std::make_pair(ioc, iedge));
+			}
+		}
+	}
+
+	for (std::unordered_map<uint64_t, std::vector<std::pair<int, int> > >::iterator it = edge_to_octree.begin();
+			it != edge_to_octree.end(); ++it) {
+		std::vector<std::pair<int, int> > &owners = it->second;
+		for (size_t i = 0; i < owners.size(); i++) {
+			for (size_t j = i + 1; j < owners.size(); j++) {
+				int oct_i = owners[i].first;
+				int oct_j = owners[j].first;
+				int edge_i = owners[i].second;
+				int edge_j = owners[j].second;
+
+				octree_t *oi = (octree_t *) sc_array_index(&mesh->oct, oct_i);
+				octree_t *oj = (octree_t *) sc_array_index(&mesh->oct, oct_j);
+
+				AddNeighborEdgeInfo(oi, oct_j, edge_i);
+				AddNeighborEdgeInfo(oj, oct_i, edge_j);
+			}
+		}
+	}
+}
+
+static int CountOctreeInterceptedEdges(const octree_t *oct)
+{
+	int n_edges = 0;
+	for (int iedge = 0; iedge < 12; iedge++) {
+		if (oct->edge[iedge]) {
+			n_edges++;
+		}
+	}
+	return n_edges;
+}
+
+static bool IsOctreeCutPatternRegular(const octree_t *oct)
+{
+	int n_edges = CountOctreeInterceptedEdges(oct);
+	return n_edges >= 4 && n_edges <= 6;
+}
+
+struct moved_node_position_t
+{
+	int node;
+	double coord[3];
+};
+
+static bool IsCompleteOctree(const octree_t *oct)
+{
+	for (int i = 0; i < 8; i++) {
+		if (oct->id[i] == -1) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static void AddUniqueNode(std::vector<int> &nodes, int node)
+{
+	if (std::find(nodes.begin(), nodes.end(), node) == nodes.end()) {
+		nodes.push_back(node);
+	}
+}
+
+static void AddMovedNode(std::vector<moved_node_position_t> &moves, int node, double x, double y, double z)
+{
+	for (size_t i = 0; i < moves.size(); i++) {
+		if (moves[i].node == node) {
+			return;
+		}
+	}
+
+	moved_node_position_t move;
+	move.node = node;
+	move.coord[0] = x;
+	move.coord[1] = y;
+	move.coord[2] = z;
+	moves.push_back(move);
+}
+
+static bool IsNodeMoved(const std::vector<char> &node_moved, int node)
+{
+	return node >= 0 && node < (int) node_moved.size() && node_moved[node];
+}
+
+static void ApplyMovedNodes(std::vector<double> &coords,
+		std::vector<int> &nodes_b_mat,
+		std::vector<char> &node_moved,
+		const std::vector<moved_node_position_t> &moves)
+{
+	for (size_t i = 0; i < moves.size(); i++) {
+		int node = moves[i].node;
+		if (node < 0 || node >= (int) node_moved.size()) {
+			continue;
+		}
+		coords[3 * node + 0] = moves[i].coord[0];
+		coords[3 * node + 1] = moves[i].coord[1];
+		coords[3 * node + 2] = moves[i].coord[2];
+		if (!node_moved[node]) {
+			nodes_b_mat.push_back(node);
+			node_moved[node] = 1;
+		}
+	}
+}
+
+static void CollectIrregularOctreeMovableNodes(hexa_tree_t *mesh, octree_t *oct, std::vector<int> &nodes)
+{
+	nodes.clear();
+	for (int iel = 0; iel < 8; iel++) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel]);
+		for (int ino = 0; ino < 8; ino++) {
+			if (elem->nodes[ino].fixed == 0) {
+				AddUniqueNode(nodes, elem->nodes[ino].id);
+			}
+		}
+	}
+}
+
+static int AverageAdjacentMovedNodes(hexa_tree_t *mesh,
+		octree_t *oct,
+		const std::vector<double> &coords,
+		const std::vector<char> &node_moved,
+		int target_node,
+		double avg[3])
+{
+	std::vector<int> adjacent_nodes;
+
+	for (int iel = 0; iel < 8; iel++) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel]);
+		for (int iedge = 0; iedge < 12; iedge++) {
+			int node0 = elem->nodes[EdgeVerticesMap[iedge][0]].id;
+			int node1 = elem->nodes[EdgeVerticesMap[iedge][1]].id;
+
+			if (node0 == target_node && IsNodeMoved(node_moved, node1)) {
+				AddUniqueNode(adjacent_nodes, node1);
+			}
+			if (node1 == target_node && IsNodeMoved(node_moved, node0)) {
+				AddUniqueNode(adjacent_nodes, node0);
+			}
+		}
+	}
+
+	avg[0] = 0;
+	avg[1] = 0;
+	avg[2] = 0;
+	for (size_t i = 0; i < adjacent_nodes.size(); i++) {
+		int node = adjacent_nodes[i];
+		avg[0] += coords[3 * node + 0];
+		avg[1] += coords[3 * node + 1];
+		avg[2] += coords[3 * node + 2];
+	}
+
+	int count = adjacent_nodes.size();
+	if (count > 0) {
+		avg[0] /= count;
+		avg[1] /= count;
+		avg[2] /= count;
+	}
+	return count;
+}
+
+static int AverageMovedNodesInOctree(hexa_tree_t *mesh,
+		octree_t *oct,
+		const std::vector<double> &coords,
+		const std::vector<char> &node_moved,
+		double avg[3])
+{
+	std::vector<int> moved_nodes;
+
+	for (int iel = 0; iel < 8; iel++) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel]);
+		for (int ino = 0; ino < 8; ino++) {
+			int node = elem->nodes[ino].id;
+			if (IsNodeMoved(node_moved, node)) {
+				AddUniqueNode(moved_nodes, node);
+			}
+		}
+	}
+
+	avg[0] = 0;
+	avg[1] = 0;
+	avg[2] = 0;
+	for (size_t i = 0; i < moved_nodes.size(); i++) {
+		int node = moved_nodes[i];
+		avg[0] += coords[3 * node + 0];
+		avg[1] += coords[3 * node + 1];
+		avg[2] += coords[3 * node + 2];
+	}
+
+	int count = moved_nodes.size();
+	if (count > 0) {
+		avg[0] /= count;
+		avg[1] /= count;
+		avg[2] /= count;
+	}
+	return count;
+}
+
+static void RegularizeSkippedOctreeNodes(hexa_tree_t *mesh,
+		std::vector<double> &coords,
+		std::vector<int> &nodes_b_mat)
+{
+	int n_nodes = coords.size() / 3;
+	std::vector<char> node_moved(n_nodes, 0);
+	for (size_t i = 0; i < nodes_b_mat.size(); i++) {
+		int node = nodes_b_mat[i];
+		if (node >= 0 && node < n_nodes) {
+			node_moved[node] = 1;
+		}
+	}
+
+	int skipped_octrees = 0;
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t *) sc_array_index(&mesh->oct, ioc);
+		if (IsCompleteOctree(oct) && !IsOctreeCutPatternRegular(oct)) {
+			skipped_octrees++;
+		}
+	}
+
+	int regularized_nodes = 0;
+	const int max_iters = 8;
+	for (int iter = 0; iter < max_iters; iter++) {
+		std::vector<moved_node_position_t> moves;
+
+		for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
+			octree_t *oct = (octree_t *) sc_array_index(&mesh->oct, ioc);
+			if (!IsCompleteOctree(oct) || IsOctreeCutPatternRegular(oct)) {
+				continue;
+			}
+
+			std::vector<int> candidates;
+			CollectIrregularOctreeMovableNodes(mesh, oct, candidates);
+			for (size_t inode = 0; inode < candidates.size(); inode++) {
+				int node = candidates[inode];
+				if (IsNodeMoved(node_moved, node)) {
+					continue;
+				}
+
+				double avg[3];
+				int count = AverageAdjacentMovedNodes(mesh, oct, coords, node_moved, node, avg);
+				if (count >= 2) {
+					AddMovedNode(moves, node, avg[0], avg[1], avg[2]);
+				}
+			}
+		}
+
+		if (moves.empty()) {
+			break;
+		}
+
+		regularized_nodes += moves.size();
+		ApplyMovedNodes(coords, nodes_b_mat, node_moved, moves);
+	}
+
+	std::vector<moved_node_position_t> fallback_moves;
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t *) sc_array_index(&mesh->oct, ioc);
+		if (!IsCompleteOctree(oct) || IsOctreeCutPatternRegular(oct)) {
+			continue;
+		}
+
+		double oct_avg[3];
+		int oct_moved_count = AverageMovedNodesInOctree(mesh, oct, coords, node_moved, oct_avg);
+		if (oct_moved_count < 2) {
+			continue;
+		}
+
+		std::vector<int> candidates;
+		CollectIrregularOctreeMovableNodes(mesh, oct, candidates);
+		for (size_t inode = 0; inode < candidates.size(); inode++) {
+			int node = candidates[inode];
+			if (!IsNodeMoved(node_moved, node)) {
+				AddMovedNode(fallback_moves, node, oct_avg[0], oct_avg[1], oct_avg[2]);
+			}
+		}
+	}
+
+	regularized_nodes += fallback_moves.size();
+	ApplyMovedNodes(coords, nodes_b_mat, node_moved, fallback_moves);
+
+	if (skipped_octrees > 0) {
+		printf(" Regularized %d nodes from %d skipped octrees\n",
+				regularized_nodes, skipped_octrees);
+	}
+}
+
 /*
 GtsPoint* FoundInterception(hexa_tree_t* mesh,std::vector<double>& coords,int node1, int node2){
 	GtsPoint *point = NULL;
@@ -124,6 +524,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 		}
 
 		if(oc_count==8){
+			if (!IsOctreeCutPatternRegular(oct)) {
+				continue;
+			}
 			for(int iel = 0; iel<8; iel++){
 				octant_t* elem = (octant_t*)sc_array_index(&mesh->elements,oct->id[iel]);
 				//verifica se as arestas foram cortadas
@@ -144,7 +547,11 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 					if (list == NULL) continue;
 					while (list) {
 						GtsBBox *b = GTS_BBOX(list->data);
-						point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						if (mesh->input.CgalUse) {
+							point[edge] = SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded));
+						} else {
+							point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+						}
 						if (point[edge]) {
 							break;
 						}
@@ -385,6 +792,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 		}
 
 		if(oc_count == 8){
+			if (!IsOctreeCutPatternRegular(oct)) {
+				continue;
+			}
 			octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 			octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[2]);
 			octant_t* elem5 = (octant_t*)sc_array_index(&mesh->elements,oct->id[5]);
@@ -699,6 +1109,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 		}
 
 		if(oc_count == 8){
+			if (!IsOctreeCutPatternRegular(oct)) {
+				continue;
+			}
 			octant_t* elem0 = (octant_t*)sc_array_index(&mesh->elements,oct->id[0]);
 			octant_t* elem2 = (octant_t*)sc_array_index(&mesh->elements,oct->id[2]);
 			octant_t* elem5 = (octant_t*)sc_array_index(&mesh->elements,oct->id[5]);
@@ -797,9 +1210,11 @@ void ProjectFreeNodes(hexa_tree_t* mesh,std::vector<double>& coords, std::vector
 		coord_count=coord_count+4;
 	}
 
+	RegularizeSkippedOctreeNodes(mesh, coords, nodes_b_mat);
+
 
 	//creating a hash to remove duplicated nodes
-	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof (node_t), edge_hash_fn, edge_equal_fn, &clamped);
+	sc_hash_array_t* hash_FixedNodes = sc_hash_array_new(sizeof (node_t), node_hash_id, node_equal_id, &clamped);
 	size_t position;
 	node_t *r;
 	node_t key;
@@ -901,6 +1316,7 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 		for(int iel=0; iel<8; iel++){
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 
+			printf("Element %d, octree %d\n",oct->id[iel], ioc);
 			elem->pad = oct->id[0]+1;
 
 			//fix all the nodes
@@ -1118,6 +1534,8 @@ void IdentifyMovableNodes(hexa_tree_t* mesh){
 
 	}
 
+	BuildOctreeNeighborEdgeInfo(mesh);
+
 	if(deb){
 		int count =0;
 		for(int ino = 0; ino < mesh->nodes.elem_count; ino++){
@@ -1328,6 +1746,7 @@ void DoOctree(hexa_tree_t* mesh){
 			for(int i = 0; i<8; i++){
 				oc->id[i] = temp_id[i];
 			}
+			oc->cut = temp_cut;
 
 			//initialization of edges and faces as non intercepted
 			for(int iedge = 0; iedge<12;iedge++){
@@ -1336,6 +1755,7 @@ void DoOctree(hexa_tree_t* mesh){
 			for(int isurf = 0; isurf<6;isurf++){
 				oc->face[isurf] = false;
 			}
+			InitializeOctreeEdgeInfo(oc);
 		}
 	}
 
@@ -1381,6 +1801,8 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	printf("    Identifying the movable nodes...\n");
 	IdentifyMovableNodes(mesh);
 	tend = time(0);
+	cout << "blabla bla bla" << endl;
+
 	//cout << "Time in IdentifyMovableNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 	if(deb){
@@ -1396,6 +1818,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		}
 		fclose(fnode);
 	}
+	cout << "blabla bla bla" << endl;
 
 	if(deb){
 		char fdname[80];
@@ -1418,6 +1841,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		}
 		fclose(dedges);
 	}
+	cout << "blabla bla bla" << endl;
 
 	tstart = time(0);
 	printf("    Make the projection of the nodes into the surface...\n");
