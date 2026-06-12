@@ -1,5 +1,51 @@
 ccc
 
+% ============================================================
+% DIAGNÓSTICO AUTORITATIVO
+% ============================================================
+% premesh_conformity: conformidade ANTES do pillow (após MovingNodes)
+% pillow_conformity : conformidade APÓS o pillow + post-pass
+%
+% Se premesh > 0 → bug em MovingNodes, não no pillow.
+% Se premesh == 0 e pillow > 0 → bug no próprio Pillowing.
+% Se ambos == 0 → pillow OK; não-conformidade visível vem de
+%                outra etapa (PML, otimizador, elementos de transição).
+
+tag = '0001_0000';
+
+checks = { ...
+    sprintf('premesh_conformity_%s.txt', tag), '[PRE-PILLOW ] conformidade', 'Conformity check: %d'; ...
+    sprintf('pillow_conformity_%s.txt',  tag), '[POS-PILLOW ] conformidade', 'Conformity check: %d'; ...
+    sprintf('node_consistency_%s.txt',   tag), '[CONSISTÊNCIA] nós',         'Node consistency: %d'; ...
+};
+
+for ii = 1:size(checks,1)
+    fname = checks{ii,1};
+    label = checks{ii,2};
+    fmt   = checks{ii,3};
+    fid = fopen(fname, 'r');
+    if fid == -1
+        fprintf('%s  arquivo não encontrado: %s\n', label, fname);
+    else
+        txt = {};
+        while ~feof(fid), l = fgetl(fid); if ischar(l), txt{end+1} = l; end; end
+        fclose(fid);
+        n = sscanf(txt{end}, fmt);
+        if isempty(n), n = -1; end
+        if n == 0
+            fprintf('%s  OK — 0\n', label);
+        else
+            fprintf('%s  PROBLEMA: %d\n', label, n);
+        end
+    end
+end
+fprintf('\n');
+fprintf('Diagnóstico: se PRE-PILLOW ou CONSISTÊNCIA > 0 → bug em MovingNodes.\n');
+fprintf('             se apenas POS-PILLOW > 0           → bug no Pillowing.\n');
+fprintf('             se todos 0 → pillow OK; gap visível vem de outra etapa.\n\n');
+fprintf('(os avisos abaixo são estado por-octree ANTES do post-pass — apenas informativos)\n\n');
+
+% ============================================================
 % Exemplo de uso
 data = read_pillow_file('pillow_0001_0000.txt');
 
