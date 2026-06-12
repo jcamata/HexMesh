@@ -238,8 +238,8 @@ void GetMeshFromSurface(hexa_tree_t* mesh, const char* surface_topo, vector<doub
 			double hx = (tmp_bbox->x2 - tmp_bbox->x1) / static_cast<double>(mesh->ncellx);
 			double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
 			double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
-			double h = 1*std::min(hx, std::min(hy, hz));
-			printf("Smoothing bathymetry surface with target edge length %f\n", h);
+			double h = 2.1*std::min(hx, std::min(hy, hz));
+			printf("Smoothing bathymetry surface with target edge length hx: %f hy: %f hz: %f h: %f\n", hx, hy, hz, h);
 			SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
 		}
 		mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
@@ -314,8 +314,8 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 			double hx = (tmp_bbox->x2 - tmp_bbox->x1) / static_cast<double>(mesh->ncellx);
 			double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
 			double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
-			double h = 500*std::min(hx, std::min(hy, hz));
-			printf("Smoothing bathymetry surface with target edge length %f\n", h);
+			double h = 2.1*std::min(hx, std::min(hy, hz));
+			printf("Smoothing bathymetry surface with target edge length hx: %f hy: %f hz: %f h: %f\n", hx, hy, hz, h);
 			SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
 		}
 		mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
@@ -362,8 +362,14 @@ void GetInterceptedElements(hexa_tree_t* mesh, std::vector<double>& coords, std:
 			elem->edge[edge].ref = false;
 			int node1 = elem->nodes[EdgeVerticesMap[edge][0]].id;
 			int node2 = elem->nodes[EdgeVerticesMap[edge][1]].id;
-			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), coords[node1 * 3], coords[node1 * 3 + 1], coords[node1 * 3 + 2]);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), coords[node2 * 3], coords[node2 * 3 + 1], coords[node2 * 3 + 2]);
+			double x1 = coords[node1 * 3], y1 = coords[node1 * 3 + 1], z1 = coords[node1 * 3 + 2];
+			double x2 = coords[node2 * 3], y2 = coords[node2 * 3 + 1], z2 = coords[node2 * 3 + 2];
+			// Extend segment 2% beyond both endpoints to catch surface intersections that
+			// land exactly at the element boundary (endpoint-at-surface floating-point miss).
+			const double ext = 0.02;
+			double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), x1 - ext*dx, y1 - ext*dy, z1 - ext*dz);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), x2 + ext*dx, y2 + ext*dy, z2 + ext*dz);
 			segments[edge] = gts_segment_new(gts_segment_class(), v1, v2);
 			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments[edge]);
 			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
