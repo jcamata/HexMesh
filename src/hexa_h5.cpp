@@ -29,6 +29,7 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	H5std_string DATASET_NAME2("Sem3D/Hexa8");
 	H5std_string DATASET_NAME3("Sem3D/Mat");
 	H5std_string DATASET_NAME4("Sem3D/Pad");
+	H5std_string DATASET_NAME5("Sem3D/PillowType");
 
 	int	RANK = 2;
 	hsize_t dims[RANK];               // dataset dimensions
@@ -47,7 +48,8 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	// put the data in vectors
 	std::vector<int> connect;
 	std::vector<int> mat;
-	std::vector<int>pad;
+	std::vector<int> pad;
+	std::vector<int> pillow_type;
 	for(int i = 0; i<mesh->elements.elem_count;i++){
 		octant_t* h = (octant_t*) sc_array_index(&mesh->elements, i);
 		mat.push_back(h->n_mat);
@@ -55,6 +57,23 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 		for(int j=0;j<8;j++){
 			connect.push_back(h->nodes[assign_elem_nodes[j]].id);
 		}
+		// PillowType:
+		//   0 = mat-1, not at interface
+		//   1 = mat-1, interface layer (has surface node fixed==1)
+		//   2 = mat-0, original element (nodes remapped to pillow positions)
+		//   3 = pillow element (new element created by Pillowing, level==-1)
+		int pt;
+		if (h->n_mat == 0 && h->level == -1) {
+			pt = 3;
+		} else if (h->n_mat == 0) {
+			pt = 2;
+		} else {
+			bool on_interface = false;
+			for (int j = 0; j < 8; j++)
+				if (h->nodes[j].fixed == 1) { on_interface = true; break; }
+			pt = on_interface ? 1 : 0;
+		}
+		pillow_type.push_back(pt);
 	}
 
 	// Create a new file using default property lists.
@@ -130,10 +149,23 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	delete dataset1;
 	delete dataspace1;
 
+	//write the PillowType:
+	//
+	dim[0] = mesh->local_n_elements;
+	dataspace1 = new DataSpace (1, dim);
+	RANK = 1;
+	dataset1 = new DataSet (file.createDataSet("Sem3D/PillowType",
+			PredType::STD_I64LE, *dataspace1));
+	DataSpace mspace5( RANK, dim );
+	dataset1->write(&pillow_type[0], PredType::NATIVE_INT, mspace5, mspace5);
+	delete dataset1;
+	delete dataspace1;
+
 	//coords.clear();
 	connect.clear();
 	mat.clear();
-    pad.clear();
+	pad.clear();
+	pillow_type.clear();
 
 	sprintf(filename, "%s_%04d_%04d.h5.xmf",root_name , mesh->mpi_size, mesh->mpi_rank);
 
@@ -158,7 +190,11 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 
 	fprintf(fid,"<Attribute AttributeType=\"Scalar\" Center=\"Cell\" Dimensions=\"%d\" Name=\"Pad\">\n",mesh->local_n_elements);
 	fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/Pad</DataItem>\n",mesh->local_n_elements,filename);
-    fprintf(fid,"</Attribute>\n");
+	fprintf(fid,"</Attribute>\n");
+
+	fprintf(fid,"<Attribute AttributeType=\"Scalar\" Center=\"Cell\" Dimensions=\"%d\" Name=\"PillowType\">\n",mesh->local_n_elements);
+	fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/PillowType</DataItem>\n",mesh->local_n_elements,filename);
+	fprintf(fid,"</Attribute>\n");
 
 	fprintf(fid,"</Grid></Domain></Xdmf>");
 
