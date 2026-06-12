@@ -93,6 +93,47 @@ void Adjust_material(hexa_tree_t *mesh) {
 }
 
 
+void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
+{
+	GtsBBox *bbox = mesh->gdata.bbox;
+
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+
+		bool complete = true;
+		for (int i = 0; i < 8; i++)
+			if (oct->id[i] < 0) { complete = false; break; }
+		if (!complete) continue;
+
+		for (int i = 0; i < 8; i++) {
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[i]);
+
+			int nid = elem->nodes[i].id;
+			double xx = coords[3*nid+0];
+			double yy = coords[3*nid+1];
+			double zz = coords[3*nid+2];
+
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), xx, yy, zz);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), xx, yy, 2.0 * bbox->z2);
+			GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
+			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), seg);
+			GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
+
+			bool below = false;
+			while (list) {
+				GtsBBox *b = GTS_BBOX(list->data);
+				if (SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded))) {
+					below = true;
+					break;
+				}
+				list = list->next;
+			}
+
+			elem->n_mat = below ? 0 : 1;
+		}
+	}
+}
+
 void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* surface_bathy) {
 
 	bool deb = false;
