@@ -161,6 +161,31 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	delete dataset1;
 	delete dataspace1;
 
+	// write the Centroids (one point per element) — diagnostic point cloud so
+	// degenerate / zero-volume elements (which do not render as cells in
+	// ParaView) are still visible as points: confirms the element EXISTS rather
+	// than being truly missing. Colour the point cloud by Mat / PillowType.
+	std::vector<double> centroids(3 * (size_t)mesh->local_n_elements);
+	for (int i = 0; i < mesh->local_n_elements; i++) {
+		double cx = 0, cy = 0, cz = 0;
+		for (int j = 0; j < 8; j++) {
+			int nid = connect[8*i + j];
+			cx += coords[3*nid+0]; cy += coords[3*nid+1]; cz += coords[3*nid+2];
+		}
+		centroids[3*i+0] = cx/8.0; centroids[3*i+1] = cy/8.0; centroids[3*i+2] = cz/8.0;
+	}
+	RANK = 2;
+	dims[0] = mesh->local_n_elements; dims[1] = 3;
+	dataspace1 = new DataSpace(RANK, dims);
+	dataset1 = new DataSet(file.createDataSet("Sem3D/Centroids", PredType::IEEE_F64LE, *dataspace1));
+	{
+		DataSpace mspace6(RANK, dims);
+		dataset1->write(&centroids[0], PredType::NATIVE_DOUBLE, mspace6, mspace6);
+	}
+	delete dataset1;
+	delete dataspace1;
+	centroids.clear();
+
 	//coords.clear();
 	connect.clear();
 	mat.clear();
@@ -196,7 +221,25 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/PillowType</DataItem>\n",mesh->local_n_elements,filename);
 	fprintf(fid,"</Attribute>\n");
 
-	fprintf(fid,"</Grid></Domain></Xdmf>");
+	fprintf(fid,"</Grid>\n");
+
+	// second grid: one point per element at its centroid (diagnostic point
+	// cloud). A point with no rendered cell around it => the element exists but
+	// is degenerate (zero-volume/inverted); a gap with no point => truly missing.
+	fprintf(fid,"<Grid GridType=\"Uniform\" Name=\"centroids\">\n");
+	fprintf(fid,"<Topology TopologyType=\"Polyvertex\" NumberOfElements=\"%d\" NodesPerElement=\"1\"/>\n",mesh->local_n_elements);
+	fprintf(fid,"<Geometry Type=\"XYZ\">\n");
+	fprintf(fid,"<DataItem Dimensions=\"%d 3\" Format=\"HDF\" NumberType=\"Float\" Precision=\"8\">%s:/Sem3D/Centroids</DataItem>\n",mesh->local_n_elements,filename);
+	fprintf(fid,"</Geometry>\n");
+	fprintf(fid,"<Attribute AttributeType=\"Scalar\" Center=\"Node\" Name=\"Mat\">\n");
+	fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/Mat</DataItem>\n",mesh->local_n_elements,filename);
+	fprintf(fid,"</Attribute>\n");
+	fprintf(fid,"<Attribute AttributeType=\"Scalar\" Center=\"Node\" Name=\"PillowType\">\n");
+	fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/PillowType</DataItem>\n",mesh->local_n_elements,filename);
+	fprintf(fid,"</Attribute>\n");
+	fprintf(fid,"</Grid>\n");
+
+	fprintf(fid,"</Domain></Xdmf>");
 
 
 	fclose (fid);

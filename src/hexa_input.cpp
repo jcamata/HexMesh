@@ -76,8 +76,11 @@ Input readInputFile(const std::string &filePath)
         {
             line = line.substr(0, commentPos);
         }
-        line.erase(0, line.find_first_not_of(" \t"));
-        line.erase(line.find_last_not_of(" \t") + 1);
+        // trim() uses std::isspace, so it also strips '\r' / '\n' — required
+        // for HexMesh.input files saved with Windows (CRLF) line endings, where
+        // a trailing '\r' would otherwise become part of the GTS file path and
+        // make SurfaceRead fail (NULL surface → crash in GetMeshFromSurface).
+        trim(line);
 
         if (line.empty())
             continue;
@@ -85,7 +88,7 @@ Input readInputFile(const std::string &filePath)
         if (line.find("topo") == 0)
         {
             input.topo = line.substr(line.find('=') + 1);
-            input.topo.erase(0, input.topo.find_first_not_of(" \t"));
+            trim(input.topo);
         }
         else if (line.find("interfaceNumber") == 0)
         {
@@ -94,7 +97,7 @@ Input readInputFile(const std::string &filePath)
         else if (line.find("inter") == 0)
         {
             input.inter = line.substr(line.find('=') + 1);
-            input.inter.erase(0, input.inter.find_first_not_of(" \t"));
+            trim(input.inter);
         }
         else if (line.find("ref") == 0)
         {

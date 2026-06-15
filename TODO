@@ -1,10 +1,9 @@
 TODO
 
-1 - filtrar o arquivo de entrada para \lambda < \lambda_{min}
-2 - adicionar f_{max}
-3 - ler arquivos de velocidade 
-4 - recuperar branch de templates para branch smart octree
-5 - adicionar loop na quantidade de superficies
-6 - tirar metricas de qualidade de malha do codigo
-7 - trabalhar num otimizador
-8 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}
+1 - adicionar f_{max}
+2 - ler arquivos de velocidade 
+3 - recuperar branch de templates para branch smart octree
+4 - adicionar loop na quantidade de superficies
+5 - tirar metricas de qualidade de malha do codigo
+6 - trabalhar num otimizador
+7 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}

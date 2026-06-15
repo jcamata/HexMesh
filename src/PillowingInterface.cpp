@@ -454,6 +454,18 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 	// Iterate, since dissolving can expose new pinches.
 	const int max_pinch_iters = 10;
 	int dissolved_total = 0;
+	// signed volume of a hex from its 8 corner coords (standard node order)
+	auto hexvol8 = [](const double *X, const double *Y, const double *Z) -> double {
+		static const int T[6][4]={{0,1,2,6},{0,2,3,6},{0,3,7,6},{0,7,4,6},{0,4,5,6},{0,5,1,6}};
+		double v=0.0;
+		for(auto &t:T){
+			double ax=X[t[1]]-X[t[0]],ay=Y[t[1]]-Y[t[0]],az=Z[t[1]]-Z[t[0]];
+			double bx=X[t[2]]-X[t[0]],by=Y[t[2]]-Y[t[0]],bz=Z[t[2]]-Z[t[0]];
+			double cx=X[t[3]]-X[t[0]],cy=Y[t[3]]-Y[t[0]],cz=Z[t[3]]-Z[t[0]];
+			v += (ax*(by*cz-bz*cy)-ay*(bx*cz-bz*cx)+az*(bx*cy-by*cx))/6.0;
+		}
+		return v;
+	};
 	for (int pinch_iter = 0; ; pinch_iter++) {
 		ifaces.clear();
 		ndisp.clear();
@@ -517,6 +529,56 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 			}
 		}
 
+		// D5: predictive pillow-degeneracy. Compute the volume of the pillow
+		// element that WOULD be built on each interface face (same geometry as
+		// STEP 3/4: outer face at the original node positions, inner face at the
+		// face_push offset via LinearMapHex). Flag mat-0 cells whose pillow would
+		// be inverted or near-zero so they are dissolved here, BEFORE STEP 3 ever
+		// creates the bad pillow. Node-moving cannot repair these afterwards
+		// (shared-node oscillation), so the only fix is to not create them.
+		std::set<int> degen_iel;
+		{
+			std::vector<double> pv(ifaces.size(), 0.0);
+			std::vector<char> pcomp(ifaces.size(), 0);
+			std::vector<double> apv; double ssum = 0.0;
+			for (size_t fi = 0; fi < ifaces.size(); fi++) {
+				octant_t *ea = (octant_t *)sc_array_index(&mesh->elements, ifaces[fi].iel_a);
+				int iface = ifaces[fi].iface_a;
+				double X[8], Y[8], Z[8]; bool full = true;
+				for (int k = 0; k < 4; k++) {
+					int lo = FaceNodesMap[iface][k];
+					int li = FaceNodesMap_inv[iface][k];
+					int nid = ea->nodes[lo].id;
+					X[lo] = coords[3*nid]; Y[lo] = coords[3*nid+1]; Z[lo] = coords[3*nid+2];
+					auto it = ndisp.find(nid);
+					if (it == ndisp.end()) { full = false; break; }
+					NodeDisp &nd = it->second;
+					octant_t *ref = (octant_t *)sc_array_index(&mesh->elements, nd.ref_iel);
+					int nx = ref->nodes[nd.ref_ino].x + nd.dx;
+					int ny = ref->nodes[nd.ref_ino].y + nd.dy;
+					int nz = ref->nodes[nd.ref_ino].z + nd.dz;
+					double rx[8], ry[8], rz[8];
+					for (int i = 0; i < 8; i++) { int id = ref->nodes[i].id; rx[i]=coords[3*id]; ry[i]=coords[3*id+1]; rz[i]=coords[3*id+2]; }
+					double cr[3] = { (double)(nx-ref->nodes[0].x)/6.0-1.0,
+					                 (double)(ny-ref->nodes[0].y)/6.0-1.0,
+					                 (double)(nz-ref->nodes[0].z)/6.0-1.0 };
+					GtsPoint *pp = LinearMapHex(cr, rx, ry, rz);
+					X[li] = pp->x; Y[li] = pp->y; Z[li] = pp->z;
+				}
+				if (!full) continue;                 // pinched node: left to the pinch logic
+				pv[fi] = hexvol8(X, Y, Z); pcomp[fi] = 1;
+				ssum += (pv[fi] > 0 ? 1.0 : -1.0);
+				apv.push_back(pv[fi] < 0 ? -pv[fi] : pv[fi]);
+			}
+			if (!apv.empty()) {
+				double sgnp = ssum >= 0 ? 1.0 : -1.0;
+				std::nth_element(apv.begin(), apv.begin()+apv.size()/2, apv.end());
+				double thrp = 0.01 * apv[apv.size()/2];   // < 1% of median pillow volume => degenerate
+				for (size_t fi = 0; fi < ifaces.size(); fi++)
+					if (pcomp[fi] && pv[fi]*sgnp < thrp) degen_iel.insert(ifaces[fi].iel_a);
+			}
+		}
+
 		// Detect pinched nodes: zero net displacement, target slot occupied
 		// by an existing node, or two boundary nodes sharing one target slot.
 		std::set<int> pinched;
@@ -571,7 +633,7 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 			}
 		}
 
-		if (pinched.empty() && pinched_edges.empty()) break;
+		if (pinched.empty() && pinched_edges.empty() && degen_iel.empty()) break;
 		if (pinch_iter >= max_pinch_iters) {
 			printf("     WARNING: %d pinched nodes / %d non-manifold edges remain after %d pinch "
 					"iterations; falling back to fresh-ID pillow nodes (locally degenerate geometry)\n",
@@ -592,6 +654,7 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 				int lo = a < b ? a : b, hi = a < b ? b : a;
 				if (pinched_edges.count(std::make_pair(lo, hi))) dissolve = true;
 			}
+			if (degen_iel.count(ip.iel_a)) dissolve = true;   // D5: would-be-degenerate pillow
 			if (dissolve) {
 				ea->n_mat = 1;
 				ndiss++;
@@ -730,6 +793,164 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 		memcpy(pelem->nodes, pd.nodes, sizeof(pelem->nodes));
 		for (int ie = 0; ie < 12; ie++) { pelem->edge[ie].ref = false; pelem->edge[ie].id = 0; }
 		for (int is = 0; is < 6;  is++) { pelem->surf[is].ext = false; }
+	}
+
+	// -- STEP 7: validity repair on the interface band ------------------------
+	// Where the bathy interface is steep, the thin pillow layer folds and
+	// inverts (negative volume), dragging the remapped mat-0 element with it
+	// (these render as holes). Repair by pulling each offending pillow node back
+	// toward its interface-origin position. The limit of pulling every pillow
+	// node onto its origin is the pre-pillow mesh, which is valid by
+	// construction (projection limiter), so halving toward it is monotone and
+	// never inverts a currently-valid element. A pillow node is shared by the
+	// pillow element AND the remapped mat-0 element, so moving it repairs both.
+	// Only pillow nodes move; deeper mat-0/mat-1 nodes are untouched.
+	{
+		std::unordered_map<int,int> pillow_origin;        // pillow node id -> interface origin id
+		pillow_origin.reserve(pillow_map.size()*2);
+		for (auto &kv : pillow_map) pillow_origin[kv.second] = kv.first;
+
+		auto hexvol = [&](octant_t *e)->double {
+			// IMPORTANT: use the SAME node order the h5 writer emits
+			// (assign_elem_nodes = {4,5,6,7,0,1,2,3} in hexa_h5.cpp). e->nodes is
+			// NOT in the standard hex order assumed by the tet decomposition T, and
+			// the reorder is not a clean z-flip, so computing T directly over
+			// e->nodes gives a geometrically WRONG volume — the validity repair
+			// then "sees" no inversions while the written mesh has many. Reordering
+			// here makes this volume identical to what ParaView/the solver compute.
+			static const int ord[8] = {4,5,6,7,0,1,2,3};
+			double X[8],Y[8],Z[8];
+			for(int i=0;i<8;i++){int id=e->nodes[ord[i]].id; X[i]=coords[3*id];Y[i]=coords[3*id+1];Z[i]=coords[3*id+2];}
+			static const int T[6][4]={{0,1,2,6},{0,2,3,6},{0,3,7,6},{0,7,4,6},{0,4,5,6},{0,5,1,6}};
+			double v=0.0;
+			for(auto &t:T){
+				double ax=X[t[1]]-X[t[0]],ay=Y[t[1]]-Y[t[0]],az=Z[t[1]]-Z[t[0]];
+				double bx=X[t[2]]-X[t[0]],by=Y[t[2]]-Y[t[0]],bz=Z[t[2]]-Z[t[0]];
+				double cx=X[t[3]]-X[t[0]],cy=Y[t[3]]-Y[t[0]],cz=Z[t[3]]-Z[t[0]];
+				v += (ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx))/6.0;
+			}
+			return v;
+		};
+
+		int ne = mesh->elements.elem_count;
+		// global orientation sign + median |volume| (one pass, for the threshold)
+		std::vector<double> av; av.reserve(ne);
+		double ssum = 0.0;
+		for(int iel=0; iel<ne; iel++){
+			octant_t *e=(octant_t*)sc_array_index(&mesh->elements,iel);
+			double v=hexvol(e); ssum += (v>0?1.0:-1.0); av.push_back(v<0?-v:v);
+		}
+		double sgn = ssum>=0 ? 1.0 : -1.0;
+		std::nth_element(av.begin(), av.begin()+av.size()/2, av.end());
+		double thr = 1e-6 * av[av.size()/2];
+
+		// interface band = elements incident to at least one pillow node
+		std::vector<int> band;
+		for(int iel=0; iel<ne; iel++){
+			octant_t *e=(octant_t*)sc_array_index(&mesh->elements,iel);
+			for(int i=0;i<8;i++) if(pillow_origin.count(e->nodes[i].id)){ band.push_back(iel); break; }
+		}
+
+		int nnodes=(int)(coords.size()/3);
+		std::vector<char> pull(nnodes,0);
+		const int MAXIT=60;
+		int it=0, nbad=0;
+		for(it=0; it<MAXIT; it++){
+			std::fill(pull.begin(),pull.end(),0);
+			nbad=0;
+			for(int b : band){
+				octant_t *e=(octant_t*)sc_array_index(&mesh->elements,b);
+				double v=hexvol(e);
+				if(v*sgn > thr) continue;                  // valid (correct sign, non-zero)
+				nbad++;
+				for(int i=0;i<8;i++){int id=e->nodes[i].id; if(pillow_origin.count(id)) pull[id]=1;}
+			}
+			if(nbad==0) break;
+			bool moved=false;
+			for(int p=0;p<nnodes;p++) if(pull[p]){
+				int o=pillow_origin[p];
+				coords[3*p+0]=0.5*(coords[3*p+0]+coords[3*o+0]);
+				coords[3*p+1]=0.5*(coords[3*p+1]+coords[3*o+1]);
+				coords[3*p+2]=0.5*(coords[3*p+2]+coords[3*o+2]);
+				moved=true;
+			}
+			if(!moved) break;
+		}
+
+		// -- Interface clamp (moved here from PillowingInterface) -------------
+		// The mat0/mat1 interface is the sea floor: no interface node may sit
+		// above the sea surface. This MUST run after the pillow layer is built
+		// (so it also catches the pillow nodes created from land-adjacent
+		// positions — running it before Pillowing left ~22 spikes at z~+525), and
+		// it MUST run before the dissolve below (so the dissolve sees the final
+		// geometry — running it after Pillowing re-inverted ~11 already-repaired
+		// elements that then rendered as holes). SURFACE_EPS is a SMALL FIXED
+		// length, not a fraction of the element height: a large eps caved the
+		// shallow coast into pits below z=0 (the shoreline node is itself an
+		// interface node); 1 m only flattens the +z spikes flush to the lid.
+		{
+			const double SEA_LEVEL = 0.0, SURFACE_EPS = 1.0;
+			const double zceil = SEA_LEVEL - SURFACE_EPS;
+			std::vector<unsigned char> has0(nnodes,0), has1(nnodes,0);
+			for (int iel = 0; iel < ne; iel++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+				for (int i = 0; i < 8; i++) { int n = e->nodes[i].id; if (e->n_mat == 0) has0[n]=1; else has1[n]=1; }
+			}
+			int nclamp = 0;
+			for (int n = 0; n < nnodes; n++)
+				if (has0[n] && has1[n] && coords[3*n+2] > zceil) { coords[3*n+2] = zceil; nclamp++; }
+			printf("     Clamped %d interface nodes below the sea surface\n", nclamp);
+		}
+
+		// -- STEP 7b (A2): iterative full-snap dissolve — GUARANTEE zero inverted.
+		// Snap the pillow nodes of every still-inverted band element fully onto
+		// their interface origins (local un-pillowing). Unlike the halving above
+		// (which oscillates on shared nodes — whack-a-mole — and never reaches 0),
+		// full-snap is MONOTONE: a snapped node is parked exactly on its origin and
+		// flagged so it never moves again, so the snapped set only grows. The worst
+		// case is every pillow node snapped, i.e. the pillow fully removed = the
+		// pre-pillow mesh, which is valid by construction (projection limiter); so
+		// the inverted count strictly decreases to 0 in a bounded number of
+		// iterations. A dissolved pillow collapses to a zero-volume sheet on the
+		// interface plane; the remapped mat-0 element returns to its valid
+		// pre-pillow shape and fills the space, so no hole is left. Inverted
+		// elements that own NO pillow node (e.g. clamp-thinned mat-1 interface
+		// slivers) cannot be snapped here and are reported separately.
+		std::vector<char> snapped(nnodes, 0);
+		int it2 = 0, nbad2 = 0, nsnap = 0;
+		const int MAXIT2 = 4000;
+		for (it2 = 0; it2 < MAXIT2; it2++) {
+			std::vector<int> tosnap;
+			nbad2 = 0;
+			for (int b = 0; b < ne; b++) {                   // scan all elements (mat-1 inversions are not in the pillow band)
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
+				if (hexvol(e) * sgn >= -thr) continue;       // valid or intentionally collapsed
+				nbad2++;
+				for (int i = 0; i < 8; i++) {
+					int id = e->nodes[i].id;
+					if (pillow_origin.count(id) && !snapped[id]) tosnap.push_back(id);
+				}
+			}
+			if (nbad2 == 0) break;
+			if (tosnap.empty()) break;                       // residual inversions own no unsnapped pillow node
+			for (int p : tosnap) {
+				int o = pillow_origin[p];
+				coords[3*p+0] = coords[3*o+0]; coords[3*p+1] = coords[3*o+1]; coords[3*p+2] = coords[3*o+2];
+				if (!snapped[p]) { snapped[p] = 1; nsnap++; }
+			}
+		}
+		int n_inv_final = 0, n_inv_pillow = 0, n_inv_nonpillow = 0;
+		for (int b = 0; b < ne; b++) {
+			octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
+			if (hexvol(e) * sgn >= -thr) continue;
+			n_inv_final++;
+			bool hasp = false;
+			for (int i = 0; i < 8; i++) if (pillow_origin.count(e->nodes[i].id)) { hasp = true; break; }
+			if (hasp) n_inv_pillow++; else n_inv_nonpillow++;
+		}
+		printf("     Pillow validity repair: halving left %d invalid (%d iters); dissolve snapped %d pillow "
+				"nodes (%d iters); final inverted=%d (pillow %d, non-pillow %d)\n",
+				nbad, it, nsnap, it2, n_inv_final, n_inv_pillow, n_inv_nonpillow);
 	}
 
 	// -- debug summary --------------------------------------------------------
@@ -1399,4 +1620,8 @@ void PillowingInterface(hexa_tree_t *mesh, std::vector<double> &coords, std::vec
 	SurfaceIdentification(mesh, coords);
 	fprintf(mesh->profile, "    Time in SurfaceIdentification %lld millisecond(s).\n", elapsed.count());
 	// std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
+	// NOTE: the interface clamp (z <= sea surface) now runs at the end of
+	// Pillowing(), after the pillow layer is built and before its validity
+	// dissolve, so the dissolve sees the final clamped geometry. SurfaceIdentification
+	// does not move nodes, so the geometry written out is the post-dissolve state.
 }

@@ -785,7 +785,26 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	std::unordered_map<int, std::array<double, 3>> pending;
 	std::unordered_set<int> in_b;
 
+	// The mat0/mat1 interface is the sea floor: no projected interface node may
+	// sit above the sea surface (z = SEA_LEVEL). The bathy surface (gdata) fills
+	// on-land vertices with a high sentinel (~+4996 m), so near the coast a cut
+	// edge can intersect a steep sentinel triangle and snap the node far above
+	// the sea surface, shearing the flat-water (mat-1) cells into spikes. Clamp
+	// every projected node to z <= SEA_LEVEL - SURFACE_EPS.
+	//
+	// SURFACE_EPS must be a SMALL FIXED length, not a fraction of the element
+	// height. At the shallow coast the sea-surface node IS also an interface
+	// node, so any downward clamp lowers the water lid too; an eps of ~10% of
+	// the element height (~46 m here) caved the coastal surface into visible
+	// pits below z=0. A fixed 1 m only flattens the +z spikes flush to the lid
+	// and keeps a 1 m positive thickness where the floor meets the lid (no
+	// zero-volume collapse), while the coastal dip stays visually negligible.
+	const double SEA_LEVEL = 0.0;
+	const double SURFACE_EPS = 1.0;   // metres below the sea surface
+	double sea_clamp = SEA_LEVEL - SURFACE_EPS;
+
 	auto record = [&](int node, double x, double y, double z) {
+		if (z > sea_clamp) z = sea_clamp;
 		pending.emplace(node, std::array<double, 3>{x, y, z});
 	};
 
@@ -800,6 +819,40 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		}
 		pending.clear();
 	};
+
+	// --- Projection validity limiter: setup ----------------------------------
+	// Snapshot the original (valid lattice) coords and the signed volume of
+	// every octree element BEFORE projecting. Projecting interface nodes onto a
+	// steep/curved bathy collapses or inverts the thin interface-layer elements
+	// (zext median 12 m vs ~500 m wide), which the pillowing then inherits as
+	// zero-volume elements that render as holes. After projection we pull the
+	// offending moved nodes back toward these positions (see end of function).
+	std::vector<double> coords0 = coords;
+	auto hexvol = [&](octant_t *e) -> double {
+		// Use the SAME node order the h5 writer emits (assign_elem_nodes =
+		// {4,5,6,7,0,1,2,3} in hexa_h5.cpp). e->nodes is not the standard hex
+		// order assumed by the tet decomposition T and the reorder is not a clean
+		// z-flip, so computing T directly over e->nodes yields a geometrically
+		// wrong volume — the limiter then misses real interface inversions.
+		static const int ord[8] = {4,5,6,7,0,1,2,3};
+		double X[8], Y[8], Z[8];
+		for (int i = 0; i < 8; i++) {
+			int id = e->nodes[ord[i]].id;
+			X[i] = coords[3*id]; Y[i] = coords[3*id+1]; Z[i] = coords[3*id+2];
+		}
+		static const int T[6][4] = {{0,1,2,6},{0,2,3,6},{0,3,7,6},{0,7,4,6},{0,4,5,6},{0,5,1,6}};
+		double v = 0.0;
+		for (auto &t : T) {
+			double ax=X[t[1]]-X[t[0]], ay=Y[t[1]]-Y[t[0]], az=Z[t[1]]-Z[t[0]];
+			double bx=X[t[2]]-X[t[0]], by=Y[t[2]]-Y[t[0]], bz=Z[t[2]]-Z[t[0]];
+			double cx=X[t[3]]-X[t[0]], cy=Y[t[3]]-Y[t[0]], cz=Z[t[3]]-Z[t[0]];
+			v += (ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx))/6.0;
+		}
+		return v;
+	};
+	std::vector<double> ref_vol(mesh->elements.elem_count);
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
+		ref_vol[iel] = hexvol((octant_t*) sc_array_index(&mesh->elements, iel));
 
 	// Pass 1: find surface intersection on each cut octree edge and snap the two
 	// adjacent inner nodes to that intersection point.
@@ -976,6 +1029,42 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	flush();
 
 	RegularizeSkippedOctreeNodes(mesh, coords, nodes_b_mat);
+
+	// --- Projection validity limiter: repair ---------------------------------
+	// Pull moved nodes back toward their original lattice positions wherever an
+	// incident element collapsed or inverted (volume sign flip vs reference, or
+	// magnitude < 5% of its original). Halving toward the known-valid lattice
+	// config each iteration is monotone toward validity, so it never inverts a
+	// currently-valid element. This keeps the interface-layer elements valid so
+	// the pillow layer built on them does not collapse into holes. Cost: only
+	// nodes of invalid elements move, so it converges in a few iterations.
+	{
+		int n_nodes_loc = (int)(coords.size() / 3);
+		const int MAXIT = 50;
+		int it = 0, nbad = 0, npull_total = 0;
+		std::vector<char> pull(n_nodes_loc, 0);
+		for (it = 0; it < MAXIT; it++) {
+			std::fill(pull.begin(), pull.end(), 0);
+			nbad = 0;
+			for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+				double v = hexvol(e), rv = ref_vol[iel];
+				double av = v < 0 ? -v : v, arv = rv < 0 ? -rv : rv;
+				if (v * rv > 0.0 && av >= 0.05 * arv) continue;   // still valid
+				nbad++;
+				for (int i = 0; i < 8; i++) pull[e->nodes[i].id] = 1;
+			}
+			if (nbad == 0) break;
+			for (int n = 0; n < n_nodes_loc; n++) if (pull[n]) {
+				coords[3*n+0] = 0.5 * (coords[3*n+0] + coords0[3*n+0]);
+				coords[3*n+1] = 0.5 * (coords[3*n+1] + coords0[3*n+1]);
+				coords[3*n+2] = 0.5 * (coords[3*n+2] + coords0[3*n+2]);
+				npull_total++;
+			}
+		}
+		printf("    Projection limiter: %d invalid elements after %d iters (%d node pull-backs)\n",
+				nbad, it, npull_total);
+	}
 
 	// Deduplicate nodes_b_mat via hash and update per-element node fixity.
 	bool clamped = true;
