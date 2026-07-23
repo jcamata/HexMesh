@@ -473,6 +473,23 @@ void ExtrudeToOctree(hexa_tree_t *mesh, std::vector<double> &coords);
 void hexa_element_init(octant_t *elem);
 void hexa_element_copy(octant_t *elem, octant_t *elemCopy);
 void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes);
+
+// Hex quality metrics (src/hexa_quality.cpp), driven from src/optimize_mesh.cpp.
+// nodes[8] must already be in the h5-output node order (see assign_elem_nodes
+// = {4,5,6,7,0,1,2,3} in hexa_h5.cpp): bottom face 0,1,2,3 CCW, top face 4,5,6,7 CCW.
+typedef struct {
+	double volume;          // tet-decomposition volume
+	double edgeRatio;       // longest edge / shortest edge (1 = ideal)
+	double jacobianDet;     // Jacobian determinant at the element centroid
+	double conditionNumber; // Frobenius condition number of the centroid Jacobian (1 = ideal)
+	double skew;            // Verdict-style principal-axis skew, in [0,1] (0 = ideal)
+	double scaledJacobian;  // worst (min) of the 8 corner Jacobians, normalized by edge lengths, in [-1,1] (1 = ideal)
+	double shape;           // worst (min) of the 8 corner shape metrics, in (0,1] (1 = ideal)
+	double oddy;            // worst (max) of the 8 corner Oddy metrics, >= 0 (0 = ideal)
+} hex_quality_t;
+
+void hexQualityMetrics(double nodes[8][3], hex_quality_t *q);
+void hexQualitySelfTest();
 void hexa_mesh_write_msh(hexa_tree_t *mesh, const char *root_name, std::vector<double> *coords);
 void hexa_mesh_write_h5(hexa_tree_t *mesh, const char *root_name, std::vector<double> coords);
 int hexa_mesh_write_vtk(hexa_tree_t *mesh, const char *filename, std::vector<double> *coords);

@@ -15,6 +15,11 @@
 
 using namespace Mesquite;
 
+// ponytail: Mesquite-based optimization disabled, superseded by the hex quality
+// metrics in hexa_quality.cpp (called from main.cpp instead of MeshOptimization).
+// Flip back to #if 1 to restore.
+#if 0
+
 unsigned sel_hash_id(const void *v, const void *u)
 {
 	const shared_octant_t *q = (const shared_octant_t*) v;
@@ -2203,3 +2208,5 @@ void MeshOptimization(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		OptVolumeParallel(mesh, coords, hash_FixedNodes);
 	}
 }
+
+#endif // ponytail: Mesquite optimization disabled

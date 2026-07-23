@@ -110,7 +110,7 @@
 	}
 	
 	//opt mesh
-	if (mesh.input.meshOpt == 0 || true) {
+	if (mesh.input.meshOpt == 0) {
 		// do nothing
 	} else {
 		start = std::chrono::steady_clock::now( );
@@ -143,15 +143,15 @@
 
 	start = std::chrono::steady_clock::now( );
 	printf(" Writing output files \n\n");
-    //hexa_mesh_write_vtk(&mesh, "mesh", &coords); //there is some bug in the connectivity
-	//hexa_mesh_write_msh(&mesh, "mesh", &coords);
+        hexa_mesh_write_vtk(&mesh, "mesh", &coords);
+	hexa_mesh_write_msh(&mesh, "mesh", &coords);
 	hexa_mesh_write_h5(&mesh,"mesh", coords);
 	elapsed = std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::steady_clock::now( ) - start );
 	fprintf(mesh.profile,"Time in Writing output files %lld millisecond(s).\n",elapsed.count());
 	std::cout << "Time in Writing output files "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 
-	//hexa_mesh_write_vtk(&mesh, "test",NULL);
+	hexa_mesh_write_vtk(&mesh, "test",NULL);
 	start = std::chrono::steady_clock::now( );
 
 	printf(" Cleaning variables \n\n");
