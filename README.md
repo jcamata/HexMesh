@@ -23,10 +23,13 @@ Before using the software, the following libraries need to be installed and avai
 1. libsc (https://github.com/cburstedde/libsc)
 1. hdf5 (https://portal.hdfgroup.org/display/support/Downloads)
 1. mesquite (https://software.sandia.gov/mesquite/)
+1. CGAL (https://www.cgal.org/), along with its GMP and MPFR dependencies
 
 ## COMPILATION
 
-Depending on the OS you are using, modify the paths for GTS_LIB, SC_LIB, HDF5_DIR, MESQUITE_DIR and GLIB_INCLUDE in Make.Linux, Make.mac or Makefile
+A C++17 compiler is required.
+
+Depending on the OS you are using, modify the paths for GTS_LIB, SC_LIB, HDF5_DIR, MESQUITE_DIR, CGAL_LIB and GLIB_INCLUDE in Make.Linux, Make.mac or Makefile
 
 Compile with (replace OS by Linux or mac)
 >> make -f Make.OS
@@ -39,8 +42,22 @@ To prepare the geometry files, modify the headers in mainSRTM.m (in particular c
 
 You need an internet connexion to download the topography, bathymetry and coastlines files (no connexion needed if they are already available on your computer). The output files are a topography STL file topo.stl and a bathymetry STL file bathy.stl. These files should be transformed to GTS using stl2gts command, and move to directory $(HEXHOME)/input, where $(HEXHOME) is the directory where hexmesh was compiled.
 
+Before running, edit the input file HexMesh.input, located in $(HEXMESH) (it is read from ./HexMesh.input relative to the working directory). It sets:
+* topo / inter: paths to the topography and interface (bathymetry) GTS files, and interfaceNumber (0 or 1 interface admitted for now)
+* ref: refinement level of the 27-tree structure (mesh is a cube with 2*3^ref elements in x and y)
+* z / zcuts: depth of the model and the depths at which refinement changes from 3 to 1 elements
+* movingNodes: whether to move nodes in the smart octree (0/1)
+* nmat and the material lines (S/F, with vp, vs, rho): material definitions
+* PML, pmlx/pmly/pmlz, nlayersx/y/z, A, npow: PML settings
+* meshOpt: mesh optimization flag (not yet implemented)
+* CgalUse: use the exact CGAL kernel for intersection computations (1) instead of GTS (0)
+
 To create the mesh, you should run (in a Terminal from the directory $(HEXMESH))
 
->> mpirun -np <nb_proc> ./hexmesh <refine_level>
+>> mpirun -np <nb_proc> ./hexmesh
 
-where <nb_proc> is an integer specifying the number of processes used to create the mesh (each process creates its own VTK file), and <refine_level> is an integer specifying the number of level refinements of the 27-tree structure! (For now, the integer must be a power of 3: 1, 3, 9, 27 …). The files topo.gts, bathy.gts and coastline.dat should be in a repository ./input. By default (this will be made more general later), the depth of the mesh is the larger dimension of the two horizontal dimensions of the topography file; and the depths at which the refinements occur at set in function hexa_tree_cube, in hexa.cpp line 190).
+where <nb_proc> is an integer specifying the number of processes used to create the mesh (each process creates its own output files). The files referenced by topo and inter in HexMesh.input should be in a repository ./input. By default (this will be made more general later), the depth of the mesh is the larger dimension of the two horizontal dimensions of the topography file; and the depths at which the refinements occur at set in function hexa_tree_cube, in hexa.cpp line 190).
+
+## OUTPUT
+
+Each MPI process writes its own mesh as an HDF5 file mesh_<nb_proc>_<rank>.h5, together with a companion mesh_<nb_proc>_<rank>.h5.xmf XDMF description that can be opened directly in ParaView or VisIt (VTK output is no longer produced; the VTK/VTU writer in hexa_vtk.cpp is disabled due to a known connectivity bug). Each process also writes a Profile_<nb_proc>_<rank>.txt log with timings for each stage. If PML = 1 in HexMesh.input, a material.input.FromHexMesh file is additionally written for use with SEM3D.
