@@ -59,7 +59,9 @@ int hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename)
 	char                vtufilename[BUFSIZ];
 	FILE               *vtufile;
 
-
+	// h->nodes[8] is in the octree's native corner order, not the VTK_HEXAHEDRON
+	// (bottom 0-1-2-3 CCW, top 4-5-6-7 CCW) order; same remap as hexa_h5.cpp.
+	static const int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
 
 	/* Have each proc write to its own file */
 	snprintf (vtufilename, BUFSIZ, "%s_%d_%d.vtu", filename, mesh->mpi_size, mesh->mpi_rank);
@@ -85,7 +87,7 @@ int hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename)
 	for (zz = 0; zz < Ncells; ++zz) {
 		octant_t* h = (octant_t*) sc_array_index (&mesh->elements, zz);
 		for(jt=0; jt < 8; ++jt){
-			octant_node_t* node = &h->nodes[jt];
+			octant_node_t* node = &h->nodes[assign_elem_nodes[jt]];
 			float_data[count*3  ] = (VTK_FLOAT_TYPE) node->x;
 			float_data[count*3+1] = (VTK_FLOAT_TYPE) node->y;
 			float_data[count*3+2] = (VTK_FLOAT_TYPE) node->z;
@@ -242,6 +244,9 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
 	char                vtufilename[BUFSIZ];
 	FILE               *vtufile;
 
+	// h->nodes[8] is in the octree's native corner order, not the VTK_HEXAHEDRON
+	// (bottom 0-1-2-3 CCW, top 4-5-6-7 CCW) order; same remap as hexa_h5.cpp.
+	static const int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
 
 	/* Have each proc write to its own file */
 	snprintf (vtufilename, BUFSIZ, "%s_%d_%d.vtu", filename, mesh->mpi_size, mesh->mpi_rank);
@@ -306,7 +311,7 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
 		fprintf (vtufile, "          ");
 		for(il=0; il < 8; il++)
 		{
-			octant_node_t* node = &h->nodes[il];
+			octant_node_t* node = &h->nodes[assign_elem_nodes[il]];
 			fprintf (vtufile, "%lld ", node->id);
 		}
 		fprintf (vtufile, "\n");

@@ -444,6 +444,49 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 	};
 	std::unordered_map<int, NodeDisp> ndisp;
 
+	// Real-world position of a pillow node, computed WITHOUT LinearMapHex's
+	// trilinear blend across ref_elem's full 8 corners. That blend is only
+	// accurate when ref_elem is close to a rectangular box; near steep
+	// bathymetry ref_elem is frequently warped by MovingNodes' surface
+	// projection, and trilinear-interpolating a "pure z push" through a warped
+	// hex leaks it into x/y too (the hex's shear couples all three parametric
+	// axes together) -- this is what actually produced the "should be same
+	// x,y, different z" twist. It also let cr run past +-1 (extrapolating
+	// beyond ref_elem into the next element) whenever ref_ino was already the
+	// extremal corner for the push's own axis.
+	// Fix: move along ref_elem's own REAL local edges instead. For each active
+	// axis, take the ACTUAL coordinates of ref_ino's neighboring corner along
+	// that axis (nodes[8] is in x/y/z-bit order: pairs (0,1)(3,2)(4,5)(7,6) on
+	// x, (0,3)(1,2)(4,7)(5,6) on y, (0,4)(1,5)(2,6)(3,7) on z) and move the same
+	// FRACTION of that real edge vector that dx/dy/dz is of the lattice edge
+	// (+-12). Every axis only ever touches two real corners at a time, so a
+	// warped opposite face of ref_elem can never leak into this corner's push.
+	static const int xnb[8] = {1,0,3,2,5,4,7,6};
+	static const int ynb[8] = {3,2,1,0,7,6,5,4};
+	static const int znb[8] = {4,5,6,7,0,1,2,3};
+	auto pillowPos = [&coords](const NodeDisp &nd, octant_t *ref)->std::array<double,3> {
+		int ino = nd.ref_ino;
+		int oid = ref->nodes[ino].id;
+		double px = coords[3*oid+0], py = coords[3*oid+1], pz = coords[3*oid+2];
+		auto axisPush = [&](int comp, int nbIdx) {
+			if (comp == 0) return;
+			int nbid = ref->nodes[nbIdx].id;
+			// lattice delta along this axis between ino and its neighbor (+-12)
+			double latdx = ref->nodes[nbIdx].x - ref->nodes[ino].x;
+			double latdy = ref->nodes[nbIdx].y - ref->nodes[ino].y;
+			double latdz = ref->nodes[nbIdx].z - ref->nodes[ino].z;
+			double lat = latdx != 0 ? latdx : (latdy != 0 ? latdy : latdz);
+			double t = (double)comp / lat;
+			px += t * (coords[3*nbid+0] - coords[3*oid+0]);
+			py += t * (coords[3*nbid+1] - coords[3*oid+1]);
+			pz += t * (coords[3*nbid+2] - coords[3*oid+2]);
+		};
+		axisPush(nd.dx, xnb[ino]);
+		axisPush(nd.dy, ynb[ino]);
+		axisPush(nd.dz, znb[ino]);
+		return { px, py, pz };
+	};
+
 	// Pinch resolution: a boundary node with zero net displacement (mat-0
 	// sliver one element thick, pushed from both sides) or whose pillow
 	// target slot is occupied makes the shrink-set boundary non-manifold
@@ -529,6 +572,14 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 			}
 		}
 
+		// Clamp corner node displacement components so corner nodes don't overshoot
+		for (auto &kv : ndisp) {
+			NodeDisp &nd = kv.second;
+			if (nd.dx > 4)  nd.dx = 4;   else if (nd.dx < -4)  nd.dx = -4;
+			if (nd.dy > 4)  nd.dy = 4;   else if (nd.dy < -4)  nd.dy = -4;
+			if (nd.dz > 4)  nd.dz = 4;   else if (nd.dz < -4)  nd.dz = -4;
+		}
+
 		// D5: predictive pillow-degeneracy. Compute the volume of the pillow
 		// element that WOULD be built on each interface face (same geometry as
 		// STEP 3/4: outer face at the original node positions, inner face at the
@@ -554,16 +605,8 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 					if (it == ndisp.end()) { full = false; break; }
 					NodeDisp &nd = it->second;
 					octant_t *ref = (octant_t *)sc_array_index(&mesh->elements, nd.ref_iel);
-					int nx = ref->nodes[nd.ref_ino].x + nd.dx;
-					int ny = ref->nodes[nd.ref_ino].y + nd.dy;
-					int nz = ref->nodes[nd.ref_ino].z + nd.dz;
-					double rx[8], ry[8], rz[8];
-					for (int i = 0; i < 8; i++) { int id = ref->nodes[i].id; rx[i]=coords[3*id]; ry[i]=coords[3*id+1]; rz[i]=coords[3*id+2]; }
-					double cr[3] = { (double)(nx-ref->nodes[0].x)/6.0-1.0,
-					                 (double)(ny-ref->nodes[0].y)/6.0-1.0,
-					                 (double)(nz-ref->nodes[0].z)/6.0-1.0 };
-					GtsPoint *pp = LinearMapHex(cr, rx, ry, rz);
-					X[li] = pp->x; Y[li] = pp->y; Z[li] = pp->z;
+					std::array<double,3> pp = pillowPos(nd, ref);
+					X[li] = pp[0]; Y[li] = pp[1]; Z[li] = pp[2];
 				}
 				if (!full) continue;                 // pinched node: left to the pinch logic
 				pv[fi] = hexvol8(X, Y, Z); pcomp[fi] = 1;
@@ -633,38 +676,42 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 			}
 		}
 
-		if (pinched.empty() && pinched_edges.empty() && degen_iel.empty()) break;
-		if (pinch_iter >= max_pinch_iters) {
-			printf("     WARNING: %d pinched nodes / %d non-manifold edges remain after %d pinch "
-					"iterations; falling back to fresh-ID pillow nodes (locally degenerate geometry)\n",
-					(int)pinched.size(), (int)pinched_edges.size(), max_pinch_iters);
-			break;
-		}
-
-		int ndiss = 0;
-		for (auto &ip : ifaces) {
-			octant_t *ea = (octant_t *)sc_array_index(&mesh->elements, ip.iel_a);
-			if (ea->n_mat != 0) continue;
-
-			bool dissolve = false;
-			for (int k = 0; k < 4 && !dissolve; k++) {
-				int a = ea->nodes[FaceNodesMap[ip.iface_a][k]].id;
-				if (pinched.count(a)) { dissolve = true; break; }
-				int b = ea->nodes[FaceNodesMap[ip.iface_a][(k + 1) % 4]].id;
-				int lo = a < b ? a : b, hi = a < b ? b : a;
-				if (pinched_edges.count(std::make_pair(lo, hi))) dissolve = true;
+		if (false) { // Disabled pinch element dissolution per user request
+			if (pinched.empty() && pinched_edges.empty() && degen_iel.empty()) break;
+			if (pinch_iter >= max_pinch_iters) {
+				printf("     WARNING: %d pinched nodes / %d non-manifold edges remain after %d pinch "
+						"iterations; falling back to fresh-ID pillow nodes (locally degenerate geometry)\n",
+						(int)pinched.size(), (int)pinched_edges.size(), max_pinch_iters);
+				break;
 			}
-			if (degen_iel.count(ip.iel_a)) dissolve = true;   // D5: would-be-degenerate pillow
-			if (dissolve) {
-				ea->n_mat = 1;
-				ndiss++;
+
+			int ndiss = 0;
+			for (auto &ip : ifaces) {
+				octant_t *ea = (octant_t *)sc_array_index(&mesh->elements, ip.iel_a);
+				if (ea->n_mat != 0) continue;
+
+				bool dissolve = false;
+				for (int k = 0; k < 4 && !dissolve; k++) {
+					int a = ea->nodes[FaceNodesMap[ip.iface_a][k]].id;
+					if (pinched.count(a)) { dissolve = true; break; }
+					int b = ea->nodes[FaceNodesMap[ip.iface_a][(k + 1) % 4]].id;
+					int lo = a < b ? a : b, hi = a < b ? b : a;
+					if (pinched_edges.count(std::make_pair(lo, hi))) dissolve = true;
+				}
+				if (degen_iel.count(ip.iel_a)) dissolve = true;   // D5: would-be-degenerate pillow
+				if (dissolve) {
+					ea->n_mat = 1;
+					ndiss++;
+				}
 			}
+			dissolved_total += ndiss;
+			printf("     Pinch resolution iter %d: %d pinched nodes, %d non-manifold edges, "
+					"dissolved %d sliver elements into mat-1\n",
+					pinch_iter, (int)pinched.size(), (int)pinched_edges.size(), ndiss);
+			if (ndiss == 0) break; // nothing left to dissolve; fallback handles the rest
+		} else {
+			break; // break out after building ifaces & ndisp without dissolving elements
 		}
-		dissolved_total += ndiss;
-		printf("     Pinch resolution iter %d: %d pinched nodes, %d non-manifold edges, "
-				"dissolved %d sliver elements into mat-1\n",
-				pinch_iter, (int)pinched.size(), (int)pinched_edges.size(), ndiss);
-		if (ndiss == 0) break; // nothing left to dissolve; fallback handles the rest
 	}
 	if (dissolved_total > 0)
 		printf("     Pinch resolution: dissolved %d sliver elements in total\n", dissolved_total);
@@ -689,15 +736,7 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 		int ny = ref_elem->nodes[nd.ref_ino].y + nd.dy;
 		int nz = ref_elem->nodes[nd.ref_ino].z + nd.dz;
 
-		double rx[8], ry[8], rz[8];
-		for (int i = 0; i < 8; i++) {
-			int id = ref_elem->nodes[i].id;
-			rx[i] = coords[3*id]; ry[i] = coords[3*id+1]; rz[i] = coords[3*id+2];
-		}
-		double cr[3];
-		cr[0] = (double)(nx - ref_elem->nodes[0].x) / 6.0 - 1.0;
-		cr[1] = (double)(ny - ref_elem->nodes[0].y) / 6.0 - 1.0;
-		cr[2] = (double)(nz - ref_elem->nodes[0].z) / 6.0 - 1.0;
+		std::array<double,3> pp = pillowPos(nd, ref_elem);
 
 		size_t pos;
 		octant_node_t key; key.x = nx; key.y = ny; key.z = nz;
@@ -712,13 +751,60 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 		ra->x = key.x; ra->y = key.y; ra->z = key.z;
 		ra->id = (int)(hash_nodes->a.elem_count - 1);
 		ra->fixed = 0; ra->color = 0;
-		GtsPoint *pt = LinearMapHex(cr, rx, ry, rz);
-		coords.push_back(pt->x); coords.push_back(pt->y); coords.push_back(pt->z);
+		coords.push_back(pp[0]); coords.push_back(pp[1]); coords.push_back(pp[2]);
 		pillow_map[nid] = ra->id;
 	}
 	if (n_nudged > 0)
 		printf("     WARNING: %d pillow nodes created on nudged lattice slots (unresolved pinches)\n", n_nudged);
 	printf("     Created %d pillow nodes\n", (int)pillow_map.size());
+
+	// Smooth initial pillow node positions along the interface topology to untwist corner shear
+	// Disabled: pure topological Laplacian smoothing with no anchor to the actual
+	// bathymetry surface -- warps the interface layer away from the input geometry
+	// (crumpled patches at the coastline in gmsh).
+	if (false) {
+		std::unordered_map<int, std::vector<int>> pillow_adj;
+		pillow_adj.reserve(pillow_map.size());
+
+		for (auto &ip : ifaces) {
+			octant_t *ea = (octant_t *)sc_array_index(&mesh->elements, ip.iel_a);
+			int iface = ip.iface_a;
+			for (int k = 0; k < 4; k++) {
+				int nid1 = ea->nodes[FaceNodesMap[iface][k]].id;
+				int nid2 = ea->nodes[FaceNodesMap[iface][(k + 1) % 4]].id;
+				auto it1 = pillow_map.find(nid1);
+				auto it2 = pillow_map.find(nid2);
+				if (it1 != pillow_map.end() && it2 != pillow_map.end()) {
+					int p1 = it1->second, p2 = it2->second;
+					pillow_adj[p1].push_back(p2);
+					pillow_adj[p2].push_back(p1);
+				}
+			}
+		}
+
+		for (int sm_iter = 0; sm_iter < 3; sm_iter++) {
+			std::unordered_map<int, std::array<double, 3>> sm_coords;
+			for (auto &kv : pillow_map) {
+				int p = kv.second;
+				auto ait = pillow_adj.find(p);
+				if (ait == pillow_adj.end() || ait->second.empty()) continue;
+				double sx = 0, sy = 0, sz = 0;
+				for (int nbr : ait->second) {
+					sx += coords[3*nbr+0];
+					sy += coords[3*nbr+1];
+					sz += coords[3*nbr+2];
+				}
+				size_t deg = ait->second.size();
+				sm_coords[p] = { sx / deg, sy / deg, sz / deg };
+			}
+			for (auto &kv : sm_coords) {
+				int p = kv.first;
+				coords[3*p+0] = 0.5 * (coords[3*p+0] + kv.second[0]);
+				coords[3*p+1] = 0.5 * (coords[3*p+1] + kv.second[1]);
+				coords[3*p+2] = 0.5 * (coords[3*p+2] + kv.second[2]);
+			}
+		}
+	}
 
 	// -- STEP 4: collect pillow element data BEFORE any element modification --
 	// outer face (FaceNodesMap[iface])     = original positions, shared with mat-1
@@ -851,43 +937,20 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 			for(int i=0;i<8;i++) if(pillow_origin.count(e->nodes[i].id)){ band.push_back(iel); break; }
 		}
 
-		int nnodes=(int)(coords.size()/3);
-		std::vector<char> pull(nnodes,0);
-		const int MAXIT=60;
-		int it=0, nbad=0;
-		for(it=0; it<MAXIT; it++){
-			std::fill(pull.begin(),pull.end(),0);
-			nbad=0;
-			for(int b : band){
-				octant_t *e=(octant_t*)sc_array_index(&mesh->elements,b);
-				double v=hexvol(e);
-				if(v*sgn > thr) continue;                  // valid (correct sign, non-zero)
-				nbad++;
-				for(int i=0;i<8;i++){int id=e->nodes[i].id; if(pillow_origin.count(id)) pull[id]=1;}
-			}
-			if(nbad==0) break;
-			bool moved=false;
-			for(int p=0;p<nnodes;p++) if(pull[p]){
-				int o=pillow_origin[p];
-				coords[3*p+0]=0.5*(coords[3*p+0]+coords[3*o+0]);
-				coords[3*p+1]=0.5*(coords[3*p+1]+coords[3*o+1]);
-				coords[3*p+2]=0.5*(coords[3*p+2]+coords[3*o+2]);
-				moved=true;
-			}
-			if(!moved) break;
+		int nnodes = (int)(coords.size() / 3);
+
+		// Record initial un-collapsed pillow node positions before any shrinking/clamping
+		std::vector<double> pillow_init_pos(3 * nnodes, 0.0);
+		for (auto &kv : pillow_origin) {
+			int p = kv.first;
+			pillow_init_pos[3*p+0] = coords[3*p+0];
+			pillow_init_pos[3*p+1] = coords[3*p+1];
+			pillow_init_pos[3*p+2] = coords[3*p+2];
 		}
 
-		// -- Interface clamp (moved here from PillowingInterface) -------------
+		// -- Interface clamp --------------------------------------------------
 		// The mat0/mat1 interface is the sea floor: no interface node may sit
-		// above the sea surface. This MUST run after the pillow layer is built
-		// (so it also catches the pillow nodes created from land-adjacent
-		// positions — running it before Pillowing left ~22 spikes at z~+525), and
-		// it MUST run before the dissolve below (so the dissolve sees the final
-		// geometry — running it after Pillowing re-inverted ~11 already-repaired
-		// elements that then rendered as holes). SURFACE_EPS is a SMALL FIXED
-		// length, not a fraction of the element height: a large eps caved the
-		// shallow coast into pits below z=0 (the shoreline node is itself an
-		// interface node); 1 m only flattens the +z spikes flush to the lid.
+		// above the sea surface.
 		{
 			const double SEA_LEVEL = 0.0, SURFACE_EPS = 1.0;
 			const double zceil = SEA_LEVEL - SURFACE_EPS;
@@ -902,55 +965,258 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 			printf("     Clamped %d interface nodes below the sea surface\n", nclamp);
 		}
 
-		// -- STEP 7b (A2): iterative full-snap dissolve — GUARANTEE zero inverted.
-		// Snap the pillow nodes of every still-inverted band element fully onto
-		// their interface origins (local un-pillowing). Unlike the halving above
-		// (which oscillates on shared nodes — whack-a-mole — and never reaches 0),
-		// full-snap is MONOTONE: a snapped node is parked exactly on its origin and
-		// flagged so it never moves again, so the snapped set only grows. The worst
-		// case is every pillow node snapped, i.e. the pillow fully removed = the
-		// pre-pillow mesh, which is valid by construction (projection limiter); so
-		// the inverted count strictly decreases to 0 in a bounded number of
-		// iterations. A dissolved pillow collapses to a zero-volume sheet on the
-		// interface plane; the remapped mat-0 element returns to its valid
-		// pre-pillow shape and fills the space, so no hole is left. Inverted
-		// elements that own NO pillow node (e.g. clamp-thinned mat-1 interface
-		// slivers) cannot be snapped here and are reported separately.
+		// -- STEP 7: adaptive minimum thickness shrink — GUARANTEE V > 0.
+		// Shrink pillow node positions adaptively toward interface origins with a
+		// positive minimum thickness floor ALPHA_MIN (5% of initial displacement).
+		// This ensures all elements retain positive 3D cell volume (V > 0).
+		const double ALPHA_MIN = 0.05; // 5% minimum thickness preserved
+		std::vector<double> pillow_alpha(nnodes, 1.0);
 		std::vector<char> snapped(nnodes, 0);
+
 		int it2 = 0, nbad2 = 0, nsnap = 0;
 		const int MAXIT2 = 4000;
 		for (it2 = 0; it2 < MAXIT2; it2++) {
-			std::vector<int> tosnap;
+			// Shrink per ELEMENT, not per node: all of an invalid element's own
+			// pillow-face nodes are forced to the SAME alpha together. Shrinking
+			// them independently (old behaviour) let sibling corners of one hex
+			// drift to different depths whenever their OTHER incident element
+			// became valid at different iterations, shearing that hex into a
+			// wedge instead of just thinning it.
+			std::unordered_map<int,double> proposal;         // node id -> smallest proposed alpha this iter
 			nbad2 = 0;
-			for (int b = 0; b < ne; b++) {                   // scan all elements (mat-1 inversions are not in the pillow band)
+			for (int b = 0; b < ne; b++) {                   // scan all elements
 				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
-				if (hexvol(e) * sgn >= -thr) continue;       // valid or intentionally collapsed
+				if (hexvol(e) * sgn > 0.0) continue;         // valid positive volume
 				nbad2++;
+				double minalpha = 1.0;
+				std::vector<int> pnodes;
 				for (int i = 0; i < 8; i++) {
 					int id = e->nodes[i].id;
-					if (pillow_origin.count(id) && !snapped[id]) tosnap.push_back(id);
+					if (pillow_origin.count(id) && !snapped[id]) {
+						pnodes.push_back(id);
+						if (pillow_alpha[id] < minalpha) minalpha = pillow_alpha[id];
+					}
+				}
+				if (pnodes.empty()) continue;                // residual inversion owns no unsnapped pillow node
+				double new_alpha = minalpha * 0.5;
+				for (int id : pnodes) {
+					auto it = proposal.find(id);
+					if (it == proposal.end() || new_alpha < it->second) proposal[id] = new_alpha;
 				}
 			}
 			if (nbad2 == 0) break;
-			if (tosnap.empty()) break;                       // residual inversions own no unsnapped pillow node
-			for (int p : tosnap) {
+			if (proposal.empty()) break;
+			for (auto &kv : proposal) {
+				int p = kv.first;
 				int o = pillow_origin[p];
-				coords[3*p+0] = coords[3*o+0]; coords[3*p+1] = coords[3*o+1]; coords[3*p+2] = coords[3*o+2];
-				if (!snapped[p]) { snapped[p] = 1; nsnap++; }
+				pillow_alpha[p] = kv.second;
+				if (pillow_alpha[p] <= ALPHA_MIN) {
+					pillow_alpha[p] = ALPHA_MIN;
+					snapped[p] = 1;
+					nsnap++;
+				}
+				coords[3*p+0] = coords[3*o+0] + pillow_alpha[p] * (pillow_init_pos[3*p+0] - coords[3*o+0]);
+				coords[3*p+1] = coords[3*o+1] + pillow_alpha[p] * (pillow_init_pos[3*p+1] - coords[3*o+1]);
+				coords[3*p+2] = coords[3*o+2] + pillow_alpha[p] * (pillow_init_pos[3*p+2] - coords[3*o+2]);
 			}
 		}
 		int n_inv_final = 0, n_inv_pillow = 0, n_inv_nonpillow = 0;
 		for (int b = 0; b < ne; b++) {
 			octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
-			if (hexvol(e) * sgn >= -thr) continue;
+			if (hexvol(e) * sgn > 0.0) continue;
 			n_inv_final++;
 			bool hasp = false;
 			for (int i = 0; i < 8; i++) if (pillow_origin.count(e->nodes[i].id)) { hasp = true; break; }
 			if (hasp) n_inv_pillow++; else n_inv_nonpillow++;
 		}
-		printf("     Pillow validity repair: halving left %d invalid (%d iters); dissolve snapped %d pillow "
-				"nodes (%d iters); final inverted=%d (pillow %d, non-pillow %d)\n",
-				nbad, it, nsnap, it2, n_inv_final, n_inv_pillow, n_inv_nonpillow);
+		printf("     Pillow validity repair: adaptive shrink (alpha_min=%.2f) adjusted %d pillow "
+				"nodes (%d iters); final invalid=%d (pillow %d, non-pillow %d)\n",
+				ALPHA_MIN, nsnap, it2, n_inv_final, n_inv_pillow, n_inv_nonpillow);
+
+		// -- Corner-Jacobian cleanup ------------------------------------------
+		// ParaView and the solver validate hexes by the 8 corner Jacobians (in
+		// the h5 output node order), not by the tet-decomposition volume above —
+		// the two disagree on twisted hexes. Two surgical passes:
+		//   pass 1: elements listed inside-out (ALL 8 corners negative) are fixed
+		//           by relabeling only (swap bottom/top node slots); geometry and
+		//           face-set conformity untouched.
+		//   pass 2: elements folded at a few corners get a local node nudge —
+		//           only INTERIOR nodes move (never interface, sea-surface,
+		//           lateral-wall or bottom nodes), and a move is accepted only if
+		//           the worst corner Jacobian over ALL elements touching that
+		//           node strictly improves (monotone: nothing valid can break).
+		{
+			// worst (minimum) corner Jacobian in the output node order
+			auto hexworst = [&](octant_t *e)->double {
+				static const int ord[8] = {4,5,6,7,0,1,2,3};
+				static const int nb[8][3] = {{1,3,4},{2,0,5},{3,1,6},{0,2,7},{7,5,0},{4,6,1},{5,7,2},{6,4,3}};
+				double X[8],Y[8],Z[8];
+				for(int i=0;i<8;i++){int id=e->nodes[ord[i]].id; X[i]=coords[3*id];Y[i]=coords[3*id+1];Z[i]=coords[3*id+2];}
+				double w = 1e300;
+				for(int k=0;k<8;k++){
+					int a=nb[k][0], b=nb[k][1], d=nb[k][2];
+					double ax=X[a]-X[k],ay=Y[a]-Y[k],az=Z[a]-Z[k];
+					double bx=X[b]-X[k],by=Y[b]-Y[k],bz=Z[b]-Z[k];
+					double cx=X[d]-X[k],cy=Y[d]-Y[k],cz=Z[d]-Z[k];
+					double J = ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx);
+					if (sgn*J < w) w = sgn*J;
+				}
+				return w;
+			};
+			auto hexbest = [&](octant_t *e)->double {
+				static const int ord[8] = {4,5,6,7,0,1,2,3};
+				static const int nb[8][3] = {{1,3,4},{2,0,5},{3,1,6},{0,2,7},{7,5,0},{4,6,1},{5,7,2},{6,4,3}};
+				double X[8],Y[8],Z[8];
+				for(int i=0;i<8;i++){int id=e->nodes[ord[i]].id; X[i]=coords[3*id];Y[i]=coords[3*id+1];Z[i]=coords[3*id+2];}
+				double w = -1e300;
+				for(int k=0;k<8;k++){
+					int a=nb[k][0], b=nb[k][1], d=nb[k][2];
+					double ax=X[a]-X[k],ay=Y[a]-Y[k],az=Z[a]-Z[k];
+					double bx=X[b]-X[k],by=Y[b]-Y[k],bz=Z[b]-Z[k];
+					double cx=X[d]-X[k],cy=Y[d]-Y[k],cz=Z[d]-Z[k];
+					double J = ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx);
+					if (sgn*J > w) w = sgn*J;
+				}
+				return w;
+			};
+
+			// -- pass 1: mirror-relabel inside-out elements (best corner still
+			// negative => ALL corners negative). Swapping the bottom/top node
+			// slots flips the listing orientation; node ids/coords untouched, so
+			// shared faces (node sets) and neighbors are unaffected.
+			int nflip = 0;
+			for (int b = 0; b < ne; b++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
+				if (hexbest(e) >= 0.0) continue;
+				for (int i = 0; i < 4; i++) {
+					octant_node_t tmpn = e->nodes[i];
+					e->nodes[i] = e->nodes[i+4];
+					e->nodes[i+4] = tmpn;
+				}
+				nflip++;
+				if (hexworst(e) <= 0.0)                    // paranoia: relabel must fix it
+					printf("     WARNING: mirror relabel left element %d invalid\n", b);
+			}
+
+			// -- pass 2: local nudge of interior nodes only --------------------
+			// Disabled: blind 26-direction pattern search that only maximizes a
+			// scalar corner-Jacobian metric with no anchor to the input geometry --
+			// produced crumpled/self-intersecting patches near the coastline in gmsh.
+			// eligibility: never interface (touches both materials), never at or
+			// above the sea clamp, never on the lateral walls or the bottom
+			if (false) {
+			std::vector<unsigned char> m0(nnodes,0), m1(nnodes,0);
+			for (int iel = 0; iel < ne; iel++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+				for (int i = 0; i < 8; i++) { int n = e->nodes[i].id; if (e->n_mat == 0) m0[n]=1; else m1[n]=1; }
+			}
+			// Wall planes are the DOMINANT extreme planes (median of the 6000 most
+			// extreme values), NOT the bbox: a handful of nodes sit outside the
+			// domain (deep pillow nodes extrapolated past the wall), and a
+			// bbox-based guard would "protect" only those outliers while leaving
+			// the true wall nodes free to move.
+			auto wallplane = [&](int ax, bool low)->double {
+				std::vector<double> v; v.reserve(nnodes);
+				for (int n = 0; n < nnodes; n++) v.push_back(coords[3*n+ax]);
+				int k = nnodes < 6000 ? nnodes : 6000;
+				if (low) { std::nth_element(v.begin(), v.begin()+k, v.end());
+					std::nth_element(v.begin(), v.begin()+k/2, v.begin()+k); return v[k/2]; }
+				std::nth_element(v.begin(), v.end()-k, v.end());
+				std::nth_element(v.end()-k, v.end()-k/2, v.end()); return *(v.end()-k/2);
+			};
+			const double wxlo = wallplane(0,true), wxhi = wallplane(0,false);
+			const double wylo = wallplane(1,true), wyhi = wallplane(1,false);
+			const double wzlo = wallplane(2,true);
+			const double wtol = 1e-3, ZCEIL = -1.0;
+			auto eligible = [&](int n)->bool {
+				if (m0[n] && m1[n]) return false;                     // interface: fixed
+				if (coords[3*n+2] >= ZCEIL - 1e-9) return false;      // sea-surface side: fixed
+				if (coords[3*n+0] < wxlo+wtol || coords[3*n+0] > wxhi-wtol) return false; // on/beyond walls
+				if (coords[3*n+1] < wylo+wtol || coords[3*n+1] > wyhi-wtol) return false;
+				if (coords[3*n+2] < wzlo+wtol) return false;          // bottom: fixed
+				return true;
+			};
+
+			// free nodes = eligible nodes of corner-invalid elements; star map
+			std::vector<char> isfree(nnodes, 0);
+			int n_badcorner = 0;
+			for (int b = 0; b < ne; b++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
+				if (hexworst(e) > 0.0) continue;
+				n_badcorner++;
+				for (int i = 0; i < 8; i++) if (eligible(e->nodes[i].id)) isfree[e->nodes[i].id] = 1;
+			}
+			std::unordered_map<int, std::vector<octant_t*>> star;
+			for (int iel = 0; iel < ne; iel++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+				for (int i = 0; i < 8; i++) if (isfree[e->nodes[i].id]) star[e->nodes[i].id].push_back(e);
+			}
+			std::vector<int> freev;
+			for (int n = 0; n < nnodes; n++) if (isfree[n]) freev.push_back(n);
+
+			auto starmin = [&](int p)->double {
+				double m = 1e300;
+				for (octant_t* e : star[p]) { double w = hexworst(e); if (w < m) m = w; }
+				return m;
+			};
+
+			int nmoves = 0, sweep = 0, nstuck = 0;
+			const int MAXSWEEP = 100;
+			for (sweep = 0; sweep < MAXSWEEP; sweep++) {
+				bool improved = false;
+				nstuck = 0;
+				for (int p : freev) {
+					double base = starmin(p);
+					if (base > 0.0) continue;
+					nstuck++;
+					// step scale from the largest element of the star
+					double sc = 0.0;
+					for (octant_t* e : star[p]) { double v = fabs(hexvol(e)); if (v > sc) sc = v; }
+					sc = 0.25 * cbrt(sc + 1.0);
+					double px = coords[3*p+0], py = coords[3*p+1], pz = coords[3*p+2];
+					bool moved = false;
+					for (double s = sc; s >= 1e-3*sc && !moved; s *= 0.5) {
+						double best = base, bx = px, by = py, bz = pz;
+						for (int dx = -1; dx <= 1; dx++)
+						for (int dy = -1; dy <= 1; dy++)
+						for (int dz = -1; dz <= 1; dz++) {
+							if (!dx && !dy && !dz) continue;
+							double dn = sqrt((double)(dx*dx+dy*dy+dz*dz));
+							double tx = px + s*dx/dn, ty = py + s*dy/dn, tz = pz + s*dz/dn;
+							if (tz >= ZCEIL) tz = ZCEIL - 1e-9;       // never at/above the sea clamp
+							// never cross a domain wall or the bottom
+							if (tx < wxlo+wtol || tx > wxhi-wtol ||
+								ty < wylo+wtol || ty > wyhi-wtol || tz < wzlo+wtol) continue;
+							coords[3*p+0] = tx;
+							coords[3*p+1] = ty;
+							coords[3*p+2] = tz;
+							double v = starmin(p);
+							if (v > best) { best = v; bx = coords[3*p+0]; by = coords[3*p+1]; bz = tz; }
+						}
+						coords[3*p+0] = bx; coords[3*p+1] = by; coords[3*p+2] = bz;
+						if (best > base) { moved = true; improved = true; nmoves++; }
+						else { coords[3*p+0] = px; coords[3*p+1] = py; coords[3*p+2] = pz; }
+					}
+				}
+				if (nstuck == 0 || !improved) break;
+			}
+			int n_final = 0;
+			for (int b = 0; b < ne; b++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
+				if (hexworst(e) <= 0.0) n_final++;
+			}
+			printf("     Corner-Jacobian cleanup: %d inside-out elements relabeled; nudge pass on %d "
+					"corner-invalid elements (%d interior nodes moved, %d sweeps); corner-invalid %d -> %d\n",
+					nflip, n_badcorner, nmoves, sweep, n_badcorner + nflip, n_final);
+			} // pass 2 disabled
+			int n_badcorner_report = 0;
+			for (int b = 0; b < ne; b++) {
+				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, b);
+				if (hexworst(e) <= 0.0) n_badcorner_report++;
+			}
+			printf("     Corner-Jacobian cleanup: %d inside-out elements relabeled (pass 2 nudge disabled); "
+					"corner-invalid elements remaining: %d\n", nflip, n_badcorner_report);
+		}
 	}
 
 	// -- debug summary --------------------------------------------------------

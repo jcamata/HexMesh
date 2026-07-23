@@ -803,7 +803,25 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	const double SURFACE_EPS = 1.0;   // metres below the sea surface
 	double sea_clamp = SEA_LEVEL - SURFACE_EPS;
 
+	// Snapshot of the original (valid lattice) coords, captured before ANY
+	// projection so `record` below can tell a domain-lid node from an
+	// interface node. Also used at the end of this function by the validity
+	// limiter to pull invalid/sheared projected elements back.
+	std::vector<double> coords0 = coords;
+
 	auto record = [&](int node, double x, double y, double z) {
+		// The domain lid (z = SEA_LEVEL) is a fixed OUTER boundary of the model
+		// box, not part of the bathymetry -- every column, land or water, has
+		// its own top face there. A lid node can still be the "inner" corner of
+		// a cut octree edge/face/body-diagonal purely because a DEEPER sibling
+		// in the same octree group is on the interface; the diagonal segment
+		// used for the face/body-centre intersection test then spans lid-to-
+		// interface and can pick up a spurious hit far from where this node
+		// actually belongs (seen concretely: a lid node dragged to -2777 m,
+		// i.e. two whole lattice levels down, while its own element's other 3
+		// top-face corners stayed correctly at 0). Any node that started
+		// exactly at the lid never needs bathymetry conformance, so skip it.
+		if (coords0[3*node+2] >= SEA_LEVEL - 1e-6) return;
 		if (z > sea_clamp) z = sea_clamp;
 		pending.emplace(node, std::array<double, 3>{x, y, z});
 	};
@@ -821,13 +839,12 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	};
 
 	// --- Projection validity limiter: setup ----------------------------------
-	// Snapshot the original (valid lattice) coords and the signed volume of
-	// every octree element BEFORE projecting. Projecting interface nodes onto a
-	// steep/curved bathy collapses or inverts the thin interface-layer elements
-	// (zext median 12 m vs ~500 m wide), which the pillowing then inherits as
-	// zero-volume elements that render as holes. After projection we pull the
-	// offending moved nodes back toward these positions (see end of function).
-	std::vector<double> coords0 = coords;
+	// (coords0 already snapshotted above, before `record` was defined.)
+	// Projecting interface nodes onto a steep/curved bathy collapses or inverts
+	// the thin interface-layer elements (zext median 12 m vs ~500 m wide), which
+	// the pillowing then inherits as zero-volume elements that render as holes.
+	// After projection we pull the offending moved nodes back toward their
+	// original positions (see end of function).
 	auto hexvol = [&](octant_t *e) -> double {
 		// Use the SAME node order the h5 writer emits (assign_elem_nodes =
 		// {4,5,6,7,0,1,2,3} in hexa_h5.cpp). e->nodes is not the standard hex
@@ -853,6 +870,45 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	std::vector<double> ref_vol(mesh->elements.elem_count);
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
 		ref_vol[iel] = hexvol((octant_t*) sc_array_index(&mesh->elements, iel));
+
+	// Shear check: independently-projected octree groups can snap what should
+	// be one vertical column to two unrelated (x,y) positions -- e.g. a node on
+	// a horizontally-cut edge gets dragged sideways while its z-neighbour, in
+	// an uncut octree group, never moves at all. That keeps the element's
+	// volume positive (the limiter above never sees it), but a "vertical" edge
+	// ends up almost horizontal. Flag it directly: the horizontal (x,y) offset
+	// of each of the 4 nominally-vertical edges (h5-order 0-4,1-5,2-6,3-7)
+	// should stay small relative to the element's own pre-projection
+	// horizontal footprint.
+	const double SHEAR_FRAC = 0.3;
+	std::vector<double> ref_hsize(mesh->elements.elem_count);
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+		static const int ord[8] = {4,5,6,7,0,1,2,3};
+		double X0[8], Y0[8];
+		for (int i = 0; i < 8; i++) {
+			int id = e->nodes[ord[i]].id;
+			X0[i] = coords0[3*id]; Y0[i] = coords0[3*id+1];
+		}
+		double e01 = sqrt((X0[1]-X0[0])*(X0[1]-X0[0]) + (Y0[1]-Y0[0])*(Y0[1]-Y0[0]));
+		double e03 = sqrt((X0[3]-X0[0])*(X0[3]-X0[0]) + (Y0[3]-Y0[0])*(Y0[3]-Y0[0]));
+		ref_hsize[iel] = e01 > e03 ? e01 : e03;
+	}
+	auto worst_vshear = [&](octant_t *e) -> double {
+		static const int ord[8] = {4,5,6,7,0,1,2,3};
+		double X[8], Y[8];
+		for (int i = 0; i < 8; i++) {
+			int id = e->nodes[ord[i]].id;
+			X[i] = coords[3*id]; Y[i] = coords[3*id+1];
+		}
+		double worst = 0.0;
+		for (int k = 0; k < 4; k++) {
+			double dx = X[k+4]-X[k], dy = Y[k+4]-Y[k];
+			double h = sqrt(dx*dx + dy*dy);
+			if (h > worst) worst = h;
+		}
+		return worst;
+	};
 
 	// Pass 1: find surface intersection on each cut octree edge and snap the two
 	// adjacent inner nodes to that intersection point.
@@ -1033,16 +1089,33 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	// --- Projection validity limiter: repair ---------------------------------
 	// Pull moved nodes back toward their original lattice positions wherever an
 	// incident element collapsed or inverted (volume sign flip vs reference, or
-	// magnitude < 5% of its original). Halving toward the known-valid lattice
-	// config each iteration is monotone toward validity, so it never inverts a
-	// currently-valid element. This keeps the interface-layer elements valid so
-	// the pillow layer built on them does not collapse into holes. Cost: only
-	// nodes of invalid elements move, so it converges in a few iterations.
+	// magnitude < 5% of its original), OR is sheared past SHEAR_FRAC of its own
+	// horizontal footprint (a "vertical" edge dragged sideways by an
+	// independently-projected neighbouring octree group -- volume stays
+	// positive, so the volume check alone never catches it). Halving toward the
+	// known-valid lattice config each iteration is monotone toward validity, so
+	// it never inverts/reshears a currently-valid element. This keeps the
+	// interface-layer elements valid so the pillow layer built on them does not
+	// collapse into holes or shear. Cost: only nodes of invalid elements move,
+	// so it converges in a few iterations.
 	{
 		int n_nodes_loc = (int)(coords.size() / 3);
 		const int MAXIT = 50;
 		int it = 0, nbad = 0, npull_total = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
+		// Only elements the projection actually touched can be shear artifacts.
+		// Transition/tapered elements near a refinement-level change are
+		// legitimately non-cubic in the ORIGINAL lattice (coords0) by
+		// construction; checking shear on them against a "should be vertical"
+		// assumption is a false positive that can never be satisfied by pulling
+		// (they are already at coords0 -- v == rv exactly -- so pulling is a
+		// no-op and they'd stay flagged forever).
+		std::vector<char> moved(n_nodes_loc, 0);
+		for (int n : nodes_b_mat) if (n < n_nodes_loc) moved[n] = 1;
+		auto elem_touched = [&](octant_t *e) -> bool {
+			for (int i = 0; i < 8; i++) if (moved[e->nodes[i].id]) return true;
+			return false;
+		};
 		for (it = 0; it < MAXIT; it++) {
 			std::fill(pull.begin(), pull.end(), 0);
 			nbad = 0;
@@ -1050,7 +1123,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
 				double v = hexvol(e), rv = ref_vol[iel];
 				double av = v < 0 ? -v : v, arv = rv < 0 ? -rv : rv;
-				if (v * rv > 0.0 && av >= 0.05 * arv) continue;   // still valid
+				bool vol_ok = (v * rv > 0.0 && av >= 0.05 * arv);
+				bool shear_ok = !elem_touched(e) || worst_vshear(e) <= SHEAR_FRAC * ref_hsize[iel];
+				if (vol_ok && shear_ok) continue;   // still valid
 				nbad++;
 				for (int i = 0; i < 8; i++) pull[e->nodes[i].id] = 1;
 			}
