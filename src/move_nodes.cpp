@@ -231,6 +231,12 @@ static int CountOctreeInterceptedEdges(const octree_t *oct)
 
 static bool IsOctreeCutPatternRegular(const octree_t *oct)
 {
+	// A single surface separating the 8 corners of a cube into two nonempty
+	// groups must cross at least 3 edges (isolating one corner needs cutting
+	// all 3 edges meeting at it -- the cube graph's minimum edge cut). 1-2
+	// active edges is therefore not a legitimate simple case, it is evidence
+	// of an inconsistent corner classification (e.g. ClassifyOctreeCorners'
+	// ray-triangle test landing wrong on one corner).
 	int n_edges = CountOctreeInterceptedEdges(oct);
 	return n_edges >= 3 && n_edges <= 6;
 }
@@ -871,45 +877,6 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
 		ref_vol[iel] = hexvol((octant_t*) sc_array_index(&mesh->elements, iel));
 
-	// Shear check: independently-projected octree groups can snap what should
-	// be one vertical column to two unrelated (x,y) positions -- e.g. a node on
-	// a horizontally-cut edge gets dragged sideways while its z-neighbour, in
-	// an uncut octree group, never moves at all. That keeps the element's
-	// volume positive (the limiter above never sees it), but a "vertical" edge
-	// ends up almost horizontal. Flag it directly: the horizontal (x,y) offset
-	// of each of the 4 nominally-vertical edges (h5-order 0-4,1-5,2-6,3-7)
-	// should stay small relative to the element's own pre-projection
-	// horizontal footprint.
-	const double SHEAR_FRAC = 0.3;
-	std::vector<double> ref_hsize(mesh->elements.elem_count);
-	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
-		octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
-		static const int ord[8] = {4,5,6,7,0,1,2,3};
-		double X0[8], Y0[8];
-		for (int i = 0; i < 8; i++) {
-			int id = e->nodes[ord[i]].id;
-			X0[i] = coords0[3*id]; Y0[i] = coords0[3*id+1];
-		}
-		double e01 = sqrt((X0[1]-X0[0])*(X0[1]-X0[0]) + (Y0[1]-Y0[0])*(Y0[1]-Y0[0]));
-		double e03 = sqrt((X0[3]-X0[0])*(X0[3]-X0[0]) + (Y0[3]-Y0[0])*(Y0[3]-Y0[0]));
-		ref_hsize[iel] = e01 > e03 ? e01 : e03;
-	}
-	auto worst_vshear = [&](octant_t *e) -> double {
-		static const int ord[8] = {4,5,6,7,0,1,2,3};
-		double X[8], Y[8];
-		for (int i = 0; i < 8; i++) {
-			int id = e->nodes[ord[i]].id;
-			X[i] = coords[3*id]; Y[i] = coords[3*id+1];
-		}
-		double worst = 0.0;
-		for (int k = 0; k < 4; k++) {
-			double dx = X[k+4]-X[k], dy = Y[k+4]-Y[k];
-			double h = sqrt(dx*dx + dy*dy);
-			if (h > worst) worst = h;
-		}
-		return worst;
-	};
-
 	// Pass 1: find surface intersection on each cut octree edge and snap the two
 	// adjacent inner nodes to that intersection point.
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
@@ -1089,33 +1056,16 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	// --- Projection validity limiter: repair ---------------------------------
 	// Pull moved nodes back toward their original lattice positions wherever an
 	// incident element collapsed or inverted (volume sign flip vs reference, or
-	// magnitude < 5% of its original), OR is sheared past SHEAR_FRAC of its own
-	// horizontal footprint (a "vertical" edge dragged sideways by an
-	// independently-projected neighbouring octree group -- volume stays
-	// positive, so the volume check alone never catches it). Halving toward the
-	// known-valid lattice config each iteration is monotone toward validity, so
-	// it never inverts/reshears a currently-valid element. This keeps the
-	// interface-layer elements valid so the pillow layer built on them does not
-	// collapse into holes or shear. Cost: only nodes of invalid elements move,
-	// so it converges in a few iterations.
+	// magnitude < 5% of its original). Halving toward the known-valid lattice
+	// config each iteration is monotone toward validity, so it never inverts a
+	// currently-valid element. This keeps the interface-layer elements valid so
+	// the pillow layer built on them does not collapse into holes. Cost: only
+	// nodes of invalid elements move, so it converges in a few iterations.
 	{
 		int n_nodes_loc = (int)(coords.size() / 3);
 		const int MAXIT = 50;
 		int it = 0, nbad = 0, npull_total = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
-		// Only elements the projection actually touched can be shear artifacts.
-		// Transition/tapered elements near a refinement-level change are
-		// legitimately non-cubic in the ORIGINAL lattice (coords0) by
-		// construction; checking shear on them against a "should be vertical"
-		// assumption is a false positive that can never be satisfied by pulling
-		// (they are already at coords0 -- v == rv exactly -- so pulling is a
-		// no-op and they'd stay flagged forever).
-		std::vector<char> moved(n_nodes_loc, 0);
-		for (int n : nodes_b_mat) if (n < n_nodes_loc) moved[n] = 1;
-		auto elem_touched = [&](octant_t *e) -> bool {
-			for (int i = 0; i < 8; i++) if (moved[e->nodes[i].id]) return true;
-			return false;
-		};
 		for (it = 0; it < MAXIT; it++) {
 			std::fill(pull.begin(), pull.end(), 0);
 			nbad = 0;
@@ -1124,8 +1074,15 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				double v = hexvol(e), rv = ref_vol[iel];
 				double av = v < 0 ? -v : v, arv = rv < 0 ? -rv : rv;
 				bool vol_ok = (v * rv > 0.0 && av >= 0.05 * arv);
-				bool shear_ok = !elem_touched(e) || worst_vshear(e) <= SHEAR_FRAC * ref_hsize[iel];
-				if (vol_ok && shear_ok) continue;   // still valid
+				// Shear check removed: it could not tell legitimate steep
+				// interface conformance (a real cliff genuinely needs a large
+				// horizontal offset) from the original cross-octree-group
+				// mismatch bug, so it was undoing correct MovingNodes output
+				// wherever the terrain was steep -- confirmed by comparing
+				// against move_nodes.cpp from commits 8c8fb74/bfc2409, which
+				// conform to the interface correctly with only the volume
+				// check below.
+				if (vol_ok) continue;   // still valid
 				nbad++;
 				for (int i = 0; i < 8; i++) pull[e->nodes[i].id] = 1;
 			}
