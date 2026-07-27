@@ -115,7 +115,7 @@ fidx = 'readhgt_srtm30_index.txt';
 % ATTENTION: this file must exist in the Matlab path
 % since USGS delivers data continent-by-continent with nominative directories,
 % this index file is needed to know the full path name of each tile.
-urlftp = 'topex.ucsd.edu';
+urlftp = 'https://topex.ucsd.edu';
 sz = [6000,4800]; % SRTM30 tile size
 novalue = intmin('int16'); % -32768
 n = 1;
@@ -242,11 +242,16 @@ else
             else
                 [pathname,filename,fileext] = fileparts(ff);
                 filename = [filename fileext];
-                nftp = ftp(urlftp);
-                cd(nftp, pathname);
-                mget(nftp, filename, out);
-                close(nftp);
-                fprintf('File "%s" downloaded from %s/%s\n',name,urlftp,ff)
+                if startsWith(ff, '/')
+                    file_url = [urlftp, ff];
+                else
+                    file_url = [urlftp, '/', ff];
+                end
+
+                destination = fullfile(out, filename);
+                websave(destination, file_url);
+
+                fprintf('File "%s" downloaded from %s\n', name, file_url)
             end
         else
             disp(['found file SRTM30:' name ' on local disk'])

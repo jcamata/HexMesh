@@ -7,15 +7,16 @@
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Cartesian_converter.h>
 #include <CGAL/Intersections.h>
-#include <CGAL/result_of.h>
 
 #include <vector>
 #include <tuple>
 #include <iostream>
 #include <fstream>
 
-// --- Boost/variant and functional
+// --- Boost variant visitation (CGAL 5.x intersection results) and functional
+#if !defined(CGAL_VERSION_NR) || CGAL_VERSION_NR < 1060000000
 #include <boost/variant/apply_visitor.hpp>
+#endif
 #include <functional>
 
 // --- CGAL polygon and polyhedron
@@ -97,8 +98,8 @@ typedef Kernel::Point_3			Point_3;
 //typedef CGAL::Polyhedron_3<Kernel>		Polyhedron_2;
 //typedef CGAL::Tetrahedron_3<Kernel>		Tetrahedron_2;
 
-// Intersection typedef (boost::variant)
-typedef CGAL::cpp11::result_of<ExactKernel::Intersect_3(ExactTriangle_3, ExactSegment_3)>::type
-		Triangle_3_Intersection_Variant;
+// The intersection type is spelled 'auto' at the call site (intercept_surface.cpp);
+// CGAL::intersection returns std::optional<std::variant<...>> since CGAL 6, and the old
+// CGAL::cpp11::result_of typedef that used to name it no longer exists.
 
 #endif

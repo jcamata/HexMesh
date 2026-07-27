@@ -114,7 +114,7 @@ fidx = 'readhgt_srtm_index.txt';
 % ATTENTION: this file must exist in the Matlab path
 % since USGS delivers data continent-by-continent with nominative directories,
 % this index file is needed to know the full path name of each tile.
-url = 'http://dds.cr.usgs.gov/srtm/version2_1';
+url = 'https://terrain.ardupilot.org';
 sz1 = [3601,3601]; % SRTM1 tile size (USA only)
 sz3 = [1201,1201]; % SRTM3 tile size
 novalue = intmin('int16'); % -32768
