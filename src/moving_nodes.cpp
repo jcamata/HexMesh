@@ -14,6 +14,7 @@ using namespace std;
 
 #include "hexa.h"
 #include "hilbert.h"
+#include "mesh_geom.h"
 
 #include <ctime>
 
@@ -55,6 +56,26 @@ int el_equal_id(const void *v, const void *u, const void *w) {
 	return (unsigned) (e1->id == e2->id);
 
 }
+
+unsigned octree_hash_fn(const void *v, const void *u) {
+	const octree_t *oct = (const octree_t *) v;
+	uint32_t a = (uint32_t) oct->id[0];
+	uint32_t b = (uint32_t) oct->id[1];
+	uint32_t c = (uint32_t) oct->id[6];
+	sc_hash_mix(a, b, c);
+	sc_hash_final(a, b, c);
+	return (unsigned) c;
+}
+
+int octree_equal_fn(const void *v, const void *u, const void *w) {
+	const octree_t *o1 = (const octree_t *) v;
+	const octree_t *o2 = (const octree_t *) u;
+	for (int i = 0; i < 8; i++) {
+		if (o1->id[i] != o2->id[i]) return 0;
+	}
+	return 1;
+}
+
 
 typedef struct {
 	bitmask_t coord[3];
@@ -851,27 +872,21 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	// the pillowing then inherits as zero-volume elements that render as holes.
 	// After projection we pull the offending moved nodes back toward their
 	// original positions (see end of function).
-	auto hexvol = [&](octant_t *e) -> double {
-		// Use the SAME node order the h5 writer emits (assign_elem_nodes =
-		// {4,5,6,7,0,1,2,3} in hexa_h5.cpp). e->nodes is not the standard hex
-		// order assumed by the tet decomposition T and the reorder is not a clean
-		// z-flip, so computing T directly over e->nodes yields a geometrically
-		// wrong volume — the limiter then misses real interface inversions.
-		static const int ord[8] = {4,5,6,7,0,1,2,3};
-		double X[8], Y[8], Z[8];
+	// Use the SAME node order the h5 writer emits (mgeom::H5_ORD =
+	// {4,5,6,7,0,1,2,3} in hexa_h5.cpp/assign_elem_nodes). e->nodes is not the
+	// standard hex order assumed by the tet decomposition and the reorder is not
+	// a clean z-flip, so computing it directly over e->nodes yields a
+	// geometrically wrong volume — the limiter then misses real inversions.
+	auto elem_xyz = [&](octant_t *e, double X[8], double Y[8], double Z[8]) {
 		for (int i = 0; i < 8; i++) {
-			int id = e->nodes[ord[i]].id;
+			int id = e->nodes[mgeom::H5_ORD[i]].id;
 			X[i] = coords[3*id]; Y[i] = coords[3*id+1]; Z[i] = coords[3*id+2];
 		}
-		static const int T[6][4] = {{0,1,2,6},{0,2,3,6},{0,3,7,6},{0,7,4,6},{0,4,5,6},{0,5,1,6}};
-		double v = 0.0;
-		for (auto &t : T) {
-			double ax=X[t[1]]-X[t[0]], ay=Y[t[1]]-Y[t[0]], az=Z[t[1]]-Z[t[0]];
-			double bx=X[t[2]]-X[t[0]], by=Y[t[2]]-Y[t[0]], bz=Z[t[2]]-Z[t[0]];
-			double cx=X[t[3]]-X[t[0]], cy=Y[t[3]]-Y[t[0]], cz=Z[t[3]]-Z[t[0]];
-			v += (ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx))/6.0;
-		}
-		return v;
+	};
+	auto hexvol = [&](octant_t *e) -> double {
+		double X[8], Y[8], Z[8];
+		elem_xyz(e, X, Y, Z);
+		return mgeom::hex_signed_volume(X, Y, Z);
 	};
 	std::vector<double> ref_vol(mesh->elements.elem_count);
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
@@ -1064,6 +1079,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	{
 		int n_nodes_loc = (int)(coords.size() / 3);
 		const int MAXIT = 50;
+		// Margin, not just sign: a barely-valid element (minSJ ~1e-3) leaves the
+		// pillow layer no room and inverts as soon as a buffer node is inserted.
+		const double SJ_MIN = 0.05;
 		int it = 0, nbad = 0, npull_total = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
 		for (it = 0; it < MAXIT; it++) {
@@ -1071,9 +1089,16 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 			nbad = 0;
 			for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
 				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
-				double v = hexvol(e), rv = ref_vol[iel];
+				double X[8], Y[8], Z[8];
+				elem_xyz(e, X, Y, Z);
+				double v = mgeom::hex_signed_volume(X, Y, Z), rv = ref_vol[iel];
 				double av = v < 0 ? -v : v, arv = rv < 0 ? -rv : rv;
-				bool vol_ok = (v * rv > 0.0 && av >= 0.05 * arv);
+				int ref = mgeom::reference_sign(rv);
+				// Positive volume is NOT sufficient: a twisted hex can keep v>0 while
+				// a corner Jacobian goes negative, which is what the solver and
+				// VerifyMeshInversion call inverted. Check both.
+				bool vol_ok = (v * rv > 0.0 && av >= 0.05 * arv)
+				              && (mgeom::hex_min_corner_sj(X, Y, Z) * ref > SJ_MIN);
 				// Shear check removed: it could not tell legitimate steep
 				// interface conformance (a real cliff genuinely needs a large
 				// horizontal offset) from the original cross-octree-group
@@ -1200,10 +1225,25 @@ static void VerifyOctreeCutTemplates(hexa_tree_t *mesh)
 }
 
 void IdentifyMovableNodes(hexa_tree_t* mesh) {
+	static const int FaceCenterElem_local[6] = {0, 5, 0, 2, 5, 0};
+	static const int FaceCenterNode_local[6] = {7, 2, 5, 7, 7, 2};
 
-	// Derive canonical cut edges from the domain bipartition.
-	// n_mat for each octant's outer corner was set by ClassifyOctreeCorners
-	// (called from MovingNodes before this function).
+	// Default all nodes to fixed (1). The 8 outer corners of every octree block
+	// will remain fixed (1). Only the 19 internal nodes of cut octrees will be
+	// marked as movable (fixed = 0).
+	for (int ino = 0; ino < mesh->nodes.elem_count; ino++) {
+		octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, ino);
+		node->fixed = 1;
+	}
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
+		for (int ino = 0; ino < 8; ino++) {
+			elem->nodes[ino].fixed = 1;
+			elem->nodes[ino].color = -1;
+		}
+	}
+
+	// Derive canonical cut edges from the domain bipartition B[0..7].
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 
@@ -1220,8 +1260,9 @@ void IdentifyMovableNodes(hexa_tree_t* mesh) {
 			elems[i] = (octant_t*) sc_array_index(&mesh->elements, oct->id[i]);
 			B[i] = (elems[i]->n_mat == 0) ? 0 : 1;
 		}
-		for (int i = 1; i < 8; i++)
+		for (int i = 1; i < 8; i++) {
 			if (B[i] != B[0]) { all_same = false; break; }
+		}
 
 		if (all_same) {
 			memset(oct->edge, 0, sizeof(oct->edge));
@@ -1229,28 +1270,78 @@ void IdentifyMovableNodes(hexa_tree_t* mesh) {
 			continue;
 		}
 
+		int n_cut_edges = 0;
 		for (int e = 0; e < 12; e++) {
 			int a = EdgeElemOctMap[e][0];
 			int b = EdgeElemOctMap[e][1];
 			oct->edge[e] = (B[a] != B[b]);
+			if (oct->edge[e]) n_cut_edges++;
 		}
 
+		// TOPOLOGICAL SAFETY SYSTEM:
+		// A continuous domain-separating surface cutting a 3D hex cell cannot
+		// intersect only 1 or 2 edges (which represents numerical noise or vertex tangency).
+		// Zero out cut flags for degenerate (1-2 edge) cuts.
+		if (n_cut_edges > 0 && n_cut_edges <= 2) {
+			memset(oct->edge, 0, sizeof(oct->edge));
+			memset(oct->face, 0, sizeof(oct->face));
+			continue;
+		}
+
+		// Classify active faces
 		for (int f = 0; f < 6; f++) {
 			oct->face[f] = false;
-			for (int k = 0; k < 4; k++)
+			for (int k = 0; k < 4; k++) {
 				if (oct->edge[FaceEdgesMap[f][k]]) { oct->face[f] = true; break; }
+			}
+		}
+
+		// Mark internal movable nodes (fixed = 0) for valid cut octrees:
+		// a) 12 edge mid-nodes on cut edges
+		for (int e = 0; e < 12; e++) {
+			if (oct->edge[e]) {
+				int a = EdgeElemOctMap[e][0];
+				int b = EdgeElemOctMap[e][1];
+				int edge_node_id = elems[a]->nodes[b].id;
+				if (edge_node_id >= 0 && edge_node_id < mesh->nodes.elem_count) {
+					octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, edge_node_id);
+					node->fixed = 0;
+				}
+			}
+		}
+
+		// b) 6 face center nodes on active faces
+		for (int f = 0; f < 6; f++) {
+			if (oct->face[f]) {
+				int el = FaceCenterElem_local[f];
+				int nd = FaceCenterNode_local[f];
+				int face_node_id = elems[el]->nodes[nd].id;
+				if (face_node_id >= 0 && face_node_id < mesh->nodes.elem_count) {
+					octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, face_node_id);
+					node->fixed = 0;
+				}
+			}
+		}
+
+		// c) 1 octree center node
+		if (n_cut_edges >= 3) {
+			int center_node_id = elems[0]->nodes[6].id;
+			if (center_node_id >= 0 && center_node_id < mesh->nodes.elem_count) {
+				octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, center_node_id);
+				node->fixed = 0;
+			}
 		}
 	}
 
-	for (int ino = 0; ino < mesh->nodes.elem_count; ino++) {
-		octant_node_t *node = (octant_node_t*) sc_array_index(&mesh->nodes, ino);
-		node->fixed = 0;
-	}
+	// Sync fixed status to element node local copies
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		for (int ino = 0; ino < 8; ino++) {
-			elem->nodes[ino].fixed = 0;
-			elem->nodes[ino].color = -1;
+			int nid = elem->nodes[ino].id;
+			if (nid >= 0 && nid < mesh->nodes.elem_count) {
+				octant_node_t *gnode = (octant_node_t*) sc_array_index(&mesh->nodes, nid);
+				elem->nodes[ino].fixed = gnode->fixed;
+			}
 		}
 	}
 
