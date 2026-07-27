@@ -149,6 +149,13 @@ namespace
         return acc.sum / static_cast<double>(acc.count);
     }
 
+    // Laplacian smoothing of the INPUT surfaces is off. It moves vertices in x, y and z, so
+    // it rounds the vertical coastline wall out of vertical and low-passes the sea floor --
+    // the opposite of what the surface is built for. Note the iteration count grows as the
+    // surface gets finer (iters = ceil(target_h / mean_edge)), so a better bathymetry source
+    // would be smoothed harder. Set to true to restore the old behaviour.
+    static const bool kSmoothInputSurfaces = false;
+
     static void SmoothGtsSurfaceLaplacian(GtsSurface *s, double target_h, int max_iters = 50, double lambda = 0.5)
     {
         if (!s || target_h <= 0.0)
@@ -273,8 +280,10 @@ void GetMeshFromSurface(hexa_tree_t *mesh, const char *surface_topo, vector<doub
             double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
             double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
             double h = 2.1 * std::min(hx, std::min(hy, hz));
-            printf("Smoothing bathymetry surface with target edge length hx: %f hy: %f hz: %f h: %f\n", hx, hy, hz, h);
-            SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
+            if (kSmoothInputSurfaces) {
+                printf("Smoothing bathymetry surface with target edge length hx: %f hy: %f hz: %f h: %f\n", hx, hy, hz, h);
+                SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
+            }
         }
         mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
     }
@@ -354,8 +363,10 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
             double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
             double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
             double h = 2.1 * std::min(hx, std::min(hy, hz));
-            printf("Smoothing bathymetry surface with target edge length hx: %f hy: %f hz: %f h: %f\n", hx, hy, hz, h);
-            SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
+            if (kSmoothInputSurfaces) {
+                printf("Smoothing bathymetry surface with target edge length hx: %f hy: %f hz: %f h: %f\n", hx, hy, hz, h);
+                SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
+            }
         }
         mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
     }

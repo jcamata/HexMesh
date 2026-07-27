@@ -502,6 +502,16 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		}
 	}
 
+	// part_nodes was sized for the pre-pillow node count in hexa_mesh.cpp; every consumer
+	// (the VTK writer, Apply_material, the optimizers) indexes it by current node id, so it
+	// must grow with the node array -- otherwise they read past the allocation, which only
+	// segfaults when the following page happens to be unmapped. Same re-allocation the other
+	// node-creating passes already do (PillowingInterface.cpp, hexa_pml.cpp).
+	free(mesh->part_nodes);
+	mesh->part_nodes = (int32_t *) malloc(mesh->local_n_nodes * sizeof(int32_t));
+	for (int ino = 0; ino < mesh->local_n_nodes; ino++)
+		mesh->part_nodes[ino] = mesh->mpi_rank;
+
 	printf("    Pillowing summary: %zu new nodes created, %d new pillow elements added\n",
 	       mesh->nodes.elem_count - initial_node_count,
 	       n_created_pillow);

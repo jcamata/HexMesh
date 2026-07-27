@@ -248,6 +248,15 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
 	// (bottom 0-1-2-3 CCW, top 4-5-6-7 CCW) order; same remap as hexa_h5.cpp.
 	static const int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
 
+	/* The node array grows during pillowing; coords must have grown with it. If it did not,
+	   the position loop below reads past the end of the vector -- which only segfaults when
+	   the heap happens to be unmapped there, hence the intermittent crashes. */
+	if (coords != NULL && coords->size() < (size_t) Ntotal * 3) {
+		printf("hexa_mesh_write_vtk: coords has %zu values for %d nodes (needs %d)\n",
+		       coords->size(), (int) Ntotal, (int) Ntotal * 3);
+		return -1;
+	}
+
 	/* Have each proc write to its own file */
 	snprintf (vtufilename, BUFSIZ, "%s_%d_%d.vtu", filename, mesh->mpi_size, mesh->mpi_rank);
 	vtufile = fopen (vtufilename, "w");

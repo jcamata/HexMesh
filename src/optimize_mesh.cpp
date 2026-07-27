@@ -428,8 +428,13 @@ void optimize_size(hexa_tree_t *mesh, std::vector<double> &coords,
 void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes) {
 	if (!mesh || mesh->elements.elem_count == 0 || coords.empty()) return;
 
+	// Size optimization (the time-step objective) is off for now: what matters at this stage
+	// is a topologically correct mesh, not dt. Untangling stays on -- it is what removes
+	// inverted elements, and without it the mesh keeps the raw inversions out of pillowing.
+	const bool run_size_optimization = false;
+
 	printf("\n =========================================================\n");
-	printf("   MESH UNTANGLE + SIZE OPTIMIZATION\n");
+	printf("   MESH UNTANGLE%s\n", run_size_optimization ? " + SIZE OPTIMIZATION" : " (size optimization disabled)");
 	printf(" =========================================================\n");
 
 	std::vector<uint8_t> wall_lock;
@@ -445,7 +450,9 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	printf("    Initial: %d inverted, ref sign %+d, h_min %.6e\n", a0.n_inverted, ref, h_min_0);
 
 	int remaining = untangle_inversions(mesh, coords, lock, wall_lock, ref);
-	if (remaining == 0) {
+	if (!run_size_optimization) {
+		printf("    Size optimization disabled.\n");
+	} else if (remaining == 0) {
 		optimize_size(mesh, coords, lock, ref);
 	} else {
 		printf("    Skipping size optimization: %d inverted elements remain after untangling.\n", remaining);

@@ -1079,9 +1079,16 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	{
 		int n_nodes_loc = (int)(coords.size() / 3);
 		const int MAXIT = 50;
-		// Margin, not just sign: a barely-valid element (minSJ ~1e-3) leaves the
-		// pillow layer no room and inverts as soon as a buffer node is inserted.
-		const double SJ_MIN = 0.05;
+		// How tightly the mesh is allowed to conform to the surface. Every node of an element
+		// failing these tests is pulled halfway back to its lattice position, so the stricter
+		// they are, the further the interface ends up from the real coastline/sea floor.
+		//
+		// Margin, not just sign: a barely-valid element (minSJ ~1e-3) leaves the pillow layer
+		// no room and inverts as soon as a buffer node is inserted -- that is why these are
+		// not simply 0. Loosened from 0.05 to let the wall follow the coastline more closely;
+		// raise them back if pillowing starts producing inverted elements.
+		const double SJ_MIN = 0.01;    // min scaled Jacobian at any corner
+		const double VOL_MIN = 0.01;   // min |volume| as a fraction of the reference volume
 		int it = 0, nbad = 0, npull_total = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
 		for (it = 0; it < MAXIT; it++) {
@@ -1097,7 +1104,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				// Positive volume is NOT sufficient: a twisted hex can keep v>0 while
 				// a corner Jacobian goes negative, which is what the solver and
 				// VerifyMeshInversion call inverted. Check both.
-				bool vol_ok = (v * rv > 0.0 && av >= 0.05 * arv)
+				bool vol_ok = (v * rv > 0.0 && av >= VOL_MIN * arv)
 				              && (mgeom::hex_min_corner_sj(X, Y, Z) * ref > SJ_MIN);
 				// Shear check removed: it could not tell legitimate steep
 				// interface conformance (a real cliff genuinely needs a large
@@ -1141,6 +1148,9 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		// An incomplete octree carries oct->id[iel] == -1; sc_array_index would then read
+		// before the elements array. Every other octree loop in this file already guards.
+		if (!IsCompleteOctree(oct)) continue;
 		for (int iel = 0; iel < 8; iel++) {
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
 			for (int ino = 0; ino < 8; ino++) {
@@ -1166,6 +1176,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	// Assign node colors: propagate material-side label across octree cut edges.
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		if (!IsCompleteOctree(oct)) continue;   // oct->id[iel] == -1 would index before the array
 		octant_t *elems[8];
 		for (int iel = 0; iel < 8; iel++)
 			elems[iel] = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);

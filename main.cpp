@@ -127,7 +127,8 @@ int main(int argc, char **argv) {
               << " millisecond(s)." << std::endl;
   }
 
-    // Always run custom Explicit Time Step Mesh Optimizer
+    // Untangler runs; the size (time-step) optimization inside is switched off for now --
+    // see run_size_optimization in optimize_mesh.cpp
     start = std::chrono::steady_clock::now();
     MeshOptimization(&mesh, coords, nodes_b_mat);
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -137,7 +138,7 @@ int main(int argc, char **argv) {
     std::cout << "Time in MeshOptimization " << elapsed.count()
               << " millisecond(s)." << std::endl;
 
-    // final checks on the optimized mesh: orientation, then face planarity
+    // final checks: orientation, then face planarity
     VerifyMeshInversion(&mesh, &coords);
     VerifyFacePlanarity(&mesh, coords);
 
