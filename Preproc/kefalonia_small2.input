@@ -1,0 +1,41 @@
+# =====================================================================
+# Preproc Input Configuration - Test Small Kefalonia 2 Region (Greece)
+# =====================================================================
+
+# Bounding Box for Test Small Kefalonia 2 (Lat/Lon degrees)
+# Bounds: [38°03' 38°31' 20°18' 20°50']
+lat_min = 38.05
+lat_max = 38.516667
+lon_min = 20.30
+lon_max = 20.833333
+
+# Feature Filtering & Bathymetry Floor (in meters)
+h_min_feature = 500.0
+coastline_tolerance = 100.0
+z_min = -100.0
+
+# Data Files & Direct HTTP Download URLs
+nc_file = kefalonia_small2_gebco.nc
+gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]
+
+coastline_file = gshhg/GSHHS_shp/f/GSHHS_f_L1.shp
+coastline_url = https://www.soest.hawaii.edu/pwessel/gshhg/gshhg-shp-2.3.7.zip
+
+# Hydrography Feature Toggles
+include_coastline = true
+include_lakes = true
+include_rivers = false
+include_dams = false
+
+# Geological Velocity Model (PREM)
+geology_model = PREM
+material_output_file = kefalonia_small2_material.input
+
+# Output Surface Mesh File Names
+bathymetry_gts = kefalonia_small2_bathymetry.gts
+bathymetry_stl = kefalonia_small2_bathymetry.stl
+bathymetry_vtk = kefalonia_small2_bathymetry.vtk
+
+topography_gts = kefalonia_small2_topography.gts
+topography_stl = kefalonia_small2_topography.stl
+topography_vtk = kefalonia_small2_topography.vtk

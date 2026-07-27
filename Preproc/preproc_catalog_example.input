@@ -1,0 +1,90 @@
+# =====================================================================
+# CATALOGO DE FONTES DE DADOS E ARQUIVO DE ENTRADA MODELO (PREPROC)
+# =====================================================================
+# Este arquivo contém a lista completa de fontes de dados públicas na internet
+# que o Preproc pode baixar e processar automaticamente.
+
+# ---------------------------------------------------------------------
+# 1. REGIÃO DE INTERESSE (BOUNDING BOX)
+# ---------------------------------------------------------------------
+# Coordenadas geográficas em graus decimais (Latitude: -90 a 90, Longitude: -180 a 180)
+lat_min = 18.5
+lat_max = 22.5
+lon_min = -160.5
+lon_max = -154.5
+
+# Exemplo - Japão:       lat_min=30.0, lat_max=45.0, lon_min=128.0, lon_max=145.0
+# Exemplo - Espanha/Port: lat_min=35.0, lat_max=45.0, lon_min=-10.0, lon_max=0.0
+# Exemplo - Brasil Costa: lat_min=-30.0, lat_max=-5.0, lon_min=-50.0, lon_max=-30.0
+
+# ---------------------------------------------------------------------
+# 2. FILTROS E PARÂMETROS GEOMÉTRICOS
+# ---------------------------------------------------------------------
+# h_min_feature: Tamanho mínimo de feição em metros. Aplica filtro de suavização (Gaussian).
+h_min_feature = 2000.0
+
+# coastline_tolerance: Tolerância em metros para suavização de polilinhas (Douglas-Peucker/Chaikin).
+coastline_tolerance = 200.0
+
+# z_min / z_min_bathymetry: Limiar na batimetria (se z > z_min então z = z_min).
+z_min = -200.0
+
+# ---------------------------------------------------------------------
+# 3. FONTES DE DADOS DE BATIMETRIA E TOPOGRAFIA (NETCDF / GEOTIFF)
+# ---------------------------------------------------------------------
+# OPÇÃO A (Resolução de 15 segundos / ~450 metros - NOAA ETOPO 2022 / GEBCO - Stride 1):
+nc_file = elevation_region.nc
+gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]
+
+# OPÇÃO B (Resolução Sub-amostrada de ~1.8 km - Stride 4 para downloads ultra-rápidos):
+# gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):4:({lat_max})][({lon_min}):4:({lon_max})]
+
+# OPÇÃO C (Resolução de 1 arc-second / ~30 metros - Copernicus DEM / SRTM 30m para Topografia Terrestre):
+# nc_file = srtm_30m.tif
+# gebco_url = https://elevation-tiles-prod.s3.amazonaws.com/geotiff/12/{tile_x}/{tile_y}.tif
+
+# OPÇÃO C (GEBCO Arquivo Global Completo - ~7GB Zip):
+# gebco_url = https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/
+
+# ---------------------------------------------------------------------
+# 4. FONTES DE DADOS HIDROGRÁFICOS E LINHA DE COSTA (GEOJSON / SHAPEFILE)
+# ---------------------------------------------------------------------
+coastline_file = gshhg/GSHHS_shp/f/GSHHS_f_L1.shp
+
+# OPÇÃO A (Linha de Costa Global 1:10m - Natural Earth Vector):
+coastline_url = https://www.soest.hawaii.edu/pwessel/gshhg/gshhg-shp-2.3.7.zip
+
+# OPÇÃO B (Lagos e Reservatórios / Barragens Globais 1:10m - Natural Earth Vector):
+# coastline_url = https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_lakes.geojson
+
+# OPÇÃO C (Rios Principais e Canais Globais 1:10m - Natural Earth Vector):
+# coastline_url = https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_rivers_lake_centerlines.geojson
+
+# OPÇÃO D (Polígonos Terrestres Globais 1:10m - Natural Earth Vector):
+# coastline_url = https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_land.geojson
+
+# ---------------------------------------------------------------------
+# 5. ATIVAÇÃO DE RECURSOS HIDROGRÁFICOS
+# ---------------------------------------------------------------------
+include_coastline = true
+include_lakes = true
+include_rivers = false
+include_dams = false
+
+# ---------------------------------------------------------------------
+# 6. MODELOS GEOLÓGICOS E PERFIS DE VELOCIDADE (Vp, Vs, Densidade)
+# ---------------------------------------------------------------------
+# Opções: "PREM", "CRUST1.0", "NONE"
+geology_model = PREM
+material_output_file = material.input
+
+# ---------------------------------------------------------------------
+# 7. ARQUIVOS DE SAÍDA DAS MALHAS 3D
+# ---------------------------------------------------------------------
+bathymetry_gts = output_bathymetry.gts
+bathymetry_stl = output_bathymetry.stl
+bathymetry_vtk = output_bathymetry.vtk
+
+topography_gts = output_topography.gts
+topography_stl = output_topography.stl
+topography_vtk = output_topography.vtk

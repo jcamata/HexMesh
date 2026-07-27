@@ -1,0 +1,40 @@
+# =====================================================================
+# Preproc Input Configuration - Hawaii Region
+# =====================================================================
+
+# Bounding Box for Hawaii Islands (Lat/Lon degrees)
+lat_min = 18.5
+lat_max = 22.5
+lon_min = -160.5
+lon_max = -154.5
+
+# Feature Filtering & Bathymetry Floor (in meters)
+h_min_feature = 2000.0
+coastline_tolerance = 200.0
+z_min = -200.0
+
+# Data Files & Direct HTTP Download URLs
+nc_file = hawaii_gebco.nc
+gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]
+
+coastline_file = gshhg/GSHHS_shp/f/GSHHS_f_L1.shp
+coastline_url = https://www.soest.hawaii.edu/pwessel/gshhg/gshhg-shp-2.3.7.zip
+
+# Hydrography Feature Toggles
+include_coastline = true
+include_lakes = true
+include_rivers = false
+include_dams = false
+
+# Geological Velocity Model (PREM)
+geology_model = PREM
+material_output_file = hawaii_material.input
+
+# Output Surface Mesh File Names
+bathymetry_gts = hawaii_bathymetry.gts
+bathymetry_stl = hawaii_bathymetry.stl
+bathymetry_vtk = hawaii_bathymetry.vtk
+
+topography_gts = hawaii_topography.gts
+topography_stl = hawaii_topography.stl
+topography_vtk = hawaii_topography.vtk

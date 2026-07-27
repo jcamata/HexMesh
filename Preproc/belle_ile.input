@@ -1,0 +1,41 @@
+# =====================================================================
+# Preproc Input Configuration - Belle-Île Region (France)
+# =====================================================================
+
+# Bounding Box for Belle-Île (Lat/Lon degrees)
+# Bounds: [47°00' 48°00' -4°00' -3°00']
+lat_min = 47.0
+lat_max = 48.0
+lon_min = -4.0
+lon_max = -3.0
+
+# Feature Filtering & Bathymetry Floor (in meters)
+h_min_feature = 100.0
+coastline_tolerance = 100.0
+z_min = -20.0
+
+# Data Files & Direct HTTP Download URLs
+nc_file = belle_ile_gebco.nc
+gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]
+
+coastline_file = gshhg/GSHHS_shp/f/GSHHS_f_L1.shp
+coastline_url = https://www.soest.hawaii.edu/pwessel/gshhg/gshhg-shp-2.3.7.zip
+
+# Hydrography Feature Toggles
+include_coastline = true
+include_lakes = true
+include_rivers = false
+include_dams = false
+
+# Geological Velocity Model (PREM)
+geology_model = PREM
+material_output_file = belle_ile_material.input
+
+# Output Surface Mesh File Names
+bathymetry_gts = belle_ile_bathymetry.gts
+bathymetry_stl = belle_ile_bathymetry.stl
+bathymetry_vtk = belle_ile_bathymetry.vtk
+
+topography_gts = belle_ile_topography.gts
+topography_stl = belle_ile_topography.stl
+topography_vtk = belle_ile_topography.vtk

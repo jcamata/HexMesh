@@ -1,0 +1,41 @@
+# =====================================================================
+# Preproc Input Configuration - Kashiwazaki Region (Japan)
+# =====================================================================
+
+# Bounding Box for Kashiwazaki (Lat/Lon degrees)
+# Bounds: [37°10' 37°40' 138°15' 138°55']
+lat_min = 37.166667
+lat_max = 37.666667
+lon_min = 138.25
+lon_max = 138.916667
+
+# Feature Filtering & Bathymetry Floor (in meters)
+h_min_feature = 100.0
+coastline_tolerance = 1.0
+z_min = -50.0
+
+# Data Files & Direct HTTP Download URLs
+nc_file = kashiwazaki_gebco.nc
+gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]
+
+coastline_file = gshhg/GSHHS_shp/f/GSHHS_f_L1.shp
+coastline_url = https://www.soest.hawaii.edu/pwessel/gshhg/gshhg-shp-2.3.7.zip
+
+# Hydrography Feature Toggles
+include_coastline = true
+include_lakes = false
+include_rivers = false
+include_dams = false
+
+# Geological Velocity Model (PREM)
+geology_model = PREM
+material_output_file = kashiwazaki_material.input
+
+# Output Surface Mesh File Names
+bathymetry_gts = kashiwazaki_bathymetry.gts
+bathymetry_stl = kashiwazaki_bathymetry.stl
+bathymetry_vtk = kashiwazaki_bathymetry.vtk
+
+topography_gts = kashiwazaki_topography.gts
+topography_stl = kashiwazaki_topography.stl
+topography_vtk = kashiwazaki_topography.vtk
