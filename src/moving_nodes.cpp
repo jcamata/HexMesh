@@ -122,6 +122,27 @@ static int node_equal_id(const void *v, const void *u, const void *w)
 	return (unsigned) (e1->node_id == e2->node_id);
 }
 
+
+
+
+
+
+static uint64_t GetOctreeEdgeId(hexa_tree_t *mesh, octree_t *oct, int iedge)
+{
+	int iel0 = EdgeElemOctMap[iedge][0];
+	int iel1 = EdgeElemOctMap[iedge][1];
+
+	if (oct->id[iel0] != -1) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel0]);
+		return elem->edge[iedge].id;
+	}
+	if (oct->id[iel1] != -1) {
+		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel1]);
+		return elem->edge[iedge].id;
+	}
+	return 0;
+}
+
 static void InitializeOctreeEdgeInfo(octree_t *oct)
 {
 	oct->edge_info.n_neighbors = 0;
@@ -176,22 +197,6 @@ static void AddNeighborEdgeInfo(octree_t *oct, int neighbor_octree, int iedge)
 		oct->edge_info.intercepted_edges_by_neighbor[ineighbor][n] = iedge;
 		oct->edge_info.n_intercepted_edges_by_neighbor[ineighbor]++;
 	}
-}
-
-static uint64_t GetOctreeEdgeId(hexa_tree_t *mesh, octree_t *oct, int iedge)
-{
-	int iel0 = EdgeElemOctMap[iedge][0];
-	int iel1 = EdgeElemOctMap[iedge][1];
-
-	if (oct->id[iel0] != -1) {
-		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel0]);
-		return elem->edge[iedge].id;
-	}
-	if (oct->id[iel1] != -1) {
-		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, oct->id[iel1]);
-		return elem->edge[iedge].id;
-	}
-	return 0;
 }
 
 static void BuildOctreeNeighborEdgeInfo(hexa_tree_t *mesh)
@@ -433,12 +438,17 @@ static void RegularizeSkippedOctreeNodes(hexa_tree_t *mesh,
 	}
 
 	int skipped_octrees = 0;
+	int hist[13] = {0};
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
 		octree_t *oct = (octree_t *) sc_array_index(&mesh->oct, ioc);
-		if (IsCompleteOctree(oct) && !IsOctreeCutPatternRegular(oct)) {
-			skipped_octrees++;
-		}
+		if (!IsCompleteOctree(oct)) continue;
+		int ne = CountOctreeInterceptedEdges(oct);
+		if (ne > 0) hist[ne]++;
+		if (!IsOctreeCutPatternRegular(oct)) skipped_octrees++;
 	}
+	printf("    Cut octrees by intercepted-edge count:");
+	for (int i = 1; i <= 12; i++) if (hist[i]) printf(" %d:%d", i, hist[i]);
+	printf("\n");
 
 	int regularized_nodes = 0;
 	const int max_iters = 8;
@@ -781,6 +791,174 @@ static bool GetOctreeBipartition(const octree_t *oct, int B[8])
 	return true;
 }
 
+// ---------------------------------------------------------------------------
+// Warp the x-y lattice onto the coastline.
+//
+// The topography is followed well because GetMeshFromSurface spreads the vertical deformation
+// over the WHOLE column: the ncellz nodes are stretched between zmax and zmin, nobody takes an
+// isolated jump. Horizontally the opposite used to happen -- one interface node was snapped
+// sideways onto the wall while its neighbours stayed on the rigid lattice, shearing the element
+// between them until the projection limiter dragged it back.
+//
+// The coastline is a VERTICAL wall, so its intersection sits at the same (x, y) for the whole
+// depth of the wall. Moving an entire column horizontally is therefore geometrically
+// consistent: columns stay vertical and straight, hexahedra keep their shape, and connectivity
+// is untouched -- this is purely a change of coordinates on the integer lattice that
+// octant_node_t already carries in (x, y).
+//
+//   anchors : where a horizontal octree edge cuts the surface, the column is placed exactly
+//             there (the user's "coloco o no exatamente onde a surface cortou o octree");
+//   field   : that displacement is diffused to the surrounding columns by Laplace smoothing,
+//             with the domain border pinned at zero, so it decays with distance and the faces
+//             stay fixed;
+//   z       : re-sampled per column afterwards, because GetMeshFromSurface sampled it at the
+//             old (x, y).
+// ---------------------------------------------------------------------------
+static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coords)
+{
+	if (!mesh->gdata.bbt || !mesh->tdata.bbt) return;
+
+	const int nx = mesh->ncellx + 1, ny = mesh->ncelly + 1;
+	const size_t ncol = (size_t) nx * ny;
+	auto COL = [nx](int i, int j) { return (size_t) j * nx + i; };
+
+	std::vector<double> ax(ncol, 0.0), ay(ncol, 0.0);
+	std::vector<int>    an(ncol, 0);
+
+	// --- Phase 1: anchors from horizontal cut octree edges ---------------------
+	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		if (!IsCompleteOctree(oct)) continue;
+
+		for (int iedge = 0; iedge < 12; iedge++) {
+			if (!oct->edge[iedge]) continue;
+
+			int iel0 = EdgeElemOctMap[iedge][0];
+			int iel1 = EdgeElemOctMap[iedge][1];
+			octant_t *elem0 = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel0]);
+			octant_t *elem1 = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel1]);
+
+			octant_node_t *ndA = &elem0->nodes[iel0];
+			octant_node_t *ndB = &elem1->nodes[iel1];
+			// only horizontal edges see the vertical wall
+			if (ndA->z != ndB->z) continue;
+
+			int nA = ndA->id, nB = ndB->id;
+			double x1 = coords[3*nA], y1 = coords[3*nA+1], z1 = coords[3*nA+2];
+			double x2 = coords[3*nB], y2 = coords[3*nB+1], z2 = coords[3*nB+2];
+			const double ext = 0.02;
+			double dx = x2-x1, dy = y2-y1, dz = z2-z1;
+
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), x1-ext*dx, y1-ext*dy, z1-ext*dz);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), x2+ext*dx, y2+ext*dy, z2+ext*dz);
+			GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
+			GtsBBox *bb = gts_bbox_segment(gts_bbox_class(), seg);
+
+			GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, bb);
+			const double mx = 0.5*(x1+x2), my = 0.5*(y1+y2), mz = 0.5*(z1+z2);
+			GtsPoint *pt = NULL; double best = 0.0;
+			for (GSList *l = list; l; l = l->next) {
+				GtsBBox *b = GTS_BBOX(l->data);
+				GtsPoint *q = mesh->input.CgalUse
+					? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+					: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+				if (!q) continue;
+				double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
+				if (!pt || d < best) { pt = q; best = d; }
+			}
+			if (!pt) continue;
+
+			// the two inner nodes of this octree edge share the midpoint column
+			for (int side = 0; side < 2; side++) {
+				octant_node_t *nd = side == 0
+					? &elem0->nodes[EdgeVerticesMap[iedge][1]]
+					: &elem1->nodes[EdgeVerticesMap[iedge][0]];
+				if (nd->x < 0 || nd->x >= nx || nd->y < 0 || nd->y >= ny) continue;
+				size_t c = COL(nd->x, nd->y);
+				ax[c] += pt->x - coords[3*nd->id+0];
+				ay[c] += pt->y - coords[3*nd->id+1];
+				an[c]++;
+			}
+		}
+	}
+
+	int n_anchor = 0;
+	std::vector<char> fixed(ncol, 0);
+	std::vector<double> ux(ncol, 0.0), uy(ncol, 0.0);
+	for (size_t c = 0; c < ncol; c++) if (an[c]) {
+		ux[c] = ax[c] / an[c];
+		uy[c] = ay[c] / an[c];
+		fixed[c] = 1;
+		n_anchor++;
+	}
+	// the domain faces stay put
+	for (int i = 0; i < nx; i++) { fixed[COL(i,0)] = 1; fixed[COL(i,ny-1)] = 1;
+	                               ux[COL(i,0)] = uy[COL(i,0)] = 0.0;
+	                               ux[COL(i,ny-1)] = uy[COL(i,ny-1)] = 0.0; }
+	for (int j = 0; j < ny; j++) { fixed[COL(0,j)] = 1; fixed[COL(nx-1,j)] = 1;
+	                               ux[COL(0,j)] = uy[COL(0,j)] = 0.0;
+	                               ux[COL(nx-1,j)] = uy[COL(nx-1,j)] = 0.0; }
+
+	if (n_anchor == 0) { printf("    Lattice warp: no coastline anchors, skipped\n"); return; }
+
+	// --- Phase 2: Laplace-diffuse the displacement over the free columns -------
+	const int SWEEPS = 300;
+	std::vector<double> vx(ux), vy(uy);
+	for (int s = 0; s < SWEEPS; s++) {
+		for (int j = 1; j < ny-1; j++)
+			for (int i = 1; i < nx-1; i++) {
+				size_t c = COL(i,j);
+				if (fixed[c]) continue;
+				vx[c] = 0.25*(ux[COL(i-1,j)] + ux[COL(i+1,j)] + ux[COL(i,j-1)] + ux[COL(i,j+1)]);
+				vy[c] = 0.25*(uy[COL(i-1,j)] + uy[COL(i+1,j)] + uy[COL(i,j-1)] + uy[COL(i,j+1)]);
+			}
+		ux.swap(vx); uy.swap(vy);
+	}
+
+	// --- Phase 4: do not fold the lattice -------------------------------------
+	double hx = (mesh->tdata.bbox->x2 - mesh->tdata.bbox->x1) / (double) mesh->ncellx;
+	double hy = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1) / (double) mesh->ncelly;
+	// A column may not travel more than ~half a cell or it crosses its neighbour. Clamp each
+	// column on its own: a single greedy column must not scale down the whole field.
+	const double lim = 0.45 * std::min(hx, hy);
+	double umax = 0.0;
+	int n_clamped = 0;
+	for (size_t c = 0; c < ncol; c++) {
+		double m = std::sqrt(ux[c]*ux[c] + uy[c]*uy[c]);
+		if (m > umax) umax = m;
+		if (m > lim) { ux[c] *= lim/m; uy[c] *= lim/m; n_clamped++; }
+	}
+	const double scale = 1.0;
+
+	// --- Phase 3: apply, then re-sample z -------------------------------------
+	double zmin = -mesh->input.z;
+	GtsPoint *p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->tdata.bbox->z2);
+	std::vector<double> zmax_col(ncol, 0.0);
+	std::vector<char> have_z(ncol, 0);
+
+	for (int i = 0; i < mesh->nodes.elem_count; i++) {
+		octant_node_t *n = (octant_node_t*) sc_array_index(&mesh->nodes, i);
+		if (n->x < 0 || n->x >= nx || n->y < 0 || n->y >= ny) continue;
+		size_t c = COL(n->x, n->y);
+		coords[3*n->id+0] += scale * ux[c];
+		coords[3*n->id+1] += scale * uy[c];
+
+		if (!have_z[c]) {
+			p->x = coords[3*n->id+0];
+			p->y = coords[3*n->id+1];
+			p->z = mesh->tdata.bbox->z2;
+			zmax_col[c] = mesh->tdata.bbox->z2 - gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
+			have_z[c] = 1;
+		}
+		double dz = (zmax_col[c] - zmin) / (double) mesh->ncellz;
+		coords[3*n->id+2] = zmax_col[c] - n->z * dz;
+	}
+
+	printf("    Lattice warp: %d anchored columns of %zu, max displacement %.1f m of a "
+	       "%.1f x %.1f m cell, %d columns clamped at %.1f m\n",
+	       n_anchor, ncol, umax, hx, hy, n_clamped, lim);
+}
+
 void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat) {
 
 	// For each face, for each of the 4 edges (FaceEdgesMap order):
@@ -919,15 +1097,26 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 			GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
 			GtsBBox *bb = gts_bbox_segment(gts_bbox_class(), seg);
 
+			// Near the coast an octree edge crosses the surface TWICE -- once on the sea
+			// floor and once on the vertical wall. Taking whichever triangle the bb-tree
+			// happens to return first made the result depend on heap pointer order, i.e. it
+			// changed between runs of the same binary on the same input. Evaluate every
+			// candidate and keep the one nearest the edge midpoint, which is where both
+			// inner nodes sit.
 			GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, bb);
 			GtsPoint *pt = NULL;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				pt = mesh->input.CgalUse
-					? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-					: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
-				if (pt) break;
-				list = list->next;
+			{
+				const double mx = 0.5*(x1+x2), my = 0.5*(y1+y2), mz = 0.5*(z1+z2);
+				double best = 0.0;
+				for (GSList *l = list; l; l = l->next) {
+					GtsBBox *b = GTS_BBOX(l->data);
+					GtsPoint *q = mesh->input.CgalUse
+						? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+						: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+					if (!q) continue;
+					double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
+					if (!pt || d < best) { pt = q; best = d; }
+				}
 			}
 			if (!pt) continue;
 
@@ -1078,9 +1267,17 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	// nodes of invalid elements move, so it converges in a few iterations.
 	{
 		int n_nodes_loc = (int)(coords.size() / 3);
-		const int MAXIT = 50;
+		// Retreat step. The node is moved a fraction (1 - PULL_STEP) of the way back to its
+		// lattice position each round, so after k rounds it keeps PULL_STEP^k of the
+		// displacement the surface asked for. At the old 0.5 the very first retreat threw away
+		// half of it, and there was no way to sit at 80%: the reachable positions were
+		// 100/50/25/12.5%. A small step walks back gently and stops as soon as the element is
+		// valid, at the cost of needing proportionally more iterations to reach the same depth
+		// -- MAXIT is sized so that PULL_STEP^MAXIT is still below the old 0.5^8.
+		const double PULL_STEP = 0.85;
+		const int MAXIT = 200;
 		// How tightly the mesh is allowed to conform to the surface. Every node of an element
-		// failing these tests is pulled halfway back to its lattice position, so the stricter
+		// failing these tests is pulled back toward its lattice position, so the stricter
 		// they are, the further the interface ends up from the real coastline/sea floor.
 		//
 		// Margin, not just sign: a barely-valid element (minSJ ~1e-3) leaves the pillow layer
@@ -1089,11 +1286,25 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// raise them back if pillowing starts producing inverted elements.
 		const double SJ_MIN = 0.01;    // min scaled Jacobian at any corner
 		const double VOL_MIN = 0.01;   // min |volume| as a fraction of the reference volume
-		int it = 0, nbad = 0, npull_total = 0;
+		int it = 0, nbad = 0, npull_total = 0, n_prebad = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
+		std::vector<int> pull_count(n_nodes_loc, 0);
+		std::vector<double> keep(n_nodes_loc, 1.0);
+
+		// Only a node this projection actually displaced can be retreated -- a node still at
+		// its lattice position has nowhere to go, and marking all 8 corners of a bad element
+		// dragged correctly-placed neighbours off the coastline with it. coords0 is the
+		// pre-projection snapshot, so "moved" needs no extra bookkeeping.
+		std::vector<char> moved(n_nodes_loc, 0);
+		int n_moved = 0;
+		for (int n = 0; n < n_nodes_loc; n++) {
+			if (coords[3*n+0] != coords0[3*n+0] ||
+			    coords[3*n+1] != coords0[3*n+1] ||
+			    coords[3*n+2] != coords0[3*n+2]) { moved[n] = 1; n_moved++; }
+		}
 		for (it = 0; it < MAXIT; it++) {
 			std::fill(pull.begin(), pull.end(), 0);
-			nbad = 0;
+			nbad = 0; n_prebad = 0;
 			for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
 				octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
 				double X[8], Y[8], Z[8];
@@ -1115,19 +1326,43 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				// conform to the interface correctly with only the volume
 				// check below.
 				if (vol_ok) continue;   // still valid
+				// An element none of whose nodes this projection moved was already invalid
+				// before it ran; retreating cannot repair it, and counting it would keep the
+				// loop spinning to MAXIT. Leave it to the untangler.
+				int n_movable = 0;
+				for (int i = 0; i < 8; i++) if (moved[e->nodes[i].id]) n_movable++;
+				if (n_movable == 0) { n_prebad++; continue; }
 				nbad++;
-				for (int i = 0; i < 8; i++) pull[e->nodes[i].id] = 1;
+				for (int i = 0; i < 8; i++)
+					if (moved[e->nodes[i].id]) pull[e->nodes[i].id] = 1;
 			}
 			if (nbad == 0) break;
 			for (int n = 0; n < n_nodes_loc; n++) if (pull[n]) {
-				coords[3*n+0] = 0.5 * (coords[3*n+0] + coords0[3*n+0]);
-				coords[3*n+1] = 0.5 * (coords[3*n+1] + coords0[3*n+1]);
-				coords[3*n+2] = 0.5 * (coords[3*n+2] + coords0[3*n+2]);
+				for (int k = 0; k < 3; k++)
+					coords[3*n+k] = PULL_STEP * coords[3*n+k] + (1.0 - PULL_STEP) * coords0[3*n+k];
+				keep[n] *= PULL_STEP;
 				npull_total++;
+				pull_count[n]++;
 			}
 		}
-		printf("    Projection limiter: %d invalid elements after %d iters (%d node pull-backs)\n",
-				nbad, it, npull_total);
+		printf("    Projection limiter: %d invalid elements after %d iters (%d node pull-backs, "
+				"%d moved nodes, %d elements already invalid before projection)\n",
+				nbad, it, npull_total, n_moved, n_prebad);
+		// How much of the projection survived: the fraction of the displacement the surface
+		// asked for that the node still carries.
+		{
+			int npulled = 0, worst = 0;
+			double resid = 0.0;
+			for (int n = 0; n < n_nodes_loc; n++) if (pull_count[n]) {
+				npulled++;
+				resid += keep[n];
+				if (pull_count[n] > worst) worst = pull_count[n];
+			}
+			if (npulled)
+				printf("    Pulled-back nodes: %d, mean surviving displacement %.1f%% "
+				       "(worst node %d retreats)\n", npulled, 100.0 * resid / npulled, worst);
+		}
+
 	}
 
 	// Deduplicate nodes_b_mat via hash and update per-element node fixity.
@@ -1660,6 +1895,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	tstart = time(0);
 	printf("    Make the projection of the nodes into the surface...\n");
 	nodes_b_mat.clear();
+	WarpLatticeToCoastline(mesh, coords);
 	ProjectFreeNodes(mesh,coords,nodes_b_mat);
 	tend = time(0);
 	//cout << "Time in ProjectFreeNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;

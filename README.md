@@ -36,11 +36,15 @@ Compile with (replace OS by Linux or mac)
 
 ## USE
 
-To prepare the geometry files, modify the headers in mainSRTM.m (in particular choose the bounding box in latitude/longitude) and run in Matlab:
+To prepare the geometry files, write a configuration file with the bounding box and the data sources, and run the Python preprocessor:
 
->> mainSRTM
+>> cd Preproc && python3 preproc.py mauna_loa.input
 
-You need an internet connexion to download the topography, bathymetry and coastlines files (no connexion needed if they are already available on your computer). The output files are a topography STL file topo.stl and a bathymetry STL file bathy.stl. These files should be transformed to GTS using stl2gts command, and move to directory $(HEXHOME)/input, where $(HEXHOME) is the directory where hexmesh was compiled.
+You need an internet connexion to download the elevation grid and the coastline file (no connexion needed if they are already available on your computer). It writes the topography and bathymetry GTS files directly — no stl2gts step — which should be moved to $(HEXHOME)/input, where $(HEXHOME) is the directory where hexmesh was compiled.
+
+Configuration keys, the coordinate projection, how the bathymetry surface encodes the coastline for the material raytrace, and which elevation databases to use: [`Preproc/README.md`](Preproc/README.md).
+
+The original Matlab workflow (`mainSRTM.m` in ./matlab, run from Matlab, writing STL files that then need `stl2gts`) still works but is superseded — note that its `lonlat2m.m` projection stretches longitude by up to ~27% at mid latitudes.
 
 Before running, edit the input file HexMesh.input, located in $(HEXMESH) (it is read from ./HexMesh.input relative to the working directory). It sets:
 * topo / inter: paths to the topography and interface (bathymetry) GTS files, and interfaceNumber (0 or 1 interface admitted for now)
