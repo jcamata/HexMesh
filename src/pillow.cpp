@@ -82,20 +82,6 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 
 	const int N_FACTOR = 2;
 
-	// Compute physical cell size and buffer layer displacement thickness delta
-	double hx = 344.173148;
-	double hy = 354.634012;
-	double hz = 154.320988;
-
-	if (mesh->ncellx > 0) hx = 55756.05 / (double)mesh->ncellx;
-	if (mesh->ncelly > 0) hy = 57450.71 / (double)mesh->ncelly;
-	if (mesh->ncellz > 0 && mesh->input.z > 0) hz = mesh->input.z / (double)mesh->ncellz;
-
-	double delta_x = 0.25 * hx;
-	double delta_y = 0.25 * hy;
-	double delta_z = 0.25 * hz;
-	(void)delta_x; (void)delta_y; (void)delta_z; // superseded by PILLOW_FRACTION placement
-
 	// Buffer-layer thickness as a FRACTION of the physical edge from the interface
 	// node toward the material-side interior node (found via the reference-mesh
 	// topology, FaceNodesMap_inv). Placing the buffer along the real (deformed)
@@ -450,10 +436,12 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			pelem0->nodes[lo].id = q.quad_nodes[k];
 			octant_node_t *n_lo = (octant_node_t *) sc_array_index(&mesh->nodes, q.quad_nodes[k]);
 			pelem0->nodes[lo].x = n_lo->x; pelem0->nodes[lo].y = n_lo->y; pelem0->nodes[lo].z = n_lo->z;
+			pelem0->nodes[lo].fixed = n_lo->fixed; pelem0->nodes[lo].color = n_lo->color;
 
 			pelem0->nodes[li].id = mat0_nodes[k];
 			octant_node_t *n_li = (octant_node_t *) sc_array_index(&mesh->nodes, mat0_nodes[k]);
 			pelem0->nodes[li].x = n_li->x; pelem0->nodes[li].y = n_li->y; pelem0->nodes[li].z = n_li->z;
+			pelem0->nodes[li].fixed = n_li->fixed; pelem0->nodes[li].color = n_li->color;
 		}
 		n_created_pillow++;
 
@@ -477,10 +465,12 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			pelem1->nodes[lo].id = q.quad_nodes[k];
 			octant_node_t *n_lo = (octant_node_t *) sc_array_index(&mesh->nodes, q.quad_nodes[k]);
 			pelem1->nodes[lo].x = n_lo->x; pelem1->nodes[lo].y = n_lo->y; pelem1->nodes[lo].z = n_lo->z;
+			pelem1->nodes[lo].fixed = n_lo->fixed; pelem1->nodes[lo].color = n_lo->color;
 
 			pelem1->nodes[li].id = mat1_nodes[k];
 			octant_node_t *n_li = (octant_node_t *) sc_array_index(&mesh->nodes, mat1_nodes[k]);
 			pelem1->nodes[li].x = n_li->x; pelem1->nodes[li].y = n_li->y; pelem1->nodes[li].z = n_li->z;
+			pelem1->nodes[li].fixed = n_li->fixed; pelem1->nodes[li].color = n_li->color;
 		}
 		n_created_pillow++;
 	}

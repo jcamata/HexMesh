@@ -128,8 +128,9 @@ int main(int argc, char **argv) {
   }
 
   if (mesh.input.meshOpt) {
-    // Untangler runs; the size (time-step) optimization inside is switched off for now --
-    // see optimize_size in optimize_mesh.cpp (defined, currently unused)
+    // Untangler runs; the size (time-step) optimization inside is switched off
+    // for now -- see optimize_size in optimize_mesh.cpp (defined, currently
+    // unused)
     start = std::chrono::steady_clock::now();
     MeshOptimization(&mesh, coords, nodes_b_mat);
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
