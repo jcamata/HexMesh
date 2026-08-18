@@ -304,7 +304,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 				{
 
 					octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count + 1;
+					pml_e->id = mesh->elements.elem_count - 1;
 
 					// nos de referencia
 					int aux[4] = {0, 3, 7, 4};
@@ -377,6 +377,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						int y = pml_e->nodes[ino].y;
 						int z = pml_e->nodes[ino].z;
 						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+						gts_object_destroy(GTS_OBJECT(p));
 					}
 					isurf = 0;
 					key.id = isurf + 1;
@@ -398,7 +399,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 				{
 
 					octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count + 1;
+					pml_e->id = mesh->elements.elem_count - 1;
 
 					// nos de referencia
 					int aux[4] = {1, 2, 6, 5};
@@ -471,6 +472,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						int y = pml_e->nodes[ino].y;
 						int z = pml_e->nodes[ino].z;
 						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+						gts_object_destroy(GTS_OBJECT(p));
 					}
 					isurf = 1;
 					key.id = isurf + 1;
@@ -492,7 +494,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 				{
 
 					octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count + 1;
+					pml_e->id = mesh->elements.elem_count - 1;
 
 					// nos de referencia
 					int aux[4] = {0, 1, 4, 5};
@@ -565,6 +567,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						int y = pml_e->nodes[ino].y;
 						int z = pml_e->nodes[ino].z;
 						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+						gts_object_destroy(GTS_OBJECT(p));
 					}
 					isurf = 2;
 					key.id = isurf + 1;
@@ -586,7 +589,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 				{
 
 					octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count + 1;
+					pml_e->id = mesh->elements.elem_count - 1;
 
 					// nos de referencia
 					int aux[4] = {3, 2, 7, 6};
@@ -659,6 +662,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						int y = pml_e->nodes[ino].y;
 						int z = pml_e->nodes[ino].z;
 						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+						gts_object_destroy(GTS_OBJECT(p));
 					}
 					isurf = 3;
 					key.id = isurf + 1;
@@ -679,7 +683,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 				for (int n_l = 0; n_l < layers_z; ++n_l)
 				{
 					octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count + 1;
+					pml_e->id = mesh->elements.elem_count - 1;
 
 					// nos de referencia
 					int aux[4] = {4, 5, 6, 7};
@@ -754,6 +758,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						int y = pml_e->nodes[ino].y;
 						int z = pml_e->nodes[ino].z;
 						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+						gts_object_destroy(GTS_OBJECT(p));
 					}
 					isurf = 5;
 					key.id = isurf + 1;
@@ -775,7 +780,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 				{
 					// printf("Sou o el %d e entrei no 5\n",elemOrig->id);
 					octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-					pml_e->id = mesh->elements.elem_count + 1;
+					pml_e->id = mesh->elements.elem_count - 1;
 
 					// nos de referencia
 					int aux[4] = {0, 1, 2, 3};
@@ -848,6 +853,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						int y = pml_e->nodes[ino].y;
 						int z = pml_e->nodes[ino].z;
 						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+						gts_object_destroy(GTS_OBJECT(p));
 					}
 					isurf = 4;
 					key.id = isurf + 1;
@@ -876,7 +882,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {0, 1};
@@ -947,6 +953,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 0;
 						key.id = 10 * (iedge + 1);
@@ -973,7 +980,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {1, 2};
@@ -1044,6 +1051,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 1;
 						key.id = 10 * (iedge + 1);
@@ -1070,7 +1078,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {3, 2};
@@ -1141,6 +1149,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 2;
 						key.id = 10 * (iedge + 1);
@@ -1167,7 +1176,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {0, 3};
@@ -1238,6 +1247,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 3;
 						key.id = 10 * (iedge + 1);
@@ -1263,7 +1273,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {0, 4};
@@ -1334,6 +1344,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 4;
 						key.id = 10 * (iedge + 1);
@@ -1358,7 +1369,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {1, 5};
@@ -1429,6 +1440,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 5;
 						key.id = 10 * (iedge + 1);
@@ -1453,7 +1465,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {2, 6};
@@ -1524,6 +1536,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 6;
 						key.id = 10 * (iedge + 1);
@@ -1548,7 +1561,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {3, 7};
@@ -1619,6 +1632,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 7;
 						key.id = 10 * (iedge + 1);
@@ -1643,7 +1657,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {4, 5};
@@ -1714,6 +1728,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 8;
 						key.id = 10 * (iedge + 1);
@@ -1739,7 +1754,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {5, 6};
@@ -1810,6 +1825,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 9;
 						key.id = 10 * (iedge + 1);
@@ -1834,7 +1850,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {7, 6};
@@ -1905,6 +1921,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 10;
 						key.id = 10 * (iedge + 1);
@@ -1929,7 +1946,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 					{
 
 						octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-						pml_e->id = mesh->elements.elem_count + 1;
+						pml_e->id = mesh->elements.elem_count - 1;
 
 						// nos de referencia
 						int aux[2] = {4, 7};
@@ -2000,6 +2017,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 							int y = pml_e->nodes[ino].y;
 							int z = pml_e->nodes[ino].z;
 							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
 						}
 						iedge = 11;
 						key.id = 10 * (iedge + 1);
@@ -2031,7 +2049,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 0;
@@ -2101,6 +2119,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 0;
 							key.id = 1000 * (icorner + 1);
@@ -2130,7 +2149,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 1;
@@ -2200,6 +2219,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 1;
 							key.id = 1000 * (icorner + 1);
@@ -2229,7 +2249,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 2;
@@ -2308,6 +2328,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 2;
 							key.id = 1000 * (icorner + 1);
@@ -2337,7 +2358,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 3;
@@ -2407,6 +2428,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 3;
 							key.id = 1000 * (icorner + 1);
@@ -2436,7 +2458,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 4;
@@ -2506,6 +2528,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 4;
 							key.id = 1000 * (icorner + 1);
@@ -2534,7 +2557,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 5;
@@ -2604,6 +2627,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 5;
 							key.id = 1000 * (icorner + 1);
@@ -2632,7 +2656,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 6;
@@ -2702,6 +2726,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 6;
 							key.id = 1000 * (icorner + 1);
@@ -2730,7 +2755,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 						{
 
 							octant_t *pml_e = (octant_t *)sc_array_push(&mesh->elements);
-							pml_e->id = mesh->elements.elem_count + 1;
+							pml_e->id = mesh->elements.elem_count - 1;
 
 							// nos de referencia
 							int aux = 7;
@@ -2800,6 +2825,7 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 								int y = pml_e->nodes[ino].y;
 								int z = pml_e->nodes[ino].z;
 								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
 							}
 							icorner = 7;
 							key.id = 1000 * (icorner + 1);
@@ -2913,23 +2939,11 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	fprintf(fp1, "# PML properties\n");
 	fprintf(fp1, "# npow,Apow,posX,widthX,posY,widthY,posZ,widthZ,mat\n");
 
-	for(int imat = 0; imat < hash_matpml->a.elem_count; imat++){
-		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, imat);
-
-		double xx = pmlT->xmin;
-		double yy = pmlT->ymin;
-		double zz = pmlT->zmin;
-
-		double dx = std::abs(pmlT->xmin - pmlT->xmax);
-		double dy = std::abs(pmlT->ymin - pmlT->ymax);
-		double dz = std::abs(pmlT->zmin - pmlT->zmax);
-	}
-
 	for (int imat = 0; imat < hash_matpml->a.elem_count; imat++)
 	{
 		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, imat);
 
-		double dx, dy, dz = 0.0;
+		double dx = 0.0, dy = 0.0, dz = 0.0;
 		double xx = 0;
 		double yy = 0;
 		double zz = 0;

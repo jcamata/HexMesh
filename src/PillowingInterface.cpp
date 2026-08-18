@@ -122,6 +122,12 @@ void RedoNodeMapping(hexa_tree_t *mesh)
 	// just the multiplication
 	//  it allow us add int points in the mesh
 	//  keeping a structured mesh
+	// Node/coordinate fields below use `factor` (12); element-index fields
+	// (elem->x/y/z, ncellx, ncelly, max_z) use 4, not 12 -- NOT a typo. Node
+	// coordinates already live at 3x the element-index resolution (see the
+	// `3*ncellx`/`3*ncelly` domain-boundary convention in SurfaceIdentification),
+	// so 12 = 3 * 4 keeps `x_end == 3*ncellx` (etc.) true after rescaling. If you
+	// change one, change the other to match, don't unify them to the same value.
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
 	{
 		octant_t *elem = (octant_t *)sc_array_index(&mesh->elements, iel);
@@ -1313,6 +1319,11 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 				elem->nodes[ino].color = 0;
 
 			// assign the color for the local nodes...
+			// mesh->x_start/x_end/y_start/y_end are this MPI rank's LOCAL partition
+			// bounds (set once in hexa_processors_interval, src/hexa_parallel.cpp,
+			// before the mesh is even built) -- not the global domain bounds. For a
+			// single-rank run they coincide with 0/3*ncellx below, which is why this
+			// is easy to mistake for a bug when only ever tested with mpi_size==1.
 
 			// surface and edges
 			if (elem->nodes[ino].x == mesh->x_start)
@@ -1479,6 +1490,11 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 
 	sc_array_init(&mesh->outsurf, sizeof(octant_t));
 	// id global exterior surface
+	// Deliberately 0/3*ncellx/3*ncelly literals here, NOT mesh->x_start/x_end/
+	// y_start/y_end (used above for the "color" pass): PML must only be placed at
+	// the true exterior of the WHOLE simulation domain, never at an internal MPI
+	// partition seam between two ranks, so this pass needs the global bounds even
+	// though the color pass above intentionally wants the local ones.
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
 	{
 		octant_t *elem = (octant_t *)sc_array_index(&mesh->elements, iel);
