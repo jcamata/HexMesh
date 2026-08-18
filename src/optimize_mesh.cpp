@@ -425,8 +425,27 @@ void optimize_size(hexa_tree_t *mesh, std::vector<double> &coords,
 	}
 }
 
+static void print_quality_summary(const char *label, const std::vector<hex_quality_t> &q) {
+	if (q.empty()) return;
+	double minSJ = 1e300, maxCond = -1.0, minAngle = 360.0, maxSkew = -1.0;
+	double sumSJ = 0.0;
+	for (const auto &item : q) {
+		if (item.scaledJacobian < minSJ) minSJ = item.scaledJacobian;
+		if (item.conditionNumber > maxCond) maxCond = item.conditionNumber;
+		if (item.minFaceAngle < minAngle) minAngle = item.minFaceAngle;
+		if (item.skew > maxSkew) maxSkew = item.skew;
+		sumSJ += item.scaledJacobian;
+	}
+	double meanSJ = sumSJ / q.size();
+	printf("    Quality [%s]: min ScaledJac=%.4f (mean=%.4f), max CondNum=%.2f, min FaceAngle=%.2f deg, max Skew=%.4f\n",
+	       label, minSJ, meanSJ, maxCond, minAngle, maxSkew);
+}
+
 void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes) {
 	if (!mesh || mesh->elements.elem_count == 0 || coords.empty()) return;
+
+	// Run self-test unit assertions for quality metrics
+	hexQualitySelfTest();
 
 	// Size optimization (the time-step objective) is off for now: what matters at this stage
 	// is a topologically correct mesh, not dt. Untangling stays on -- it is what removes
@@ -449,6 +468,14 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	double h_min_0 = a0.h_min;
 	printf("    Initial: %d inverted, ref sign %+d, h_min %.6e\n", a0.n_inverted, ref, h_min_0);
 
+	// 1. Evaluate and export BEFORE optimization quality
+	std::vector<hex_quality_t> q_before;
+	analyze_full_mesh_quality(mesh, coords, q_before);
+	print_quality_summary("BEFORE Opt", q_before);
+	hexa_mesh_write_quality_h5(mesh, "mesh_before_opt", coords, q_before);
+	printf("    Exported pre-optimization quality: mesh_before_opt_*.h5 / .xmf\n");
+
+	// 2. Perform optimization / untangling
 	int remaining = untangle_inversions(mesh, coords, lock, wall_lock, ref);
 	if (!run_size_optimization) {
 		printf("    Size optimization disabled.\n");
@@ -461,6 +488,13 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	MeshAnalysis a1 = analyze_mesh(mesh, coords);
 	printf("    Final:   %d inverted, h_min %.6e (dt gain %.3fx)\n",
 	       a1.n_inverted, a1.h_min, (h_min_0 > 0 ? a1.h_min / h_min_0 : 1.0));
+
+	// 3. Evaluate and export AFTER optimization quality
+	std::vector<hex_quality_t> q_after;
+	analyze_full_mesh_quality(mesh, coords, q_after);
+	print_quality_summary("AFTER  Opt", q_after);
+	hexa_mesh_write_quality_h5(mesh, "mesh_after_opt", coords, q_after);
+	printf("    Exported post-optimization quality: mesh_after_opt_*.h5 / .xmf\n");
 
 	// Boundary invariant self-check: every locked coordinate must be unchanged,
 	// EXCEPT interface nodes that escalation was allowed to nudge (<= cap). We

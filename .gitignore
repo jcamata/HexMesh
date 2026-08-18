@@ -1,3 +1,7 @@
+*.nc
+*.vtk
+*.h5
+*.xmf
 *.vtu
 *.pvtu
 *.unv
@@ -17,4 +21,5 @@ surface.dat
 *.txt
 Preproc/gshhg/
 Preproc/log/
+Preproc/__pycache__
 out/

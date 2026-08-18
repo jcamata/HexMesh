@@ -245,3 +245,196 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	fclose (fid);
 }
 
+void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char* root_name, const std::vector<double> &coords, const std::vector<hex_quality_t> &qualities)
+{
+	char filename[128];
+	sprintf(filename, "%s_%04d_%04d.h5", root_name, mesh->mpi_size, mesh->mpi_rank);
+
+	unsigned int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
+	int n_elem = mesh->local_n_elements;
+	int n_nodes = mesh->local_n_nodes;
+
+	std::vector<int> connect;
+	connect.reserve(n_elem * 8);
+	std::vector<int> mat;
+	mat.reserve(n_elem);
+	std::vector<int> pad;
+	pad.reserve(n_elem);
+	std::vector<int> pillow_type;
+	pillow_type.reserve(n_elem);
+
+	std::vector<double> v_scaledJac(n_elem);
+	std::vector<double> v_volume(n_elem);
+	std::vector<double> v_condNum(n_elem);
+	std::vector<double> v_edgeRatio(n_elem);
+	std::vector<double> v_skew(n_elem);
+	std::vector<double> v_shape(n_elem);
+	std::vector<double> v_oddy(n_elem);
+	std::vector<double> v_diagRatio(n_elem);
+	std::vector<double> v_taper(n_elem);
+	std::vector<double> v_stretch(n_elem);
+	std::vector<double> v_minAngle(n_elem);
+
+	for (int i = 0; i < n_elem; i++) {
+		octant_t *h = (octant_t *) sc_array_index(&mesh->elements, i);
+		mat.push_back(h->n_mat);
+		pad.push_back(h->pad);
+		for (int j = 0; j < 8; j++) {
+			connect.push_back(h->nodes[assign_elem_nodes[j]].id);
+		}
+		int pt;
+		if (h->n_mat == 0 && h->level == -1) {
+			pt = 3;
+		} else if (h->n_mat == 0) {
+			pt = 2;
+		} else {
+			bool on_interface = false;
+			for (int j = 0; j < 8; j++)
+				if (h->nodes[j].fixed == 1) { on_interface = true; break; }
+			pt = on_interface ? 1 : 0;
+		}
+		pillow_type.push_back(pt);
+
+		if (i < (int)qualities.size()) {
+			v_scaledJac[i] = qualities[i].scaledJacobian;
+			v_volume[i]    = qualities[i].volume;
+			v_condNum[i]   = qualities[i].conditionNumber;
+			v_edgeRatio[i] = qualities[i].edgeRatio;
+			v_skew[i]      = qualities[i].skew;
+			v_shape[i]     = qualities[i].shape;
+			v_oddy[i]      = qualities[i].oddy;
+			v_diagRatio[i] = qualities[i].diagonalRatio;
+			v_taper[i]     = qualities[i].taper;
+			v_stretch[i]   = qualities[i].stretch;
+			v_minAngle[i]  = qualities[i].minFaceAngle;
+		}
+	}
+
+	H5File file(filename, H5F_ACC_TRUNC);
+
+	// Nodes
+	hsize_t dims2D[2] = {(hsize_t)n_nodes, 3};
+	DataSpace dspace_nodes(2, dims2D);
+	DataSet dataset_nodes(file.createDataSet("Nodes", PredType::IEEE_F64LE, dspace_nodes));
+	dataset_nodes.write(coords.data(), PredType::NATIVE_DOUBLE, dspace_nodes, dspace_nodes);
+
+	// Sem3D Group
+	Group group(file.createGroup("/Sem3D"));
+
+	// Connectivity
+	dims2D[0] = n_elem; dims2D[1] = 8;
+	DataSpace dspace_conn(2, dims2D);
+	DataSet dataset_conn(file.createDataSet("Sem3D/Hexa8", PredType::STD_U64LE, dspace_conn));
+	dataset_conn.write(connect.data(), PredType::NATIVE_INT, dspace_conn, dspace_conn);
+
+	// Mat, Pad, PillowType
+	hsize_t dim1D[1] = {(hsize_t)n_elem};
+	DataSpace dspace_1D(1, dim1D);
+
+	DataSet dataset_mat(file.createDataSet("Sem3D/Mat", PredType::STD_I64LE, dspace_1D));
+	dataset_mat.write(mat.data(), PredType::NATIVE_INT, dspace_1D, dspace_1D);
+
+	DataSet dataset_pad(file.createDataSet("Sem3D/Pad", PredType::STD_I64LE, dspace_1D));
+	dataset_pad.write(pad.data(), PredType::NATIVE_INT, dspace_1D, dspace_1D);
+
+	DataSet dataset_pt(file.createDataSet("Sem3D/PillowType", PredType::STD_I64LE, dspace_1D));
+	dataset_pt.write(pillow_type.data(), PredType::NATIVE_INT, dspace_1D, dspace_1D);
+
+	// Helper macro for double datasets
+	auto write_dbl_dataset = [&](const char *dset_name, const std::vector<double> &data) {
+		DataSet ds(file.createDataSet(dset_name, PredType::IEEE_F64LE, dspace_1D));
+		ds.write(data.data(), PredType::NATIVE_DOUBLE, dspace_1D, dspace_1D);
+	};
+
+	write_dbl_dataset("Sem3D/ScaledJacobian", v_scaledJac);
+	write_dbl_dataset("Sem3D/Volume", v_volume);
+	write_dbl_dataset("Sem3D/ConditionNumber", v_condNum);
+	write_dbl_dataset("Sem3D/EdgeRatio", v_edgeRatio);
+	write_dbl_dataset("Sem3D/Skew", v_skew);
+	write_dbl_dataset("Sem3D/Shape", v_shape);
+	write_dbl_dataset("Sem3D/Oddy", v_oddy);
+	write_dbl_dataset("Sem3D/DiagonalRatio", v_diagRatio);
+	write_dbl_dataset("Sem3D/Taper", v_taper);
+	write_dbl_dataset("Sem3D/Stretch", v_stretch);
+	write_dbl_dataset("Sem3D/MinFaceAngle", v_minAngle);
+
+	// Centroids
+	std::vector<double> centroids(3 * (size_t)n_elem);
+	for (int i = 0; i < n_elem; i++) {
+		double cx = 0, cy = 0, cz = 0;
+		for (int j = 0; j < 8; j++) {
+			int nid = connect[8 * i + j];
+			cx += coords[3 * nid + 0];
+			cy += coords[3 * nid + 1];
+			cz += coords[3 * nid + 2];
+		}
+		centroids[3 * i + 0] = cx / 8.0;
+		centroids[3 * i + 1] = cy / 8.0;
+		centroids[3 * i + 2] = cz / 8.0;
+	}
+	dims2D[0] = n_elem; dims2D[1] = 3;
+	DataSpace dspace_cent(2, dims2D);
+	DataSet dataset_cent(file.createDataSet("Sem3D/Centroids", PredType::IEEE_F64LE, dspace_cent));
+	dataset_cent.write(centroids.data(), PredType::NATIVE_DOUBLE, dspace_cent, dspace_cent);
+
+	// XDMF Wrapper
+	sprintf(filename, "%s_%04d_%04d.h5.xmf", root_name, mesh->mpi_size, mesh->mpi_rank);
+	FILE *fid = fopen(filename, "w");
+	sprintf(filename, "%s_%04d_%04d.h5", root_name, mesh->mpi_size, mesh->mpi_rank);
+
+	fprintf(fid, "<?xml version=\"1.0\" ?>\n");
+	fprintf(fid, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\">\n");
+	fprintf(fid, "<Xdmf Version=\"2.0\" xmlns:xi=\"http://www.w3.org/2001/XInclude\">\n");
+	fprintf(fid, "<Domain>\n");
+	fprintf(fid, "<Grid GridType=\"Uniform\" Name=\"main\"><Geometry Type=\"XYZ\">\n");
+	fprintf(fid, "<DataItem Dimensions=\"%d 3\" Format=\"HDF\" NumberType=\"Float\" Precision=\"8\">%s:/Nodes</DataItem>\n", n_nodes, filename);
+	fprintf(fid, "</Geometry>\n");
+	fprintf(fid, "<Topology NumberOfElements=\"%d\" Type=\"Hexahedron\">\n", n_elem);
+	fprintf(fid, "<DataItem Dimensions=\"%d 8\" Format=\"HDF\" NumberType=\"UInt\" Precision=\"8\">%s:/Sem3D/Hexa8</DataItem>\n", n_elem, filename);
+	fprintf(fid, "</Topology>\n");
+
+	auto write_xmf_attr = [&](const char *name, const char *path, const char *type = "Float", const char *number_type = "Float") {
+		fprintf(fid, "<Attribute AttributeType=\"%s\" Center=\"Cell\" Dimensions=\"%d\" Name=\"%s\">\n", type, n_elem, name);
+		fprintf(fid, "<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"%s\" Precision=\"8\">%s:%s</DataItem>\n", n_elem, number_type, filename, path);
+		fprintf(fid, "</Attribute>\n");
+	};
+
+	write_xmf_attr("Mat", "/Sem3D/Mat", "Scalar", "Int");
+	write_xmf_attr("Pad", "/Sem3D/Pad", "Scalar", "Int");
+	write_xmf_attr("PillowType", "/Sem3D/PillowType", "Scalar", "Int");
+	write_xmf_attr("ScaledJacobian", "/Sem3D/ScaledJacobian");
+	write_xmf_attr("Volume", "/Sem3D/Volume");
+	write_xmf_attr("ConditionNumber", "/Sem3D/ConditionNumber");
+	write_xmf_attr("EdgeRatio", "/Sem3D/EdgeRatio");
+	write_xmf_attr("Skew", "/Sem3D/Skew");
+	write_xmf_attr("Shape", "/Sem3D/Shape");
+	write_xmf_attr("Oddy", "/Sem3D/Oddy");
+	write_xmf_attr("DiagonalRatio", "/Sem3D/DiagonalRatio");
+	write_xmf_attr("Taper", "/Sem3D/Taper");
+	write_xmf_attr("Stretch", "/Sem3D/Stretch");
+	write_xmf_attr("MinFaceAngle", "/Sem3D/MinFaceAngle");
+
+	fprintf(fid, "</Grid>\n");
+
+	// Diagnostic centroids point cloud
+	fprintf(fid, "<Grid GridType=\"Uniform\" Name=\"centroids\">\n");
+	fprintf(fid, "<Topology TopologyType=\"Polyvertex\" NumberOfElements=\"%d\" NodesPerElement=\"1\"/>\n", n_elem);
+	fprintf(fid, "<Geometry Type=\"XYZ\">\n");
+	fprintf(fid, "<DataItem Dimensions=\"%d 3\" Format=\"HDF\" NumberType=\"Float\" Precision=\"8\">%s:/Sem3D/Centroids</DataItem>\n", n_elem, filename);
+	fprintf(fid, "</Geometry>\n");
+	fprintf(fid, "<Attribute AttributeType=\"Scalar\" Center=\"Node\" Name=\"Mat\">\n");
+	fprintf(fid, "<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/Mat</DataItem>\n", n_elem, filename);
+	fprintf(fid, "</Attribute>\n");
+	fprintf(fid, "<Attribute AttributeType=\"Scalar\" Center=\"Node\" Name=\"PillowType\">\n");
+	fprintf(fid, "<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/PillowType</DataItem>\n", n_elem, filename);
+	fprintf(fid, "</Attribute>\n");
+	fprintf(fid, "<Attribute AttributeType=\"Scalar\" Center=\"Node\" Name=\"ScaledJacobian\">\n");
+	fprintf(fid, "<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Float\" Precision=\"8\">%s:/Sem3D/ScaledJacobian</DataItem>\n", n_elem, filename);
+	fprintf(fid, "</Attribute>\n");
+	fprintf(fid, "</Grid>\n");
+
+	fprintf(fid, "</Domain></Xdmf>");
+
+	fclose(fid);
+}
+

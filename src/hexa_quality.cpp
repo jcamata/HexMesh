@@ -221,6 +221,109 @@ static void hexCornerMetrics(double nodes[8][3], double *scaledJacMin, double *s
 	*oddyMax = odMax;
 }
 
+// Verdict-style diagonal ratio: min space diagonal / max space diagonal (4 space diagonals).
+// 1 = ideal cube.
+static double hexDiagonalRatio(double nodes[8][3]) {
+	static const int diag[4][2] = {
+		{0, 6}, {1, 7}, {2, 4}, {3, 5}
+	};
+	double dmin = 1e300, dmax = 0.0;
+	for (int i = 0; i < 4; i++) {
+		double v[3];
+		sub3(nodes[diag[i][1]], nodes[diag[i][0]], v);
+		double d = norm3(v);
+		if (d < dmin) dmin = d;
+		if (d > dmax) dmax = d;
+	}
+	if (dmax < 1e-14) return 0.0;
+	return dmin / dmax;
+}
+
+// Verdict-style taper: max ratio of edge length difference to min edge length
+// among parallel edges in xi, eta, zeta directions. 0 = ideal cube.
+static double hexTaper(double nodes[8][3]) {
+	static const int parallelEdges[3][4][2] = {
+		{ {0,1}, {3,2}, {4,5}, {7,6} }, // xi
+		{ {0,3}, {1,2}, {4,7}, {5,6} }, // eta
+		{ {0,4}, {1,5}, {2,6}, {3,7} }  // zeta
+	};
+	double maxTaper = 0.0;
+	for (int dir = 0; dir < 3; dir++) {
+		double len[4];
+		for (int e = 0; e < 4; e++) {
+			double v[3];
+			sub3(nodes[parallelEdges[dir][e][1]], nodes[parallelEdges[dir][e][0]], v);
+			len[e] = norm3(v);
+		}
+		for (int i = 0; i < 4; i++) {
+			for (int j = i + 1; j < 4; j++) {
+				double lmin = (len[i] < len[j]) ? len[i] : len[j];
+				if (lmin < 1e-14) continue;
+				double taper = fabs(len[i] - len[j]) / lmin;
+				if (taper > maxTaper) maxTaper = taper;
+			}
+		}
+	}
+	return maxTaper;
+}
+
+// Verdict-style stretch: sqrt(3) * shortest_edge / max_diagonal. 1 = ideal cube.
+static double hexStretch(double nodes[8][3]) {
+	double lmin = 1e300;
+	for (int e = 0; e < 12; e++) {
+		double d[3];
+		sub3(nodes[HEX_EDGES[e][1]], nodes[HEX_EDGES[e][0]], d);
+		double l = norm3(d);
+		if (l < lmin) lmin = l;
+	}
+	static const int diag[4][2] = {
+		{0, 6}, {1, 7}, {2, 4}, {3, 5}
+	};
+	double dmax = 0.0;
+	for (int i = 0; i < 4; i++) {
+		double v[3];
+		sub3(nodes[diag[i][1]], nodes[diag[i][0]], v);
+		double d = norm3(v);
+		if (d > dmax) dmax = d;
+	}
+	if (dmax < 1e-14) return 0.0;
+	return (sqrt(3.0) * lmin) / dmax;
+}
+
+// Minimum interior angle (in degrees) across all 24 quad face corners.
+// Ideal cube = 90 degrees.
+static double hexMinFaceAngle(double nodes[8][3]) {
+	static const int faces[6][4] = {
+		{0, 4, 7, 3}, {1, 5, 6, 2}, {1, 5, 4, 0},
+		{2, 6, 7, 3}, {1, 0, 3, 2}, {5, 4, 7, 6}
+	};
+	const double rad2deg = 180.0 / 3.14159265358979323846;
+	double minAngleDeg = 360.0;
+	for (int f = 0; f < 6; f++) {
+		for (int c = 0; c < 4; c++) {
+			int curr = faces[f][c];
+			int prev = faces[f][(c + 3) % 4];
+			int next = faces[f][(c + 1) % 4];
+
+			double u[3], v[3];
+			sub3(nodes[prev], nodes[curr], u);
+			sub3(nodes[next], nodes[curr], v);
+
+			double nu = norm3(u), nv = norm3(v);
+			if (nu < 1e-14 || nv < 1e-14) {
+				if (0.0 < minAngleDeg) minAngleDeg = 0.0;
+				continue;
+			}
+			double cosTheta = dot3(u, v) / (nu * nv);
+			if (cosTheta > 1.0) cosTheta = 1.0;
+			if (cosTheta < -1.0) cosTheta = -1.0;
+			double angleDeg = acos(cosTheta) * rad2deg;
+			if (angleDeg < minAngleDeg) minAngleDeg = angleDeg;
+		}
+	}
+	return minAngleDeg;
+}
+
 void hexQualityMetrics(double nodes[8][3], hex_quality_t *q) {
 	if (!nodes || !q) {
 		printf("Error: Null pointer passed to hexQualityMetrics.\n");
@@ -232,6 +335,10 @@ void hexQualityMetrics(double nodes[8][3], hex_quality_t *q) {
 	computeCentroidJacobian(nodes, &q->jacobianDet, &q->conditionNumber);
 	q->skew = hexSkew(nodes);
 	hexCornerMetrics(nodes, &q->scaledJacobian, &q->shape, &q->oddy);
+	q->diagonalRatio = hexDiagonalRatio(nodes);
+	q->taper = hexTaper(nodes);
+	q->stretch = hexStretch(nodes);
+	q->minFaceAngle = hexMinFaceAngle(nodes);
 
 	if (q->jacobianDet <= 0.0) {
 		printf("Warning: centroid Jacobian determinant is non-positive (%.4f), indicating an invalid element.\n", q->jacobianDet);
@@ -242,13 +349,13 @@ void hexQualityMetrics(double nodes[8][3], hex_quality_t *q) {
 // MeshOptimization (src/optimize_mesh.cpp) before the per-element loop.
 void hexQualitySelfTest() {
 	double cube[8][3] = {
-		{0,0,0}, {1,0,0}, {1,1,0}, {0,1,0},
-		{0,0,1}, {1,0,1}, {1,1,1}, {0,1,1}
+		{-1,-1,-1}, { 1,-1,-1}, { 1, 1,-1}, {-1, 1,-1},
+		{-1,-1, 1}, { 1,-1, 1}, { 1, 1, 1}, {-1, 1, 1}
 	};
 	hex_quality_t q;
 	hexQualityMetrics(cube, &q);
 
-	assert(fabs(q.volume - 1.0) < 1e-9);
+	assert(fabs(q.volume - 8.0) < 1e-9);
 	assert(fabs(q.edgeRatio - 1.0) < 1e-9);
 	assert(fabs(q.jacobianDet - 1.0) < 1e-9);
 	assert(fabs(q.conditionNumber - 1.0) < 1e-6);
@@ -256,4 +363,28 @@ void hexQualitySelfTest() {
 	assert(fabs(q.scaledJacobian - 1.0) < 1e-9);
 	assert(fabs(q.shape - 1.0) < 1e-9);
 	assert(fabs(q.oddy) < 1e-9);
+	assert(fabs(q.diagonalRatio - 1.0) < 1e-6);
+	assert(fabs(q.taper) < 1e-6);
+	assert(fabs(q.stretch - 1.0) < 1e-6);
+	assert(fabs(q.minFaceAngle - 90.0) < 1e-6);
+}
+
+void analyze_full_mesh_quality(hexa_tree_t *mesh, const std::vector<double> &coords, std::vector<hex_quality_t> &qualities) {
+	if (!mesh || coords.empty()) return;
+	int ne = mesh->elements.elem_count;
+	qualities.resize(ne);
+
+	static const unsigned int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
+
+	for (int iel = 0; iel < ne; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		double nodes[8][3];
+		for (int j = 0; j < 8; j++) {
+			int nid = e->nodes[assign_elem_nodes[j]].id;
+			nodes[j][0] = coords[3 * nid + 0];
+			nodes[j][1] = coords[3 * nid + 1];
+			nodes[j][2] = coords[3 * nid + 2];
+		}
+		hexQualityMetrics(nodes, &qualities[iel]);
+	}
 }

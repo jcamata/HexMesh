@@ -487,10 +487,16 @@ typedef struct {
 	double scaledJacobian;  // worst (min) of the 8 corner Jacobians, normalized by edge lengths, in [-1,1] (1 = ideal)
 	double shape;           // worst (min) of the 8 corner shape metrics, in (0,1] (1 = ideal)
 	double oddy;            // worst (max) of the 8 corner Oddy metrics, >= 0 (0 = ideal)
+	double diagonalRatio;   // min diagonal / max diagonal across 4 space diagonals, in (0,1] (1 = ideal)
+	double taper;           // max taper across opposite edges, >= 0 (0 = ideal)
+	double stretch;         // min edge * sqrt(3) / max diagonal, in (0,1] (1 = ideal)
+	double minFaceAngle;    // min face corner angle across all 6 quad faces in degrees (90 = ideal)
 } hex_quality_t;
 
 void hexQualityMetrics(double nodes[8][3], hex_quality_t *q);
 void hexQualitySelfTest();
+void analyze_full_mesh_quality(hexa_tree_t *mesh, const std::vector<double> &coords, std::vector<hex_quality_t> &qualities);
+void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char *root_name, const std::vector<double> &coords, const std::vector<hex_quality_t> &qualities);
 void hexa_mesh_write_msh(hexa_tree_t *mesh, const char *root_name, std::vector<double> *coords);
 void hexa_mesh_write_h5(hexa_tree_t *mesh, const char *root_name, std::vector<double> coords);
 int hexa_mesh_write_vtk(hexa_tree_t *mesh, const char *filename, std::vector<double> *coords);
