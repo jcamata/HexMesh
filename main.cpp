@@ -127,6 +127,7 @@ int main(int argc, char **argv) {
               << " millisecond(s)." << std::endl;
   }
 
+  if (mesh.input.meshOpt) {
     // Untangler runs; the size (time-step) optimization inside is switched off for now --
     // see run_size_optimization in optimize_mesh.cpp
     start = std::chrono::steady_clock::now();
@@ -137,10 +138,11 @@ int main(int argc, char **argv) {
             elapsed.count());
     std::cout << "Time in MeshOptimization " << elapsed.count()
               << " millisecond(s)." << std::endl;
+  }
 
-    // final checks: orientation, then face planarity
-    VerifyMeshInversion(&mesh, &coords);
-    VerifyFacePlanarity(&mesh, coords);
+  // final checks: orientation, then face planarity
+  VerifyMeshInversion(&mesh, &coords);
+  VerifyFacePlanarity(&mesh, coords);
 
   if (mesh.input.PML == 0) {
     // do nothing

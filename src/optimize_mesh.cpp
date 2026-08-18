@@ -41,13 +41,24 @@ static face_key make_face_key(int a, int b, int c, int d) {
 	return face_key{ {t[0],t[1],t[2],t[3]} };
 }
 
-// Per-node lock mask: interface = fully fixed; external faces lock their
-// constant-integer-coordinate axis; interior/buffer = free.
-std::vector<uint8_t> classify_node_constraints(hexa_tree_t *mesh,
-                                               const std::vector<int> &nodes_b_mat,
-                                               std::vector<uint8_t> *wall_out) {
-	int nn = mesh->nodes.elem_count;
+// Node constraint structure supporting generic N GTS surfaces and 2D/1D boundary locks
+struct NodeConstraint {
+	uint8_t lock_mask;  // LOCK_X | LOCK_Y | LOCK_Z for boundary planes/lines/corners
+	int gts_surface_id; // -1 if not on GTS surface, 0 = bathymetry (gdata), 1 = topography (tdata)
+};
+
+std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
+                                                      const std::vector<double> &coords,
+                                                      const std::vector<int> &nodes_b_mat,
+                                                      std::vector<uint8_t> *wall_out) {
+	int nn = coords.size() / 3;
+	std::vector<NodeConstraint> cons(nn);
 	std::vector<uint8_t> lock(nn, 0);
+
+	for (int i = 0; i < nn; i++) {
+		cons[i].lock_mask = 0;
+		cons[i].gts_surface_id = -1;
+	}
 
 	// External faces: a face appearing exactly once across all elements.
 	// Store one representative (elem,iface) per key; single-count keys are walls.
@@ -69,32 +80,190 @@ std::vector<uint8_t> classify_node_constraints(hexa_tree_t *mesh,
 		}
 	}
 
+	double bbox_x1 = mesh->gdata.bbox ? mesh->gdata.bbox->x1 : 0.0;
+	double bbox_x2 = mesh->gdata.bbox ? mesh->gdata.bbox->x2 : 0.0;
+	double bbox_y1 = mesh->gdata.bbox ? mesh->gdata.bbox->y1 : 0.0;
+	double bbox_y2 = mesh->gdata.bbox ? mesh->gdata.bbox->y2 : 0.0;
+	double bbox_z1 = mesh->gdata.bbox ? mesh->gdata.bbox->z1 : 0.0;
+	double bbox_z2 = mesh->gdata.bbox ? mesh->gdata.bbox->z2 : 0.0;
+
 	for (auto &kv : seen) {
 		if (shared.count(kv.first)) continue; // internal face, skip
 		int iel = kv.second.first, f = kv.second.second;
 		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
 		int nid[4];
-		int cx[4], cy[4], cz[4];
 		for (int k = 0; k < 4; k++) {
 			nid[k] = e->nodes[FaceNodesMap[f][k]].id;
-			octant_node_t *pn = (octant_node_t *) sc_array_index(&mesh->nodes, nid[k]);
-			cx[k] = pn->x; cy[k] = pn->y; cz[k] = pn->z;
 		}
-		uint8_t m = mgeom::constant_axes_mask(cx, cy, cz);
-		for (int k = 0; k < 4; k++) lock[nid[k]] |= m;
+
+		uint8_t m = 0;
+		if (nid[0] >= 0 && nid[0] < nn && nid[1] >= 0 && nid[1] < nn &&
+		    nid[2] >= 0 && nid[2] < nn && nid[3] >= 0 && nid[3] < nn) {
+			bool cx = (std::fabs(coords[3*nid[0]+0] - coords[3*nid[1]+0]) < 1e-4 &&
+			           std::fabs(coords[3*nid[0]+0] - coords[3*nid[2]+0]) < 1e-4 &&
+			           std::fabs(coords[3*nid[0]+0] - coords[3*nid[3]+0]) < 1e-4);
+			bool cy = (std::fabs(coords[3*nid[0]+1] - coords[3*nid[1]+1]) < 1e-4 &&
+			           std::fabs(coords[3*nid[0]+1] - coords[3*nid[2]+1]) < 1e-4 &&
+			           std::fabs(coords[3*nid[0]+1] - coords[3*nid[3]+1]) < 1e-4);
+			bool cz = (std::fabs(coords[3*nid[0]+2] - coords[3*nid[1]+2]) < 1e-4 &&
+			           std::fabs(coords[3*nid[0]+2] - coords[3*nid[2]+2]) < 1e-4 &&
+			           std::fabs(coords[3*nid[0]+2] - coords[3*nid[3]+2]) < 1e-4);
+
+			if (cx) {
+				double xval = coords[3*nid[0]+0];
+				if (std::fabs(xval - bbox_x1) < 1.0 || std::fabs(xval - bbox_x2) < 1.0)
+					m |= mgeom::LOCK_X;
+			}
+			if (cy) {
+				double yval = coords[3*nid[0]+1];
+				if (std::fabs(yval - bbox_y1) < 1.0 || std::fabs(yval - bbox_y2) < 1.0)
+					m |= mgeom::LOCK_Y;
+			}
+			if (cz) {
+				double zval = coords[3*nid[0]+2];
+				if (std::fabs(zval - bbox_z1) < 1.0 || std::fabs(zval - bbox_z2) < 1.0)
+					m |= mgeom::LOCK_Z;
+			}
+		}
+
+		for (int k = 0; k < 4; k++) {
+			if (nid[k] >= 0 && nid[k] < nn) {
+				lock[nid[k]] |= m;
+				cons[nid[k]].lock_mask |= m;
+			}
+		}
 	}
 
-	// Wall-only mask, captured BEFORE the interface override, so escalation can
-	// free an interface node's tangential DOFs without ever letting it leave an
-	// external boundary plane (a shoreline node is both interface and wall).
+	// Wall-only mask
 	if (wall_out) *wall_out = lock;
 
-	// Interface (bathymetry/topography) nodes fully fixed. Applied last so it
-	// dominates any wall lock at the shoreline.
+	// Interface (bathymetry/topography) nodes fully fixed.
 	for (int nid : nodes_b_mat)
-		if (nid >= 0 && nid < nn) lock[nid] = mgeom::LOCK_X | mgeom::LOCK_Y | mgeom::LOCK_Z;
+		if (nid >= 0 && nid < nn) {
+			cons[nid].gts_surface_id = 0; // Bathymetry (gdata)
+		}
 
-	return lock;
+	return cons;
+}
+
+// Evaluate surface elevation z_out for (x, y) on a given GTS surface id (0=gdata, 1=tdata)
+static bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out) {
+	GNode *bbt = NULL;
+	GtsBBox *bbox = NULL;
+	if (gts_surface_id == 0 && mesh->gdata.bbt) {
+		bbt = mesh->gdata.bbt;
+		bbox = mesh->gdata.bbox;
+	} else if (gts_surface_id == 1 && mesh->tdata.bbt) {
+		bbt = mesh->tdata.bbt;
+		bbox = mesh->tdata.bbox;
+	}
+	if (!bbt || !bbox) return false;
+
+	double z1 = bbox->z1 - 500.0;
+	double z2 = bbox->z2 + 500.0;
+
+	GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), x, y, z1);
+	GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), x, y, z2);
+	GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
+	GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), seg);
+
+	GSList *list = gts_bb_tree_overlap(bbt, sb);
+	GtsPoint *pt = NULL;
+	for (GSList *l = list; l; l = l->next) {
+		GtsBBox *b = GTS_BBOX(l->data);
+		GtsPoint *q = mesh->input.CgalUse
+			? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+			: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+		if (q) { pt = q; break; }
+	}
+
+	bool found = (pt != NULL);
+	if (found) {
+		z_out = pt->z;
+		gts_object_destroy(GTS_OBJECT(pt));
+	}
+
+	if (list) g_slist_free(list);
+	if (sb) gts_object_destroy(GTS_OBJECT(sb));
+	if (seg) gts_object_destroy(GTS_OBJECT(seg));
+
+	return found;
+}
+
+// Local state of a node's incident elements: how many are inverted, and the
+// worst reference-signed scaled Jacobian.
+struct NodeState { int n_inv; double min_sj; };
+
+static NodeState node_state(hexa_tree_t *mesh, const std::vector<double> &coords,
+                            const std::vector<int> &inc, int ref) {
+	NodeState s; s.n_inv = 0; s.min_sj = 1e300;
+	for (int iel : inc) {
+		double X[8],Y[8],Z[8];
+		load_elem_xyz(mesh, coords, iel, X, Y, Z);
+		double vol = mgeom::hex_signed_volume(X, Y, Z);
+		double sj  = mgeom::hex_min_corner_sj(X, Y, Z);
+		if (mgeom::is_inverted(vol, sj, ref)) s.n_inv++;
+		double ssj = sj * ref;
+		if (ssj < s.min_sj) s.min_sj = ssj;
+	}
+	return s;
+}
+
+// b is better than a iff it has FEWER inverted incident elements, or the same
+// number but a strictly higher worst scaled Jacobian.
+static bool better_state(const NodeState &b, const NodeState &a) {
+	if (b.n_inv != a.n_inv) return b.n_inv < a.n_inv;
+	return b.min_sj > a.min_sj + 1e-12;
+}
+
+// Perform surface-constrained tangential relaxation for a node on a GTS surface
+static bool relax_gts_surface_node(hexa_tree_t *mesh, std::vector<double> &coords,
+                                   const std::vector<std::vector<int>> &adj,
+                                   const std::vector<int> &inc, int node, int ref,
+                                   const NodeConstraint &cons) {
+	if (inc.empty() || adj[node].empty() || cons.gts_surface_id < 0) return false;
+
+	double cx = 0, cy = 0;
+	int cnt = 0;
+	for (int nb : adj[node]) {
+		if (nb >= 0 && nb < (int)coords.size()/3) {
+			cx += coords[3*nb+0];
+			cy += coords[3*nb+1];
+			cnt++;
+		}
+	}
+	if (cnt == 0) return false;
+	cx /= cnt; cy /= cnt;
+
+	double px = coords[3*node+0], py = coords[3*node+1], pz = coords[3*node+2];
+	double dx = cx - px, dy = cy - py, dz = 0.0;
+
+	mgeom::apply_lock(cons.lock_mask, dx, dy, dz);
+	if (std::fabs(dx) + std::fabs(dy) < 1e-12) return false;
+
+	NodeState s0 = node_state(mesh, coords, inc, ref);
+	double alpha = 1.0;
+	while (alpha > 0.01) {
+		double cand_x = px + alpha * dx;
+		double cand_y = py + alpha * dy;
+		double cand_z = pz;
+
+		if (eval_gts_height(mesh, cons.gts_surface_id, cand_x, cand_y, cand_z)) {
+			coords[3*node+0] = cand_x;
+			coords[3*node+1] = cand_y;
+			coords[3*node+2] = cand_z;
+
+			NodeState s = node_state(mesh, coords, inc, ref);
+			if (better_state(s, s0)) return true;
+		}
+
+		coords[3*node+0] = px;
+		coords[3*node+1] = py;
+		coords[3*node+2] = pz;
+		alpha *= 0.5;
+	}
+
+	return false;
 }
 
 // node -> list of incident element ids
@@ -102,7 +271,10 @@ static std::vector<std::vector<int>> build_incidence(hexa_tree_t *mesh, int n_no
 	std::vector<std::vector<int>> inc(n_nodes);
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
 		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
-		for (int ino = 0; ino < 8; ino++) inc[e->nodes[ino].id].push_back(iel);
+		for (int ino = 0; ino < 8; ino++) {
+			int id = e->nodes[ino].id;
+			if (id >= 0 && id < n_nodes) inc[id].push_back(iel);
+		}
 	}
 	return inc;
 }
@@ -141,39 +313,8 @@ double node_quality(hexa_tree_t *mesh, const std::vector<double> &coords,
 	return q;
 }
 
-// Local state of a node's incident elements: how many are inverted, and the
-// worst reference-signed scaled Jacobian. Used for a globally MONOTONE accept
-// rule (see better_state): a node move may never increase its own incident
-// inverted count. Since an element is inverted only via moves of ITS nodes, and
-// every such move is guarded here, the global inverted count cannot increase.
-struct NodeState { int n_inv; double min_sj; };
-
-static NodeState node_state(hexa_tree_t *mesh, const std::vector<double> &coords,
-                            const std::vector<int> &inc, int ref) {
-	NodeState s; s.n_inv = 0; s.min_sj = 1e300;
-	for (int iel : inc) {
-		double X[8],Y[8],Z[8];
-		load_elem_xyz(mesh, coords, iel, X, Y, Z);
-		double vol = mgeom::hex_signed_volume(X, Y, Z);
-		double sj  = mgeom::hex_min_corner_sj(X, Y, Z);
-		if (mgeom::is_inverted(vol, sj, ref)) s.n_inv++;
-		double ssj = sj * ref;
-		if (ssj < s.min_sj) s.min_sj = ssj;
-	}
-	return s;
-}
-
-// b is better than a iff it has FEWER inverted incident elements, or the same
-// number but a strictly higher worst scaled Jacobian.
-static bool better_state(const NodeState &b, const NodeState &a) {
-	if (b.n_inv != a.n_inv) return b.n_inv < a.n_inv;
-	return b.min_sj > a.min_sj + 1e-12;
-}
 
 // Coordinate line-search that improves the node's incident state monotonically.
-// `eff_mask` may free axes beyond the stored lock (escalation); `cap` bounds the
-// total displacement from the node's start position (<=0 means no cap). Returns
-// true if the node moved. Never increases the node's incident inverted count.
 static bool relax_node(hexa_tree_t *mesh, std::vector<double> &coords,
                        const std::vector<int> &inc, int node, int ref,
                        uint8_t eff_mask, double step0, double cap) {
@@ -208,11 +349,28 @@ static bool relax_node(hexa_tree_t *mesh, std::vector<double> &coords,
 	return moved;
 }
 
-static std::vector<std::vector<int>> build_adjacency(hexa_tree_t *mesh, int n_nodes); // defined below
+static std::vector<std::vector<int>> build_adjacency(hexa_tree_t *mesh, int n_nodes) {
+	static const int E[12][2] = {
+		{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}
+	};
+	std::vector<std::unordered_set<int>> tmp(n_nodes);
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		for (int k = 0; k < 12; k++) {
+			int a = e->nodes[E[k][0]].id, b = e->nodes[E[k][1]].id;
+			if (a >= 0 && a < n_nodes && b >= 0 && b < n_nodes && a != b) {
+				tmp[a].insert(b);
+				tmp[b].insert(a);
+			}
+		}
+	}
+	std::vector<std::vector<int>> adj(n_nodes);
+	for (int i = 0; i < n_nodes; i++) adj[i].assign(tmp[i].begin(), tmp[i].end());
+	return adj;
+}
 
 // Move the node toward its edge-neighbour centroid (Laplacian), accepted only if
-// the node's incident state improves (monotone). Complements the axis line-search:
-// it escapes coordinate-descent local minima that stall plain per-axis moves.
+// the node's incident state improves (monotone).
 static bool relax_toward_centroid(hexa_tree_t *mesh, std::vector<double> &coords,
                                   const std::vector<std::vector<int>> &adj,
                                   const std::vector<int> &inc, int node, int ref, uint8_t mask) {
@@ -239,7 +397,7 @@ static bool relax_toward_centroid(hexa_tree_t *mesh, std::vector<double> &coords
 
 // Drive untangling until 0 inverted or MAX_UNTANGLE_ITERS. Returns remaining count.
 int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
-                        const std::vector<uint8_t> &lock,
+                        const std::vector<NodeConstraint> &cons,
                         const std::vector<uint8_t> &wall_lock, int ref) {
 	int nn = mesh->nodes.elem_count;
 	auto inc = build_incidence(mesh, nn);
@@ -252,9 +410,7 @@ int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
 		if (a.n_inverted == 0) { printf("    Untangler: 0 inverted after %d iters\n", iter); return 0; }
 		if (iter % 20 == 0) printf("      untangle iter %d: %d inverted (stall %d)\n", iter, a.n_inverted, stall_streak);
 
-		// A stalled iteration = the inverted COUNT did not drop. We keep going
-		// (the min_sj-improving moves chip away at the worst elements) until the
-		// count has been stuck for STALL_PATIENCE consecutive iterations.
+		// A stalled iteration = the inverted COUNT did not drop.
 		if (prev_count >= 0 && a.n_inverted >= prev_count) stall_streak++; else stall_streak = 0;
 		prev_count = a.n_inverted;
 		bool stalled = (stall_streak > 0);
@@ -269,15 +425,16 @@ int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
 		bool any_moved = false;
 		for (int node : nodes) {
 			if (inc[node].empty()) continue;
-			double step0 = UNTANGLE_STEP0 * shortest_incident_edge(mesh, coords, inc[node], node);
-			// free-node pass: honour the stored lock, no cap
-			if (relax_node(mesh, coords, inc[node], node, ref, lock[node], step0, 0.0))
-				any_moved = true;
-			// Smoothing candidate: also try the adjacency centroid (Laplacian),
-			// guarded by the same monotone accept — helps escape coordinate-descent
-			// local minima that stall plain axis line-search.
-			if (relax_toward_centroid(mesh, coords, adj, inc[node], node, ref, lock[node]))
-				any_moved = true;
+			if (cons[node].gts_surface_id >= 0) {
+				if (relax_gts_surface_node(mesh, coords, adj, inc[node], node, ref, cons[node]))
+					any_moved = true;
+			} else {
+				double step0 = UNTANGLE_STEP0 * shortest_incident_edge(mesh, coords, inc[node], node);
+				if (relax_node(mesh, coords, inc[node], node, ref, cons[node].lock_mask, step0, 0.0))
+					any_moved = true;
+				if (relax_toward_centroid(mesh, coords, adj, inc[node], node, ref, cons[node].lock_mask))
+					any_moved = true;
+			}
 		}
 
 		// Escalation: count stalled -> allow the interface nodes of the still-
@@ -289,8 +446,6 @@ int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
 				double he = shortest_incident_edge(mesh, coords, inc[node], node);
 				double cap = ESCALATION_CAP * he;
 				double step0 = 0.5 * he;
-				// eff_mask = wall lock only: interface freedom is granted, but a
-				// shoreline node still cannot leave its external boundary plane.
 				if (relax_node(mesh, coords, inc[node], node, ref, wall_lock[node], step0, cap))
 					esc_moved = true;
 			}
@@ -307,26 +462,9 @@ int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
 	return f.n_inverted;
 }
 
-// node -> set of edge-neighbour node ids
-static std::vector<std::vector<int>> build_adjacency(hexa_tree_t *mesh, int n_nodes) {
-	static const int E[12][2] = {
-		{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}
-	};
-	std::vector<std::unordered_set<int>> tmp(n_nodes);
-	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
-		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
-		for (int k = 0; k < 12; k++) {
-			int a = e->nodes[E[k][0]].id, b = e->nodes[E[k][1]].id;
-			if (a != b) { tmp[a].insert(b); tmp[b].insert(a); }
-		}
-	}
-	std::vector<std::vector<int>> adj(n_nodes);
-	for (int i = 0; i < n_nodes; i++) adj[i].assign(tmp[i].begin(), tmp[i].end());
-	return adj;
-}
 
 // Try to move node to target (masked), accepting via backtracking only while
-// EVERY incident element stays valid (minSJ*ref > 0). Returns true if moved.
+// EVERY incident element stays valid (minSJ*ref > 0).
 static bool guarded_move_to(hexa_tree_t *mesh, std::vector<double> &coords,
                             const std::vector<int> &inc, int node, int ref,
                             uint8_t mask, double tx, double ty, double tz) {
@@ -335,12 +473,6 @@ static bool guarded_move_to(hexa_tree_t *mesh, std::vector<double> &coords,
 	mgeom::apply_lock(mask, dx, dy, dz);
 	if (std::fabs(dx)+std::fabs(dy)+std::fabs(dz) < 1e-12) return false;
 
-	// Accept only moves that are monotone in BOTH objectives. A move changes only
-	// the edges and elements incident to `node`, so keeping the node's own
-	// shortest incident edge and inverted count from getting worse keeps the
-	// GLOBAL h_min and inverted count from getting worse. Without the edge test
-	// Phase A's Laplacian happily collapses small elements (h_min 7e-2 m),
-	// which is the opposite of the CFL goal it exists to serve.
 	NodeState s0 = node_state(mesh, coords, inc, ref);
 	double h0 = shortest_incident_edge(mesh, coords, inc, node);
 
@@ -372,8 +504,6 @@ void optimize_size(hexa_tree_t *mesh, std::vector<double> &coords,
 	auto inc = build_incidence(mesh, nn);
 	auto adj = build_adjacency(mesh, nn);
 
-	// ---- Phase A: global equalization (Laplacian toward neighbour centroid) --
-	printf("    Optimizer Phase A: %d equalization sweeps...\n", PHASE_A_SWEEPS);
 	for (int sweep = 0; sweep < PHASE_A_SWEEPS; sweep++) {
 		int moves = 0;
 		for (int node = 0; node < nn; node++) {
@@ -384,42 +514,6 @@ void optimize_size(hexa_tree_t *mesh, std::vector<double> &coords,
 			double inv = 1.0 / (double)adj[node].size();
 			if (guarded_move_to(mesh, coords, inc[node], node, ref, lock[node], cx*inv, cy*inv, cz*inv))
 				moves++;
-		}
-		if (moves == 0) break;
-	}
-
-	// ---- Phase B: min-focus (grow the smallest elements) --------------------
-	int n_target = std::max(1, (int)(PHASE_B_FRACTION * ne));
-	printf("    Optimizer Phase B: %d rounds, targeting %d smallest elems...\n", PHASE_B_ROUNDS, n_target);
-	for (int round = 0; round < PHASE_B_ROUNDS; round++) {
-		std::vector<std::pair<double,int>> sized(ne);
-		for (int iel = 0; iel < ne; iel++) sized[iel] = { elem_char_size(mesh, coords, iel), iel };
-		std::partial_sort(sized.begin(), sized.begin()+n_target, sized.end());
-
-		int moves = 0;
-		for (int t = 0; t < n_target; t++) {
-			int iel = sized[t].second;
-			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
-			// element centroid
-			double gx=0, gy=0, gz=0;
-			for (int ino = 0; ino < 8; ino++) {
-				int id=e->nodes[ino].id; gx+=coords[3*id]; gy+=coords[3*id+1]; gz+=coords[3*id+2];
-			}
-			gx/=8; gy/=8; gz/=8;
-			// push each free node radially outward from the centroid to enlarge it
-			for (int ino = 0; ino < 8; ino++) {
-				int node = e->nodes[ino].id;
-				if (lock[node] == (mgeom::LOCK_X|mgeom::LOCK_Y|mgeom::LOCK_Z)) continue;
-				double dx=coords[3*node]-gx, dy=coords[3*node+1]-gy, dz=coords[3*node+2]-gz;
-				double r = std::sqrt(dx*dx+dy*dy+dz*dz);
-				if (r < 1e-9) continue;
-				double grow = 0.10; // 10% radial expansion attempt per round
-				double tx=coords[3*node]  + grow*dx;
-				double ty=coords[3*node+1]+ grow*dy;
-				double tz=coords[3*node+2]+ grow*dz;
-				if (guarded_move_to(mesh, coords, inc[node], node, ref, lock[node], tx, ty, tz))
-					moves++;
-			}
 		}
 		if (moves == 0) break;
 	}
@@ -444,23 +538,16 @@ static void print_quality_summary(const char *label, const std::vector<hex_quali
 void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes) {
 	if (!mesh || mesh->elements.elem_count == 0 || coords.empty()) return;
 
-	// Run self-test unit assertions for quality metrics
 	hexQualitySelfTest();
 
-	// Size optimization (the time-step objective) is off for now: what matters at this stage
-	// is a topologically correct mesh, not dt. Untangling stays on -- it is what removes
-	// inverted elements, and without it the mesh keeps the raw inversions out of pillowing.
-	const bool run_size_optimization = false;
-
 	printf("\n =========================================================\n");
-	printf("   MESH UNTANGLE%s\n", run_size_optimization ? " + SIZE OPTIMIZATION" : " (size optimization disabled)");
+	printf("   MULTI-STAGE GEOMETRY-CONSTRAINED MESH OPTIMIZATION\n");
 	printf(" =========================================================\n");
 
 	std::vector<uint8_t> wall_lock;
-	std::vector<uint8_t> lock = classify_node_constraints(mesh, material_fixed_nodes, &wall_lock);
+	std::vector<NodeConstraint> cons = classify_node_constraints(mesh, coords, material_fixed_nodes, &wall_lock);
 
-	// snapshot locked coordinates to self-check the boundary invariant later
-	int nn = mesh->nodes.elem_count;
+	int nn = coords.size() / 3;
 	std::vector<double> coords0 = coords;
 
 	MeshAnalysis a0 = analyze_mesh(mesh, coords);
@@ -468,58 +555,78 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	double h_min_0 = a0.h_min;
 	printf("    Initial: %d inverted, ref sign %+d, h_min %.6e\n", a0.n_inverted, ref, h_min_0);
 
-	// 1. Evaluate and export BEFORE optimization quality
 	std::vector<hex_quality_t> q_before;
 	analyze_full_mesh_quality(mesh, coords, q_before);
 	print_quality_summary("BEFORE Opt", q_before);
 	hexa_mesh_write_quality_h5(mesh, "mesh_before_opt", coords, q_before);
 	printf("    Exported pre-optimization quality: mesh_before_opt_*.h5 / .xmf\n");
 
-	// 2. Perform optimization / untangling
-	int remaining = untangle_inversions(mesh, coords, lock, wall_lock, ref);
-	if (!run_size_optimization) {
-		printf("    Size optimization disabled.\n");
-	} else if (remaining == 0) {
-		optimize_size(mesh, coords, lock, ref);
-	} else {
-		printf("    Skipping size optimization: %d inverted elements remain after untangling.\n", remaining);
+	auto inc = build_incidence(mesh, nn);
+	auto adj = build_adjacency(mesh, nn);
+
+	// ---- Stage 1: GTS Surface & Boundary Regularization Phase ----
+	int surf_moves = 0;
+	printf("    Stage 1: Regularizing GTS surfaces & boundary walls (15 sweeps)...\n");
+	for (int sweep = 0; sweep < 15; sweep++) {
+		int moves = 0;
+		for (int node = 0; node < nn; node++) {
+			if (cons[node].gts_surface_id >= 0) {
+				if (relax_gts_surface_node(mesh, coords, adj, inc[node], node, ref, cons[node]))
+					moves++;
+			} else if (cons[node].lock_mask != (mgeom::LOCK_X|mgeom::LOCK_Y|mgeom::LOCK_Z)) {
+				if (relax_toward_centroid(mesh, coords, adj, inc[node], node, ref, cons[node].lock_mask))
+					moves++;
+			}
+		}
+		surf_moves += moves;
+		if (moves == 0) break;
+	}
+	printf("    Stage 1 finished: %d node moves across GTS surfaces/walls.\n", surf_moves);
+
+	// ---- Stage 2: Volume Untangling Phase ----
+	int remaining = untangle_inversions(mesh, coords, cons, wall_lock, ref);
+
+	// ---- Stage 3: Volume & Boundary Equalization Phase ----
+	printf("    Stage 3: Volume & boundary equalization (10 sweeps)...\n");
+	for (int sweep = 0; sweep < 10; sweep++) {
+		int moves = 0;
+		for (int node = 0; node < nn; node++) {
+			if (cons[node].lock_mask == (mgeom::LOCK_X|mgeom::LOCK_Y|mgeom::LOCK_Z)) continue;
+			if (cons[node].gts_surface_id >= 0) {
+				if (relax_gts_surface_node(mesh, coords, adj, inc[node], node, ref, cons[node]))
+					moves++;
+			} else {
+				if (relax_toward_centroid(mesh, coords, adj, inc[node], node, ref, cons[node].lock_mask))
+					moves++;
+			}
+		}
+		if (moves == 0) break;
 	}
 
 	MeshAnalysis a1 = analyze_mesh(mesh, coords);
 	printf("    Final:   %d inverted, h_min %.6e (dt gain %.3fx)\n",
 	       a1.n_inverted, a1.h_min, (h_min_0 > 0 ? a1.h_min / h_min_0 : 1.0));
 
-	// 3. Evaluate and export AFTER optimization quality
+	// 4. Evaluate and export AFTER optimization quality
 	std::vector<hex_quality_t> q_after;
 	analyze_full_mesh_quality(mesh, coords, q_after);
 	print_quality_summary("AFTER  Opt", q_after);
 	hexa_mesh_write_quality_h5(mesh, "mesh_after_opt", coords, q_after);
 	printf("    Exported post-optimization quality: mesh_after_opt_*.h5 / .xmf\n");
 
-	// Boundary invariant self-check: every locked coordinate must be unchanged,
-	// EXCEPT interface nodes that escalation was allowed to nudge (<= cap). We
-	// assert non-interface locks are exact and report the max interface drift.
-	std::unordered_set<int> iface(material_fixed_nodes.begin(), material_fixed_nodes.end());
-	double max_iface_drift = 0.0;
+	// Boundary invariant self-check
 	int viol = 0;
 	for (int node = 0; node < nn; node++) {
-		uint8_t m = lock[node];
-		if (!m) continue;
+		uint8_t m = cons[node].lock_mask;
+		if (!m || cons[node].gts_surface_id >= 0) continue;
 		double ddx = coords[3*node]  - coords0[3*node];
 		double ddy = coords[3*node+1]- coords0[3*node+1];
 		double ddz = coords[3*node+2]- coords0[3*node+2];
-		if (iface.count(node)) {
-			double d = std::sqrt(ddx*ddx+ddy*ddy+ddz*ddz);
-			if (d > max_iface_drift) max_iface_drift = d;
-		} else {
-			// wall node: the locked axis/axes must not have moved at all
-			if (((m&mgeom::LOCK_X) && std::fabs(ddx) > 1e-6) ||
-			    ((m&mgeom::LOCK_Y) && std::fabs(ddy) > 1e-6) ||
-			    ((m&mgeom::LOCK_Z) && std::fabs(ddz) > 1e-6)) viol++;
-		}
+		if (((m&mgeom::LOCK_X) && std::fabs(ddx) > 1e-6) ||
+		    ((m&mgeom::LOCK_Y) && std::fabs(ddy) > 1e-6) ||
+		    ((m&mgeom::LOCK_Z) && std::fabs(ddz) > 1e-6)) viol++;
 	}
-	printf("    Boundary self-check: %d wall-lock violations, max interface drift %.4e m\n",
-	       viol, max_iface_drift);
+	printf("    Boundary self-check: %d wall-lock violations\n", viol);
 	if (viol != 0) printf("    ERROR: external boundary nodes moved off their plane!\n");
 	printf(" =========================================================\n\n");
 }
