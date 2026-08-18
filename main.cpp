@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
   start = std::chrono::steady_clock::now();
   printf(" Applying material \n\n");
   element_ids.clear();
-  Apply_material(&mesh, coords, bathy);
+  Apply_material(&mesh, coords);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
   fprintf(mesh.profile, "Time in the Apply_material %lld millisecond(s).\n",

@@ -121,15 +121,14 @@ void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
 				if (!mesh->gdata_vec[k].bbt) continue;
 				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
 				bool hit = false;
-				while (list) {
-					GtsBBox *b = GTS_BBOX(list->data);
+				for (GSList *l = list; l; l = l->next) {
+					GtsBBox *b = GTS_BBOX(l->data);
 					GtsPoint *pt = SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
 					if (pt) {
 						hit = true;
 						gts_object_destroy(GTS_OBJECT(pt));
 						break;
 					}
-					list = list->next;
 				}
 				if (list) g_slist_free(list);
 				if (hit) cuts_above++;
@@ -140,11 +139,16 @@ void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
 			} else {
 				elem->n_mat = cuts_above;
 			}
+
+			gts_object_destroy(GTS_OBJECT(sb));
+			gts_object_destroy(GTS_OBJECT(seg));
+			gts_object_destroy(GTS_OBJECT(v1));
+			gts_object_destroy(GTS_OBJECT(v2));
 		}
 	}
 }
 
-void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* surface_bathy) {
+void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords) {
 
 	bool deb = false;
 	if (mesh->input.interfaceNumber == 0 || mesh->gdata_vec.empty()) {
@@ -181,15 +185,14 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 				if (!mesh->gdata_vec[k].bbt) continue;
 				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
 				bool hit = false;
-				while (list) {
-					GtsBBox *b = GTS_BBOX(list->data);
+				for (GSList *l = list; l; l = l->next) {
+					GtsBBox *b = GTS_BBOX(l->data);
 					GtsPoint *pt = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
 					if (pt) {
 						hit = true;
 						gts_object_destroy(GTS_OBJECT(pt));
 						break;
 					}
-					list = list->next;
 				}
 				if (list) g_slist_free(list);
 				if (hit) cuts_above++;
@@ -203,6 +206,12 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 					elem->n_mat = mesh->input.nmat - 1;
 				}
 			}
+
+			gts_object_destroy(GTS_OBJECT(sb));
+			gts_object_destroy(GTS_OBJECT(segments));
+			gts_object_destroy(GTS_OBJECT(v1));
+			gts_object_destroy(GTS_OBJECT(v2));
+			gts_object_destroy(GTS_OBJECT(point));
 		}
 
 		// The octree neighborhood map is only required by node-moving workflows.
@@ -272,15 +281,14 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 							if (!mesh->gdata_vec[k].bbt) continue;
 							GSList* list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
 							bool hit = false;
-							while (list) {
-								GtsBBox *b = GTS_BBOX(list->data);
+							for (GSList *l = list; l; l = l->next) {
+								GtsBBox *b = GTS_BBOX(l->data);
 								GtsPoint *pt = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
 								if (pt) {
 									hit = true;
 									gts_object_destroy(GTS_OBJECT(pt));
 									break;
 								}
-								list = list->next;
 							}
 							if (list) g_slist_free(list);
 							if (hit) cuts_above++;
@@ -293,6 +301,11 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 								elem[iel]->n_mat = mesh->input.nmat - 1;
 							}
 						}
+
+						gts_object_destroy(GTS_OBJECT(sb));
+						gts_object_destroy(GTS_OBJECT(segments));
+						gts_object_destroy(GTS_OBJECT(v1));
+						gts_object_destroy(GTS_OBJECT(v2));
 					}
 				}
 			}
