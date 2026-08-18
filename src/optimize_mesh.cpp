@@ -195,6 +195,9 @@ static bool relax_gts_surface_node(hexa_tree_t *mesh, std::vector<double> &coord
                                    const std::vector<int> &inc, int node, int ref,
                                    const NodeConstraint &cons) {
 	if (inc.empty() || adj[node].empty() || cons.gts_surface_id < 0) return false;
+	// Z always comes from the surface height below, never masked by apply_lock like
+	// x/y are -- a Z-locked node cannot be legitimately relaxed onto the surface.
+	if (cons.lock_mask & mgeom::LOCK_Z) return false;
 
 	double cx = 0, cy = 0;
 	int cnt = 0;
@@ -591,7 +594,7 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	int viol = 0;
 	for (int node = 0; node < nn; node++) {
 		uint8_t m = cons[node].lock_mask;
-		if (!m || cons[node].gts_surface_id >= 0) continue;
+		if (!m) continue;
 		double ddx = coords[3*node]  - coords0[3*node];
 		double ddy = coords[3*node+1]- coords0[3*node+1];
 		double ddz = coords[3*node+2]- coords0[3*node+2];
