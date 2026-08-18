@@ -78,14 +78,14 @@ int main(int argc, char **argv) {
     // find the elements intercepted by the bathy
     start = std::chrono::steady_clock::now();
     GetInterceptedElements(&mesh, coords, element_ids, bathy);
-    printf(" Elements intercepted: %lld\n\n", element_ids.size());
+    printf(" Elements intercepted: %zu\n\n", element_ids.size());
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start);
     fprintf(mesh.profile,
             "Time in the GetInterceptedElements %lld millisecond(s).\n",
             elapsed.count());
     std::cout << "Time in GetInterceptedElements " << elapsed.count()
-              << " millisecondsecond(s)." << std::endl;
+              << " millisecond(s)." << std::endl;
 
     if (mesh.input.movingNodes == 1) {
       // apply a deformation in the mesh to fit the bathy
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
 
   if (mesh.input.meshOpt) {
     // Untangler runs; the size (time-step) optimization inside is switched off for now --
-    // see run_size_optimization in optimize_mesh.cpp
+    // see optimize_size in optimize_mesh.cpp (defined, currently unused)
     start = std::chrono::steady_clock::now();
     MeshOptimization(&mesh, coords, nodes_b_mat);
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(

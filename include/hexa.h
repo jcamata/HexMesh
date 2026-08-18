@@ -520,6 +520,7 @@ void hexa_mesh_destroy(hexa_tree_t *mesh);
 int node_comp(const void *v, const void *u);
 GtsPoint *SegmentTriangleIntersection(GtsSegment *s, GtsTriangle *t);
 GtsPoint *SegmentTriangleIntersectionCgal(GtsSegment *s, GtsTriangle *t);
+bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out);
 GtsPoint *LinearMapHex(const double *cord_in_ref, const double *cord_in_x, const double *cord_in_y, const double *cord_in_z);
 GtsSurface *SurfaceRead(const char *fname);
 gdouble distance(GtsPoint *p, gpointer bounded);

@@ -259,25 +259,76 @@ gdouble distance(GtsPoint *p, gpointer bounded)
     return gts_point_triangle_distance(p, t);
 }
 
+// Evaluate surface elevation z_out for (x, y) on a given GTS surface id (0..N-1 for gdata_vec, 1000 for tdata),
+// via a true vertical ray-cast (segment-triangle intersection), not a nearest-point distance.
+bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out) {
+    GNode *bbt = NULL;
+    GtsBBox *bbox = NULL;
+    if (gts_surface_id >= 0 && gts_surface_id < (int)mesh->gdata_vec.size()) {
+        bbt = mesh->gdata_vec[gts_surface_id].bbt;
+        bbox = mesh->gdata_vec[gts_surface_id].bbox;
+    } else if (gts_surface_id == 0 && mesh->gdata.bbt) {
+        bbt = mesh->gdata.bbt;
+        bbox = mesh->gdata.bbox;
+    } else if (gts_surface_id == 1000 && mesh->tdata.bbt) {
+        bbt = mesh->tdata.bbt;
+        bbox = mesh->tdata.bbox;
+    }
+    if (!bbt || !bbox) return false;
+
+    double z1 = bbox->z1 - 500.0;
+    double z2 = bbox->z2 + 500.0;
+
+    GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), x, y, z1);
+    GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), x, y, z2);
+    GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
+    GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), seg);
+
+    GSList *list = gts_bb_tree_overlap(bbt, sb);
+    GtsPoint *pt = NULL;
+    for (GSList *l = list; l; l = l->next) {
+        GtsBBox *b = GTS_BBOX(l->data);
+        GtsPoint *q = mesh->input.CgalUse
+            ? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+            : SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+        if (q) { pt = q; break; }
+    }
+
+    bool found = (pt != NULL);
+    if (found) {
+        z_out = pt->z;
+        gts_object_destroy(GTS_OBJECT(pt));
+    }
+
+    if (list) g_slist_free(list);
+    if (sb) gts_object_destroy(GTS_OBJECT(sb));
+    if (seg) gts_object_destroy(GTS_OBJECT(seg));
+
+    return found;
+}
+
 // Change the node positions to fit the surface.
 void GetMeshFromSurface(hexa_tree_t *mesh, const char *surface_topo, vector<double> &coords)
 {
 
-    GtsPoint *p;
     double dx, dy, dz;
-    double d;
     double zmax;
     sc_array_t *nodes = &mesh->nodes;
 
     mesh->tdata.s = SurfaceRead(surface_topo);
+    if (!mesh->tdata.s)
+    {
+        fprintf(stderr, "GetMeshFromSurface: failed to read topo surface '%s'\n", surface_topo);
+        exit(EXIT_FAILURE);
+    }
 
     if (mesh->gdata.s)
     {
-        GtsBBox *tmp_bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
-        if (tmp_bbox)
+        mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
+        if (mesh->gdata.bbox)
         {
-            double hx = (tmp_bbox->x2 - tmp_bbox->x1) / static_cast<double>(mesh->ncellx);
-            double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
+            double hx = (mesh->gdata.bbox->x2 - mesh->gdata.bbox->x1) / static_cast<double>(mesh->ncellx);
+            double hy = (mesh->gdata.bbox->y2 - mesh->gdata.bbox->y1) / static_cast<double>(mesh->ncelly);
             double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
             double h = 2.1 * std::min(hx, std::min(hy, hz));
             if (kSmoothInputSurfaces) {
@@ -285,10 +336,14 @@ void GetMeshFromSurface(hexa_tree_t *mesh, const char *surface_topo, vector<doub
                 SmoothGtsSurfaceLaplacian(mesh->gdata.s, h);
             }
         }
-        mesh->gdata.bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata.s);
     }
 
     FILE *fout = fopen("surfaceOut.dat", "w");
+    if (!fout)
+    {
+        fprintf(stderr, "GetMeshFromSurface: failed to open surfaceOut.dat for writing\n");
+        exit(EXIT_FAILURE);
+    }
     gts_surface_print_stats(mesh->tdata.s, fout);
     fclose(fout);
 
@@ -327,22 +382,34 @@ void GetMeshFromSurface(hexa_tree_t *mesh, const char *surface_topo, vector<doub
     // Build the bounding box tree
     mesh->tdata.bbt = gts_bb_tree_surface(mesh->tdata.s);
 
-    p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->tdata.bbox->z2);
-
     for (int i = 0; i < nodes->elem_count; ++i)
     {
         octant_node_t *n = (octant_node_t *)sc_array_index(nodes, i);
-        p->x = mesh->tdata.bbox->x1 + n->x * dx;
-        p->y = mesh->tdata.bbox->y1 + n->y * dy;
+        double x = mesh->tdata.bbox->x1 + n->x * dx;
+        double y = mesh->tdata.bbox->y1 + n->y * dy;
 
-        d = gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
-        zmax = mesh->tdata.bbox->z2 - d;
+        // Vertical ray-cast: the true surface height under (x, y), not the
+        // nearest-point Euclidean distance (which is wrong on steep slopes
+        // and near-vertical walls, e.g. a coastline).
+        if (!eval_gts_height(mesh, 1000, x, y, zmax))
+        {
+            // Ray missed the surface (can happen right at the 2% bbox inset
+            // near the edge of the sampled grid). Fall back to the old
+            // nearest-point behaviour rather than leaving zmax uninitialized.
+            fprintf(stderr,
+                    "GetMeshFromSurface: vertical ray missed topo surface at (%f, %f); "
+                    "using nearest-point fallback\n", x, y);
+            GtsPoint *p = gts_point_new(gts_point_class(), x, y, mesh->tdata.bbox->z2);
+            double d = gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
+            zmax = mesh->tdata.bbox->z2 - d;
+            gts_object_destroy(GTS_OBJECT(p));
+        }
 
         dz = (zmax - zmin) / (double)mesh->ncellz;
         double z = zmax - (n->z) * dz;
 
-        coords[i * 3 + 0] = p->x;
-        coords[i * 3 + 1] = p->y;
+        coords[i * 3 + 0] = x;
+        coords[i * 3 + 1] = y;
         coords[i * 3 + 2] = z;
     }
 }
@@ -364,23 +431,26 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
 
     for (size_t k = 0; k < mesh->input.inter_files.size(); k++) {
         mesh->gdata_vec[k].s = SurfaceRead(mesh->input.inter_files[k].c_str());
-        if (mesh->gdata_vec[k].s)
+        if (!mesh->gdata_vec[k].s)
         {
-            GtsBBox *tmp_bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata_vec[k].s);
-            if (tmp_bbox)
-            {
-                double hx = (tmp_bbox->x2 - tmp_bbox->x1) / static_cast<double>(mesh->ncellx);
-                double hy = (tmp_bbox->y2 - tmp_bbox->y1) / static_cast<double>(mesh->ncelly);
-                double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
-                double h = 2.1 * std::min(hx, std::min(hy, hz));
-                if (kSmoothInputSurfaces) {
-                    printf("Smoothing interface %zu surface with target edge length hx: %f hy: %f hz: %f h: %f\n", k+1, hx, hy, hz, h);
-                    SmoothGtsSurfaceLaplacian(mesh->gdata_vec[k].s, h);
-                }
-            }
-            mesh->gdata_vec[k].bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata_vec[k].s);
-            mesh->gdata_vec[k].bbt = gts_bb_tree_surface(mesh->gdata_vec[k].s);
+            fprintf(stderr, "GetInterceptedElements: failed to read interface surface '%s' (skipped)\n",
+                    mesh->input.inter_files[k].c_str());
+            continue;
         }
+
+        mesh->gdata_vec[k].bbox = gts_bbox_surface(gts_bbox_class(), mesh->gdata_vec[k].s);
+        if (mesh->gdata_vec[k].bbox)
+        {
+            double hx = (mesh->gdata_vec[k].bbox->x2 - mesh->gdata_vec[k].bbox->x1) / static_cast<double>(mesh->ncellx);
+            double hy = (mesh->gdata_vec[k].bbox->y2 - mesh->gdata_vec[k].bbox->y1) / static_cast<double>(mesh->ncelly);
+            double hz = mesh->input.z / static_cast<double>(mesh->ncellz);
+            double h = 2.1 * std::min(hx, std::min(hy, hz));
+            if (kSmoothInputSurfaces) {
+                printf("Smoothing interface %zu surface with target edge length hx: %f hy: %f hz: %f h: %f\n", k+1, hx, hy, hz, h);
+                SmoothGtsSurfaceLaplacian(mesh->gdata_vec[k].s, h);
+            }
+        }
+        mesh->gdata_vec[k].bbt = gts_bb_tree_surface(mesh->gdata_vec[k].s);
     }
 
     if (!mesh->gdata_vec.empty()) {
@@ -423,7 +493,6 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
 
         if (any_overlap)
         {
-            elements_ids.push_back(iel);
             elem->pad = -1;
         }
 
@@ -452,30 +521,30 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
             for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
                 if (!mesh->gdata_vec[k].bbt) continue;
                 GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
-                if (list == NULL) continue;
-                while (list)
+                for (GSList *l = list; l; l = l->next)
                 {
-                    GtsBBox *b = GTS_BBOX(list->data);
-                    if (mesh->input.CgalUse)
-                    {
-                        point[edge] = SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded));
-                    }
-                    else
-                    {
-                        point[edge] = SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
-                    }
-                    if (point[edge])
-                    {
-                        elem->edge[edge].ref = true;
-                        elem->pad = -1;
-                        ed_cont++;
-                        break;
-                    }
-                    list = list->next;
+                    GtsBBox *b = GTS_BBOX(l->data);
+                    GtsPoint *q = mesh->input.CgalUse
+                        ? SegmentTriangleIntersectionCgal(segments[edge], GTS_TRIANGLE(b->bounded))
+                        : SegmentTriangleIntersection(segments[edge], GTS_TRIANGLE(b->bounded));
+                    if (q) { point[edge] = q; break; }
                 }
-                if (point[edge]) break;
+                if (list) g_slist_free(list);
+                if (point[edge])
+                {
+                    elem->edge[edge].ref = true;
+                    elem->pad = -1;
+                    ed_cont++;
+                    break;
+                }
             }
             // printf("edge:%d, %s ",edge, elem->edge[edge].ref ? "T" : "F");
+
+            if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
+            gts_object_destroy(GTS_OBJECT(sb));
+            gts_object_destroy(GTS_OBJECT(segments[edge]));
+            gts_object_destroy(GTS_OBJECT(v1));
+            gts_object_destroy(GTS_OBJECT(v2));
         }
         // printf("\n");
 
@@ -488,7 +557,14 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
                 elem->edge[edge].ref = false;
             }
         }
+
+        if (elem->pad == -1)
+        {
+            elements_ids.push_back(iel);
+        }
     }
+
+    gts_object_destroy(GTS_OBJECT(box));
 }
 
 // Found the intersection between a line and a triangle

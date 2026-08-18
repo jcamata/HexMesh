@@ -44,11 +44,11 @@ static face_key make_face_key(int a, int b, int c, int d) {
 // Node constraint structure supporting generic N GTS surfaces and 2D/1D boundary locks
 struct NodeConstraint {
 	uint8_t lock_mask;  // LOCK_X | LOCK_Y | LOCK_Z for boundary planes/lines/corners
-	int gts_surface_id; // -1 if not on GTS surface, 0 = bathymetry (gdata), 1 = topography (tdata)
+	int gts_surface_id; // -1 if not on GTS surface, 0..N-1 = gdata_vec index, 1000 = topography (tdata)
 };
 
-// Forward declaration
-static bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out);
+// eval_gts_height lives in intercept_surface.cpp (declared in hexa.h) so
+// GetMeshFromSurface can share it too.
 
 std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
                                                       const std::vector<double> &coords,
@@ -143,7 +143,7 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 	// Interface nodes: associate each with its closest matching GTS surface id
 	for (int nid : nodes_b_mat) {
 		if (nid >= 0 && nid < nn) {
-			int best_k = 0;
+			int best_k = -1;
 			double best_dz = 1e300;
 			double nx = coords[3*nid+0], ny = coords[3*nid+1], nz = coords[3*nid+2];
 			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
@@ -161,53 +161,6 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 	}
 
 	return cons;
-}
-
-// Evaluate surface elevation z_out for (x, y) on a given GTS surface id (0..N-1 for gdata_vec, 1000 for tdata)
-static bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out) {
-	GNode *bbt = NULL;
-	GtsBBox *bbox = NULL;
-	if (gts_surface_id >= 0 && gts_surface_id < (int)mesh->gdata_vec.size()) {
-		bbt = mesh->gdata_vec[gts_surface_id].bbt;
-		bbox = mesh->gdata_vec[gts_surface_id].bbox;
-	} else if (gts_surface_id == 0 && mesh->gdata.bbt) {
-		bbt = mesh->gdata.bbt;
-		bbox = mesh->gdata.bbox;
-	} else if (gts_surface_id == 1000 && mesh->tdata.bbt) {
-		bbt = mesh->tdata.bbt;
-		bbox = mesh->tdata.bbox;
-	}
-	if (!bbt || !bbox) return false;
-
-	double z1 = bbox->z1 - 500.0;
-	double z2 = bbox->z2 + 500.0;
-
-	GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), x, y, z1);
-	GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), x, y, z2);
-	GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
-	GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), seg);
-
-	GSList *list = gts_bb_tree_overlap(bbt, sb);
-	GtsPoint *pt = NULL;
-	for (GSList *l = list; l; l = l->next) {
-		GtsBBox *b = GTS_BBOX(l->data);
-		GtsPoint *q = mesh->input.CgalUse
-			? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-			: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
-		if (q) { pt = q; break; }
-	}
-
-	bool found = (pt != NULL);
-	if (found) {
-		z_out = pt->z;
-		gts_object_destroy(GTS_OBJECT(pt));
-	}
-
-	if (list) g_slist_free(list);
-	if (sb) gts_object_destroy(GTS_OBJECT(sb));
-	if (seg) gts_object_destroy(GTS_OBJECT(seg));
-
-	return found;
 }
 
 // Local state of a node's incident elements: how many are inverted, and the
