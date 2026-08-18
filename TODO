@@ -4,6 +4,5 @@ TODO
 2 - ler arquivos de velocidade 
 3 - recuperar branch de templates para branch smart octree
 4 - adicionar loop na quantidade de superficies
-5 - tirar metricas de qualidade de malha do codigo
-6 - trabalhar num otimizador
-7 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}
+5 - trabalhar num otimizador
+6 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}
