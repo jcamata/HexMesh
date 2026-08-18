@@ -1843,30 +1843,18 @@ void DoOctree(hexa_tree_t* mesh){
 	}
 }
 
-void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat, const char* surface) {
+void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat) {
 
 	bool deb = false;
 
-	time_t tstart, tend;
-
-	tstart = time(0);
 	printf("    Building the octree structure...\n");
 	DoOctree(mesh);
-	tend = time(0);
-	//	cout << "Time in DoOctree "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
-	tstart = time(0);
 	printf("    Classifying octree corners...\n");
 	ClassifyOctreeCorners(mesh, coords);
-	tend = time(0);
 
-	tstart = time(0);
 	printf("    Identifying the movable nodes...\n");
 	IdentifyMovableNodes(mesh);
-	tend = time(0);
-	cout << "blabla bla bla" << endl;
-
-	//cout << "Time in IdentifyMovableNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 	if(deb){
 		char fdname[80];
@@ -1881,7 +1869,6 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		}
 		fclose(fnode);
 	}
-	cout << "blabla bla bla" << endl;
 
 	if(deb){
 		char fdname[80];
@@ -1904,15 +1891,11 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		}
 		fclose(dedges);
 	}
-	cout << "blabla bla bla" << endl;
 
-	tstart = time(0);
 	printf("    Make the projection of the nodes into the surface...\n");
 	nodes_b_mat.clear();
 	WarpLatticeToCoastline(mesh, coords);
 	ProjectFreeNodes(mesh,coords,nodes_b_mat);
-	tend = time(0);
-	//cout << "Time in ProjectFreeNodes "<< difftime(tend, tstart) <<" second(s)."<< endl;
 
 	if(deb){
 		int8_t* flag_nodes = (int8_t*) malloc(sizeof (int8_t) * mesh->local_n_nodes);

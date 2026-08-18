@@ -467,7 +467,7 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
 void Apply_material(hexa_tree_t *mesh, std::vector<double> &coords, const char *surface_bathy);
 void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double> &coords);
 void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords);
-void MovingNodes(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat, const char *surface);
+void MovingNodes(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat);
 void MeshOpt(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes);
 void PillowingInterface(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat);
 void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat);
