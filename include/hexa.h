@@ -30,6 +30,7 @@ struct Input {
     std::string topo;
     int interfaceNumber;
     std::string inter;
+    std::vector<std::string> inter_files;
     int ref;
     int movingNodes;
     int nmat;
@@ -264,6 +265,7 @@ typedef struct
 #endif
 	FILE *profile;
 	GeometryData gdata;
+	std::vector<GeometryData> gdata_vec;
 	GeometryData tdata;
 
 } hexa_tree_t;

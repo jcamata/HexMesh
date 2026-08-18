@@ -47,6 +47,9 @@ struct NodeConstraint {
 	int gts_surface_id; // -1 if not on GTS surface, 0 = bathymetry (gdata), 1 = topography (tdata)
 };
 
+// Forward declaration
+static bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out);
+
 std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
                                                       const std::vector<double> &coords,
                                                       const std::vector<int> &nodes_b_mat,
@@ -137,23 +140,40 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 	// Wall-only mask
 	if (wall_out) *wall_out = lock;
 
-	// Interface (bathymetry/topography) nodes fully fixed.
-	for (int nid : nodes_b_mat)
+	// Interface nodes: associate each with its closest matching GTS surface id
+	for (int nid : nodes_b_mat) {
 		if (nid >= 0 && nid < nn) {
-			cons[nid].gts_surface_id = 0; // Bathymetry (gdata)
+			int best_k = 0;
+			double best_dz = 1e300;
+			double nx = coords[3*nid+0], ny = coords[3*nid+1], nz = coords[3*nid+2];
+			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+				double z_eval = 0.0;
+				if (eval_gts_height(mesh, (int)k, nx, ny, z_eval)) {
+					double dz = std::fabs(nz - z_eval);
+					if (dz < best_dz) {
+						best_dz = dz;
+						best_k = (int)k;
+					}
+				}
+			}
+			cons[nid].gts_surface_id = best_k;
 		}
+	}
 
 	return cons;
 }
 
-// Evaluate surface elevation z_out for (x, y) on a given GTS surface id (0=gdata, 1=tdata)
+// Evaluate surface elevation z_out for (x, y) on a given GTS surface id (0..N-1 for gdata_vec, 1000 for tdata)
 static bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, double &z_out) {
 	GNode *bbt = NULL;
 	GtsBBox *bbox = NULL;
-	if (gts_surface_id == 0 && mesh->gdata.bbt) {
+	if (gts_surface_id >= 0 && gts_surface_id < (int)mesh->gdata_vec.size()) {
+		bbt = mesh->gdata_vec[gts_surface_id].bbt;
+		bbox = mesh->gdata_vec[gts_surface_id].bbox;
+	} else if (gts_surface_id == 0 && mesh->gdata.bbt) {
 		bbt = mesh->gdata.bbt;
 		bbox = mesh->gdata.bbox;
-	} else if (gts_surface_id == 1 && mesh->tdata.bbt) {
+	} else if (gts_surface_id == 1000 && mesh->tdata.bbt) {
 		bbt = mesh->tdata.bbt;
 		bbox = mesh->tdata.bbox;
 	}

@@ -1,4 +1,3 @@
-
 #include <gts.h>
 #include <glib.h>
 
@@ -69,8 +68,7 @@ void Adjust_material(hexa_tree_t *mesh) {
 	}
 
 	tot_n_mat=tot_n_mat+1;
-	int idover[tot_n_mat];
-	fill_n(idover, tot_n_mat, -1); //all elements are under the bathymetry
+	std::vector<int> idover(tot_n_mat, -1);
 	for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 		octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 		if (idover[elem->n_mat]==-1){
@@ -78,8 +76,7 @@ void Adjust_material(hexa_tree_t *mesh) {
 		}
 	}
 	int coff = 0;
-	int offsetdoub[tot_n_mat];
-	fill_n(offsetdoub, tot_n_mat,-1); //all elements are under the bathymetry
+	std::vector<int> offsetdoub(tot_n_mat, -1);
 	for (int iel = 0; iel < tot_n_mat; ++iel) {
 		if (idover[iel]==0){
 			offsetdoub[iel]=coff;
@@ -92,10 +89,11 @@ void Adjust_material(hexa_tree_t *mesh) {
 	}
 }
 
-
 void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
 {
-	GtsBBox *bbox = mesh->gdata.bbox;
+	double z_max_ray = 2.0 * (mesh->tdata.bbox ? mesh->tdata.bbox->z2 : 5000.0);
+	if (mesh->gdata.bbox && 2.0 * mesh->gdata.bbox->z2 > z_max_ray)
+		z_max_ray = 2.0 * mesh->gdata.bbox->z2;
 
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
@@ -114,22 +112,34 @@ void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
 			double zz = coords[3*nid+2];
 
 			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), xx, yy, zz);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), xx, yy, 2.0 * bbox->z2);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), xx, yy, z_max_ray);
 			GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
 			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), seg);
-			GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
 
-			bool below = false;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				if (SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded))) {
-					below = true;
-					break;
+			int cuts_above = 0;
+			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+				if (!mesh->gdata_vec[k].bbt) continue;
+				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
+				bool hit = false;
+				while (list) {
+					GtsBBox *b = GTS_BBOX(list->data);
+					GtsPoint *pt = SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+					if (pt) {
+						hit = true;
+						gts_object_destroy(GTS_OBJECT(pt));
+						break;
+					}
+					list = list->next;
 				}
-				list = list->next;
+				if (list) g_slist_free(list);
+				if (hit) cuts_above++;
 			}
 
-			elem->n_mat = below ? 0 : 1;
+			if (mesh->gdata_vec.size() == 1) {
+				elem->n_mat = (cuts_above > 0) ? 0 : 1;
+			} else {
+				elem->n_mat = cuts_above;
+			}
 		}
 	}
 }
@@ -137,59 +147,61 @@ void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
 void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* surface_bathy) {
 
 	bool deb = false;
-	GtsBBox* bbox = mesh->gdata.bbox;
-
-	if (mesh->input.interfaceNumber == 0) {
+	if (mesh->input.interfaceNumber == 0 || mesh->gdata_vec.empty()) {
 		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
-			elem->n_mat = 1;
+			elem->n_mat = 0;
 		}
-	}else {
-		//for all the mesh
+	} else {
+		double z_max_ray = 2.0 * (mesh->tdata.bbox ? mesh->tdata.bbox->z2 : 5000.0);
+		if (mesh->gdata.bbox && 2.0 * mesh->gdata.bbox->z2 > z_max_ray)
+			z_max_ray = 2.0 * mesh->gdata.bbox->z2;
+
 		for (int iel = 0; iel < mesh->elements.elem_count; ++iel) {
 			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, iel);
 
-			elem->n_mat = 1;
-			GtsPoint * point;
-
-			//getting the baricenter of the upper surface;
-			//find the centroid of the upper surface
 			double cord_in_x[8], cord_in_y[8], cord_in_z[8];
-			//add the nodes in the coord vector
 			for (int ii = 0; ii < 8; ii++) {
 				cord_in_x[ii] = coords[3 * elem->nodes[ii].id + 0];
 				cord_in_y[ii] = coords[3 * elem->nodes[ii].id + 1];
 				cord_in_z[ii] = coords[3 * elem->nodes[ii].id + 2];
 			}
 
-			//superficie superior
-			double cord_in_ref[3];
-			cord_in_ref[0] = 0;
-			cord_in_ref[1] = 0;
-			cord_in_ref[2] = 0;
-			cord_in_ref[2] = -1;
-			point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
+			double cord_in_ref[3] = {0.0, 0.0, -1.0};
+			GtsPoint *point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
 
-			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), point->x,point->y,point->z);
-			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), point->x,point->y,2*bbox->z2);
-			point = NULL;
+			GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), point->x, point->y, point->z);
+			GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), point->x, point->y, z_max_ray);
 
-			GtsSegment * segments = gts_segment_new(gts_segment_class(), v1, v2);
+			GtsSegment *segments = gts_segment_new(gts_segment_class(), v1, v2);
 			GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments);
-			GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-			if (list == NULL) continue;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				point = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
-				if (point) {
-					break;
+
+			int cuts_above = 0;
+			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+				if (!mesh->gdata_vec[k].bbt) continue;
+				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
+				bool hit = false;
+				while (list) {
+					GtsBBox *b = GTS_BBOX(list->data);
+					GtsPoint *pt = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
+					if (pt) {
+						hit = true;
+						gts_object_destroy(GTS_OBJECT(pt));
+						break;
+					}
+					list = list->next;
 				}
-				list = list->next;
+				if (list) g_slist_free(list);
+				if (hit) cuts_above++;
 			}
 
-			if(point){
-				elem->n_mat = 0;
+			if (mesh->gdata_vec.size() == 1) {
+				elem->n_mat = (cuts_above > 0) ? 0 : 1;
 			} else {
+				elem->n_mat = cuts_above;
+				if (mesh->input.nmat > 0 && elem->n_mat >= mesh->input.nmat) {
+					elem->n_mat = mesh->input.nmat - 1;
+				}
 			}
 		}
 
@@ -203,7 +215,6 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 		{
 			octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 			octant_t *elem[8];
-			GtsPoint * point;
 			bool valid_oct = true;
 
 			int mat1 = 0;
@@ -242,33 +253,45 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 					elem[5]->n_mat = 0;
 					elem[6]->n_mat = 0;
 					elem[7]->n_mat = 0;
-					}else{
-						for(int iel = 0; iel < 8; iel++){
-							int node = elem[iel]->nodes[iel].id;
-							if (node < 0 || (3 * node + 2) >= (int) coords.size()) {
-								continue;
-							}
-							double xx = coords[3*node+0];
-							double yy = coords[3*node+1];
-							double zz = coords[3*node+2];
-						GtsPoint* p = NULL;
+				}else{
+					for(int iel = 0; iel < 8; iel++){
+						int node = elem[iel]->nodes[iel].id;
+						if (node < 0 || (3 * node + 2) >= (int) coords.size()) {
+							continue;
+						}
+						double xx = coords[3*node+0];
+						double yy = coords[3*node+1];
+						double zz = coords[3*node+2];
 						GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), xx, yy, zz);
-						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), xx, yy, 2*bbox->z2);
+						GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), xx, yy, z_max_ray);
 						GtsSegment * segments = gts_segment_new(gts_segment_class(), v1, v2);
 						GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), segments);
-						GSList* list = gts_bb_tree_overlap(mesh->gdata.bbt, sb);
-						while (list) {
-							GtsBBox *b = GTS_BBOX(list->data);
-							p = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
-							if (p) {
-								break;
+
+						int cuts_above = 0;
+						for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+							if (!mesh->gdata_vec[k].bbt) continue;
+							GSList* list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, sb);
+							bool hit = false;
+							while (list) {
+								GtsBBox *b = GTS_BBOX(list->data);
+								GtsPoint *pt = SegmentTriangleIntersection(segments, GTS_TRIANGLE(b->bounded));
+								if (pt) {
+									hit = true;
+									gts_object_destroy(GTS_OBJECT(pt));
+									break;
+								}
+								list = list->next;
 							}
-							list = list->next;
+							if (list) g_slist_free(list);
+							if (hit) cuts_above++;
 						}
-						if(p){
-							elem[iel]->n_mat = 0;
-						}else{
-							elem[iel]->n_mat = 1;
+						if (mesh->gdata_vec.size() == 1) {
+							elem[iel]->n_mat = (cuts_above > 0) ? 0 : 1;
+						} else {
+							elem[iel]->n_mat = cuts_above;
+							if (mesh->input.nmat > 0 && elem[iel]->n_mat >= mesh->input.nmat) {
+								elem[iel]->n_mat = mesh->input.nmat - 1;
+							}
 						}
 					}
 				}
@@ -279,7 +302,7 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 			for (int ino = 0; ino < mesh->nodes.elem_count; ++ino){
 				mesh->part_nodes[ino] = 0;
 			}
-			for (int ioc = 0; ioc <  mesh->oct.elem_count; ++ioc) {
+			for (int ioc = 0; ioc < mesh->oct.elem_count; ++ioc) {
 				octree_t * oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
 				for (int iel = 0; iel < 8; ++iel){
 					octant_t * elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
@@ -290,5 +313,4 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords, const char* 
 			}
 		}
 	}
-
 }

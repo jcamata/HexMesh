@@ -1103,19 +1103,23 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 			// changed between runs of the same binary on the same input. Evaluate every
 			// candidate and keep the one nearest the edge midpoint, which is where both
 			// inner nodes sit.
-			GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, bb);
 			GtsPoint *pt = NULL;
 			{
 				const double mx = 0.5*(x1+x2), my = 0.5*(y1+y2), mz = 0.5*(z1+z2);
 				double best = 0.0;
-				for (GSList *l = list; l; l = l->next) {
-					GtsBBox *b = GTS_BBOX(l->data);
-					GtsPoint *q = mesh->input.CgalUse
-						? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-						: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
-					if (!q) continue;
-					double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
-					if (!pt || d < best) { pt = q; best = d; }
+				for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+					if (!mesh->gdata_vec[k].bbt) continue;
+					GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
+					for (GSList *l = list; l; l = l->next) {
+						GtsBBox *b = GTS_BBOX(l->data);
+						GtsPoint *q = mesh->input.CgalUse
+							? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+							: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+						if (!q) continue;
+						double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
+						if (!pt || d < best) { pt = q; best = d; }
+					}
+					if (list) g_slist_free(list);
 				}
 			}
 			if (!pt) continue;
@@ -1177,15 +1181,20 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 			GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
 			GtsBBox *bb = gts_bbox_segment(gts_bbox_class(), seg);
 
-			GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, bb);
 			GtsPoint *pt = NULL;
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				pt = mesh->input.CgalUse
-					? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-					: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+				if (!mesh->gdata_vec[k].bbt) continue;
+				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
+				while (list) {
+					GtsBBox *b = GTS_BBOX(list->data);
+					pt = mesh->input.CgalUse
+						? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+						: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+					if (pt) break;
+					list = list->next;
+				}
+				if (list) g_slist_free(list);
 				if (pt) break;
-				list = list->next;
 			}
 
 			if (!pt) { face_centroid_fallback(); continue; }
@@ -1229,15 +1238,20 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
 		GtsBBox *bb = gts_bbox_segment(gts_bbox_class(), seg);
 
-		GSList *list = gts_bb_tree_overlap(mesh->gdata.bbt, bb);
 		GtsPoint *pt = NULL;
-		while (list) {
-			GtsBBox *b = GTS_BBOX(list->data);
-			pt = mesh->input.CgalUse
-				? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-				: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+		for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+			if (!mesh->gdata_vec[k].bbt) continue;
+			GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
+			while (list) {
+				GtsBBox *b = GTS_BBOX(list->data);
+				pt = mesh->input.CgalUse
+					? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+					: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+				if (pt) break;
+				list = list->next;
+			}
+			if (list) g_slist_free(list);
 			if (pt) break;
-			list = list->next;
 		}
 
 		if (!pt) {

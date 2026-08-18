@@ -278,7 +278,9 @@ void hexa_tree_destroy(hexa_tree_t *mesh) {
   sc_array_reset(&mesh->shared_nodes);
 
   if (mesh->input.interfaceNumber != 0) {
-    if (mesh->gdata.bbt != NULL)
-      gts_bb_tree_destroy(mesh->gdata.bbt, TRUE);
+    for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+      if (mesh->gdata_vec[k].bbt != NULL)
+        gts_bb_tree_destroy(mesh->gdata_vec[k].bbt, TRUE);
+    }
   }
 }

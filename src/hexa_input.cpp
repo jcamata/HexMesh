@@ -96,8 +96,12 @@ Input readInputFile(const std::string &filePath)
         }
         else if (line.find("inter") == 0)
         {
-            input.inter = line.substr(line.find('=') + 1);
-            trim(input.inter);
+            std::string ifile = line.substr(line.find('=') + 1);
+            trim(ifile);
+            if (!ifile.empty()) {
+                input.inter_files.push_back(ifile);
+                if (input.inter.empty()) input.inter = ifile;
+            }
         }
         else if (line.find("ref") == 0)
         {
@@ -179,7 +183,12 @@ int inpreader(hexa_tree_t *mesh)
 
     std::cout << "Topo: " << input.topo << std::endl;
     std::cout << "Interface Number: " << input.interfaceNumber << std::endl;
-    std::cout << "Inter: " << input.inter << std::endl;
+    for (size_t i = 0; i < input.inter_files.size(); i++) {
+        std::cout << "Inter " << i + 1 << ": " << input.inter_files[i] << std::endl;
+    }
+    if (input.inter_files.empty() && !input.inter.empty()) {
+        std::cout << "Inter: " << input.inter << std::endl;
+    }
     std::cout << "Refinement Level: " << input.ref << std::endl;
     std::cout << "Z-Depth: " << input.z << std::endl;
     std::cout << "Z-Cuts: ";

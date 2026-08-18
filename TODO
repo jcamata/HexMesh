@@ -3,6 +3,6 @@ TODO
 1 - adicionar f_{max}
 2 - ler arquivos de velocidade 
 3 - recuperar branch de templates para branch smart octree
-4 - adicionar loop na quantidade de superficies
-5 - trabalhar num otimizador
-6 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}
+4 - montar matrizes de massa e rigidez calcular autovalor para X\% dos maiores Vp e Y\% dos menores elementos para determinar \Delta t_{crit}
+5 - trabalhar nos arquivos de entrada para descrever bem a coastline 
+6 - trabalhar para que o cut da coastline seja "perfeito"
