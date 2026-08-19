@@ -19,6 +19,9 @@
 
 #include <chrono>
 #include <iostream>
+#include <array>
+#include <map>
+#include <algorithm>
 /*
  *
  */
@@ -150,6 +153,16 @@ int main(int argc, char **argv) {
   VerifyMeshInversion(&mesh, &coords);
   VerifyFacePlanarity(&mesh, coords);
 
+  { // ponytail: bug3 evidence -- dump all inverted element ids for A/B comparison, remove after
+    const char *dbgpath = getenv("HEXMESH_INVDUMP");
+    if (dbgpath) {
+      MeshAnalysis a = analyze_mesh(&mesh, coords);
+      FILE *f = fopen(dbgpath, "w");
+      for (int id : a.inverted_ids) fprintf(f, "%d\n", id);
+      fclose(f);
+    }
+  }
+
   if (mesh.input.PML == 0) {
     // do nothing
   } else {
@@ -180,9 +193,105 @@ int main(int argc, char **argv) {
   // std::vector<int>().swap(element_ids);
   // std::vector<int>().swap(nodes_b_mat);
 
+  // Per-element diagnostic tag for visual inspection in ParaView: 2 = inverted element,
+  // 1 = face-neighbour of an inverted element, 0 = everything else. Computed on the FINAL
+  // mesh (after PML, if any) from the real physical coords -- the authoritative geometry --
+  // so it applies unchanged to both mesh.pvtu (real coords) and test.pvtu (integer lattice
+  // coords): the tag is about which elements are geometrically bad, not about which
+  // coordinate system is being rendered.
+  std::vector<int> invtag(mesh.elements.elem_count, 0);
+  std::vector<int> foldtag(mesh.elements.elem_count, 0);
+  {
+    MeshAnalysis a2 = analyze_mesh(&mesh, coords);
+    for (int id : a2.inverted_ids) invtag[id] = 2;
+
+    // Face-adjacency scan: pairs every element's 6 faces against every other element's, once.
+    // Reused for two independent checks:
+    //  (a) InvertedTag neighbour marking (2=inverted, 1=neighbour of one, existing behaviour).
+    //  (b) NeighborFold: two face-adjacent elements should extend AWAY from their shared face,
+    //      one to each side. Project each element's own OTHER 4 corners' centroid onto the
+    //      shared face's normal; a normal (non-folded) pair lands on opposite sides. Landing on
+    //      the SAME side means one of the pair has folded back over the shared face into the
+    //      other's own volume -- real 3D interpenetration, not just a bad-quality-but-present
+    //      element (which is what InvertedTag / the corner-Jacobian check alone measures, and
+    //      does NOT catch this: two elements can each be locally valid, non-inverted, and still
+    //      overlap each other -- confirmed on 2026-08-19 with elems 13011/527802, 527818/527819/
+    //      527810, all invtag==0 but visibly folded over one another in ParaView).
+    std::map<std::array<int,4>, std::pair<int,int>> face_owner; // key -> (elem id, face index)
+    for (size_t iel = 0; iel < mesh.elements.elem_count; iel++) {
+      octant_t *e = (octant_t *)sc_array_index(&mesh.elements, iel);
+      for (int f = 0; f < 6; f++) {
+        std::array<int,4> key;
+        for (int k = 0; k < 4; k++) key[k] = e->nodes[FaceNodesMap[f][k]].id;
+        std::array<int,4> sorted_key = key;
+        std::sort(sorted_key.begin(), sorted_key.end());
+        auto it = face_owner.find(sorted_key);
+        if (it == face_owner.end()) {
+          face_owner[sorted_key] = {(int)iel, f};
+        } else {
+          int other = it->second.first;
+
+          if (invtag[iel] == 2 && invtag[other] == 0) invtag[other] = 1;
+          if (invtag[other] == 2 && invtag[iel] == 0) invtag[iel] = 1;
+
+          // Face centroid + normal from THIS element's own traversal of the shared face
+          // (arbitrary but consistent choice -- the fold test only needs the plane, and a
+          // plane doesn't care which side supplied it).
+          double fc[3] = {0,0,0};
+          for (int k = 0; k < 4; k++)
+            for (int d = 0; d < 3; d++) fc[d] += coords[3*key[k]+d] / 4.0;
+          double d02[3], d13[3];
+          for (int d = 0; d < 3; d++) {
+            d02[d] = coords[3*key[2]+d] - coords[3*key[0]+d];
+            d13[d] = coords[3*key[3]+d] - coords[3*key[1]+d];
+          }
+          double nrm[3] = { d02[1]*d13[2]-d02[2]*d13[1], d02[2]*d13[0]-d02[0]*d13[2], d02[0]*d13[1]-d02[1]*d13[0] };
+
+          auto complement_centroid = [&](octant_t *elem, int face) -> std::array<double,3> {
+            bool on_face[8] = {false};
+            for (int k = 0; k < 4; k++) on_face[FaceNodesMap[face][k]] = true;
+            std::array<double,3> c = {0,0,0};
+            int cnt = 0;
+            for (int k = 0; k < 8; k++) {
+              if (on_face[k]) continue;
+              int nid = elem->nodes[k].id;
+              for (int d = 0; d < 3; d++) c[d] += coords[3*nid+d];
+              cnt++;
+            }
+            for (int d = 0; d < 3; d++) c[d] /= cnt; // cnt is always 4
+            return c;
+          };
+          octant_t *eo = (octant_t *)sc_array_index(&mesh.elements, other);
+          auto cA = complement_centroid(e, f);
+          auto cB = complement_centroid(eo, it->second.second);
+          double distA = 0, distB = 0;
+          for (int d = 0; d < 3; d++) {
+            distA += (cA[d]-fc[d]) * nrm[d];
+            distB += (cB[d]-fc[d]) * nrm[d];
+          }
+          if (distA * distB > 0) { // same sign -> same side -> folded
+            foldtag[iel] = 1;
+            foldtag[other] = 1;
+          }
+
+          face_owner.erase(it);
+        }
+      }
+    }
+    int n_folded = 0, n_both = 0;
+    for (size_t i = 0; i < foldtag.size(); i++) {
+      if (foldtag[i]) n_folded++;
+      if (foldtag[i] && invtag[i] == 2) n_both++;
+    }
+    printf("    Neighbour-fold elements (real 3D overlap with a face-adjacent neighbour, "
+           "not caught by the corner-Jacobian inversion check): %d / %zu (%d also inverted)\n",
+           n_folded, mesh.elements.elem_count, n_both);
+
+  }
+
   start = std::chrono::steady_clock::now();
   printf(" Writing output files \n\n");
-  hexa_mesh_write_vtk(&mesh, "mesh", &coords);
+  hexa_mesh_write_vtk(&mesh, "mesh", &coords, &invtag, &foldtag);
   // hexa_mesh_write_msh(&mesh, "mesh", &coords);
   // hexa_mesh_write_h5(&mesh, "mesh", coords);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -192,7 +301,7 @@ int main(int argc, char **argv) {
   std::cout << "Time in Writing output files " << elapsed.count()
             << " millisecond(s)." << std::endl;
 
-  hexa_mesh_write_vtk(&mesh, "test", NULL);
+  hexa_mesh_write_vtk(&mesh, "test", NULL, &invtag, &foldtag);
   start = std::chrono::steady_clock::now();
 
   printf(" Cleaning variables \n\n");

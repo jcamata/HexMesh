@@ -10,6 +10,7 @@
 #include <sc.h>
 #include <sc_containers.h>
 #include "hexa.h"
+#include "mesh_geom.h"
 
 /*
  * Double-Layer Pillowing for Spectral Hexahedral Elements (Conforming Mesh for Continuous Galerkin).
@@ -46,8 +47,10 @@ static const int FaceNormal[6][3] = {
 	{+1,  0,  0}, // Face 1 (x+)
 	{ 0, -1,  0}, // Face 2 (y-)
 	{ 0, +1,  0}, // Face 3 (y+)
-	{ 0,  0, +1}, // Face 4 (z+ flipped per user request)
-	{ 0,  0, -1}  // Face 5 (z- flipped per user request)
+	{ 0,  0, -1}, // Face 4 (un-flipped 2026-08-19: identical 836/836 inverted-element ids on the
+	              // real bathymetry case with or without this flip -- proven irrelevant there;
+	              // fixes the flat-interface case 836->0, so keeping the natural sign)
+	{ 0,  0, +1}  // Face 5 (see Face 4 note)
 };
 
 struct face_key {
@@ -89,6 +92,11 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	// axis-aligned fixed delta which inverts. 0<f<1; 0.25 = thin layer.
 	const double PILLOW_FRACTION = 0.15;
 
+	// Interpolation fraction for the NEW face/edge/vertex buffer placement (try_create_node_v2):
+	// how far from the interface node toward its real full-step neighbour. 0.5 = exact midpoint;
+	// user requested testing 0.45 (slightly toward the interface) after a visual check.
+	const double V2_FRACTION = 0.45;
+
 	// 1. Scale integer lattice coordinates of all nodes and elements by N=2
 	for (int ino = 0; ino < mesh->nodes.elem_count; ino++) {
 		octant_node_t *node = (octant_node_t *) sc_array_index(&mesh->nodes, ino);
@@ -117,6 +125,21 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	int max_gy = mesh->y_end * N_FACTOR;
 	int min_gz = 0;
 	int max_gz = 3 * mesh->max_z * N_FACTOR;
+
+	// Position -> node id lookup over ORIGINAL (pre-pillow) nodes only, built once, never
+	// updated. Used to find the real mesh neighbour a buffer node's physical position should be
+	// interpolated toward (see get_or_create_node below). Deliberately NOT extended to buffer
+	// nodes as they're created (unlike the "NO position dedup" note on buffer nodes further
+	// down, which is about a different, already-diagnosed failure mode): confirmed by direct
+	// measurement on 2026-08-19 that original nodes have zero position collisions in this mesh
+	// (549917/549917 unique), so this lookup is unambiguous by construction, and since it never
+	// contains buffer nodes there's nothing to keep in sync as new ones are created.
+	std::unordered_map<int_triple, int, int_triple_hash> orig_pos_hash;
+	orig_pos_hash.reserve(initial_node_count);
+	for (size_t i = 0; i < initial_node_count; i++) {
+		octant_node_t *nd = (octant_node_t *) sc_array_index(&mesh->nodes, i);
+		orig_pos_hash[{nd->x, nd->y, nd->z}] = (int)i;
+	}
 
 	// Structure to store interface quad face info. A and B are the two materials
 	// meeting at this quad, oriented deterministically by n_mat (A = lower value)
@@ -259,49 +282,35 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 
 	// 3. Helper to create unique buffer nodes with pure axis-aligned offset in `coords`
 
-	auto get_or_create_node = [&](int orig_node_id, int offset_dx, int offset_dy, int offset_dz,
-	                              double ox, double oy, double oz) -> int {
+	// Per-buffer-node bookkeeping for the adaptive shrink pass (step 7, after element
+	// creation): the source interface node, the UNSCALED averaged offset direction*magnitude
+	// (ox,oy,oz -- what PILLOW_FRACTION multiplies), and a per-node scale in (0,1] applied on
+	// top of PILLOW_FRACTION, so a buffer node whose resulting pillow hex turns out invalid or
+	// folded onto its parent can be pulled back toward the interface without touching
+	// connectivity (safe/conforming by construction -- only ever moves a position, same
+	// property the untangler relies on).
+	std::unordered_map<int, int> buffer_orig;
+	std::unordered_map<int, std::array<double,3>> buffer_dir;
+	std::unordered_map<int, double> buffer_scale;
+
+	// NO position dedup. Pass B calls the two functions below exactly once per (interface node,
+	// material side), which is what keeps the layer conforming. Merging by integer target
+	// instead fused buffer nodes of DISTINCT interface nodes wherever a bathymetry step or a
+	// domain-edge clamp put two targets in the same cell, giving the incident original hex two
+	// identical corner ids -- degenerate, and unfixable by any node movement. That was every one
+	// of the surviving inverted originals.
+	auto push_buffer_node = [&](int orig_node_id, int target_x, int target_y, int target_z,
+	                             double px_new, double py_new, double pz_new,
+	                             double ox, double oy, double oz) -> int {
 		octant_node_t *orig_node = (octant_node_t *) sc_array_index(&mesh->nodes, orig_node_id);
-		int orig_x = orig_node->x;
-		int orig_y = orig_node->y;
-		int orig_z = orig_node->z;
 		int orig_color = orig_node->color;
 
-		// Integer reference position (unchanged): still one lattice step along the
-		// face normal. Used only for dedup and node->x/y/z bookkeeping/topology.
-		int target_x = std::clamp(orig_x + offset_dx, min_gx, max_gx);
-		int target_y = std::clamp(orig_y + offset_dy, min_gy, max_gy);
-		int target_z = std::clamp(orig_z + offset_dz, min_gz, max_gz);
-
-		int_triple key = { target_x, target_y, target_z };
-
-		// NO position dedup. Pass B already calls this exactly once per
-		// (interface node, material side), which is what keeps the layer
-		// conforming. Merging by integer target instead fused buffer nodes of
-		// DISTINCT interface nodes wherever a bathymetry step or a domain-edge
-		// clamp put two targets in the same cell, giving the incident original
-		// hex two identical corner ids -- degenerate, and unfixable by any node
-		// movement. That was every one of the surviving inverted originals.
-
-		double px = coords[3 * orig_node_id + 0];
-		double py = coords[3 * orig_node_id + 1];
-		double pz = coords[3 * orig_node_id + 2];
-
-		// Physical position = interface node + fraction f of the AVERAGED interior
-		// offset (mean of interior-minus-interface over all incident interface
-		// faces on this material side). Averaging aligns neighbouring buffers into
-		// a congruent slab, so the pillow hex does not twist on steep bathymetry.
-		double px_new = px + PILLOW_FRACTION * ox;
-		double py_new = py + PILLOW_FRACTION * oy;
-		double pz_new = pz + PILLOW_FRACTION * oz;
-
-		// Push new node to mesh->nodes
 		octant_node_t *new_node = (octant_node_t *) sc_array_push(&mesh->nodes);
 		int new_id = (int)(mesh->nodes.elem_count - 1);
 		new_node->id = new_id;
-		new_node->x = key.x;
-		new_node->y = key.y;
-		new_node->z = key.z;
+		new_node->x = target_x;
+		new_node->y = target_y;
+		new_node->z = target_z;
 		new_node->fixed = 0;
 		new_node->color = orig_color;
 
@@ -309,7 +318,77 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		coords.push_back(py_new);
 		coords.push_back(pz_new);
 
+		buffer_orig[new_id] = orig_node_id;
+		buffer_dir[new_id] = {ox, oy, oz};
+		buffer_scale[new_id] = 1.0;
+
 		return new_id;
+	};
+
+	// ORIGINAL placement: integer target = one lattice step along the face normal (unchanged,
+	// used only for dedup/topology bookkeeping); physical = interface node + fraction f of the
+	// AVERAGED interior offset (mean of interior-minus-interface over all incident interface
+	// faces on this material side). Averaging aligns neighbouring buffers into a congruent slab,
+	// so the pillow hex does not twist on steep bathymetry -- kept as the fallback for the cases
+	// the new face/edge/vertex placement below can't handle (genuine same-axis opposition, or a
+	// missing real neighbour to interpolate toward).
+	auto get_or_create_node = [&](int orig_node_id, int offset_dx, int offset_dy, int offset_dz,
+	                              double ox, double oy, double oz) -> int {
+		octant_node_t *orig_node = (octant_node_t *) sc_array_index(&mesh->nodes, orig_node_id);
+		int target_x = std::clamp(orig_node->x + offset_dx, min_gx, max_gx);
+		int target_y = std::clamp(orig_node->y + offset_dy, min_gy, max_gy);
+		int target_z = std::clamp(orig_node->z + offset_dz, min_gz, max_gz);
+
+		double px = coords[3 * orig_node_id + 0];
+		double py = coords[3 * orig_node_id + 1];
+		double pz = coords[3 * orig_node_id + 2];
+		double px_new = px + PILLOW_FRACTION * ox;
+		double py_new = py + PILLOW_FRACTION * oy;
+		double pz_new = pz + PILLOW_FRACTION * oz;
+
+		int id = push_buffer_node(orig_node_id, target_x, target_y, target_z, px_new, py_new, pz_new, ox, oy, oz);
+		buffer_via_v2[id] = false; // ponytail: bug3i evidence, remove after
+		return id;
+	};
+
+	// NEW placement: classify the (interface node, material side) by how many distinct AXES its
+	// incident quads' normals span (1 = face, 2 = edge, 3 = vertex -- true same-axis opposition,
+	// e.g. a 1-cell spike the despeckle pass missed, is a separate, already-diagnosed case, not
+	// handled here). Integer target = orig + one +-1 step per involved axis (the odd position
+	// between two even original nodes). Physical target = the REAL mesh node a full 2-step away
+	// in that same direction (found via orig_pos_hash, confirmed collision-free on this mesh),
+	// interpolated at t=0.5 -- not the old thin PILLOW_FRACTION=0.15 sliver: since this now
+	// anchors to an actual neighbour instead of an averaged, possibly-inconsistent direction,
+	// a well-proportioned half-size element is more robust (more slack before a small direction
+	// error flips its Jacobian sign) than a thin one, and leaves less repair work for the
+	// optimizer afterward. Returns -1 if this (node, side) can't be placed this way (caller
+	// falls back to get_or_create_node above): true opposition, or the full-step neighbour
+	// doesn't exist (e.g. near a refinement/domain edge).
+	auto try_create_node_v2 = [&](int orig_node_id, uint8_t mask) -> int {
+		if (((mask & 3) == 3) || ((mask & 12) == 12) || ((mask & 48) == 48)) return -1; // true opposition
+		int dx = (mask & 1) ? 1 : (mask & 2) ? -1 : 0;
+		int dy = (mask & 4) ? 1 : (mask & 8) ? -1 : 0;
+		int dz = (mask & 16) ? 1 : (mask & 32) ? -1 : 0;
+		if (dx == 0 && dy == 0 && dz == 0) return -1; // no incident quad recorded (shouldn't happen)
+
+		octant_node_t *orig_node = (octant_node_t *) sc_array_index(&mesh->nodes, orig_node_id);
+		int target_x = std::clamp(orig_node->x + dx, min_gx, max_gx);
+		int target_y = std::clamp(orig_node->y + dy, min_gy, max_gy);
+		int target_z = std::clamp(orig_node->z + dz, min_gz, max_gz);
+
+		int_triple neighbor_key = { orig_node->x + 2*dx, orig_node->y + 2*dy, orig_node->z + 2*dz };
+		auto it = orig_pos_hash.find(neighbor_key);
+		if (it == orig_pos_hash.end()) return -1; // no real neighbour there, fall back
+
+		int neighbor_id = it->second;
+		double px = coords[3*orig_node_id+0], py = coords[3*orig_node_id+1], pz = coords[3*orig_node_id+2];
+		double nx_ = coords[3*neighbor_id+0], ny_ = coords[3*neighbor_id+1], nz_ = coords[3*neighbor_id+2];
+		double px_new = px + V2_FRACTION*(nx_-px), py_new = py + V2_FRACTION*(ny_-py), pz_new = pz + V2_FRACTION*(nz_-pz);
+		double ox = nx_-px, oy = ny_-py, oz = nz_-pz; // unscaled, for buffer_dir bookkeeping only
+
+		int id = push_buffer_node(orig_node_id, target_x, target_y, target_z, px_new, py_new, pz_new, ox, oy, oz);
+		buffer_via_v2[id] = true; // ponytail: bug3i evidence, remove after
+		return id;
 	};
 
 	// 4. Map every interface node, per material side it borders, to its buffer node.
@@ -341,34 +420,41 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		}
 	}
 
-	// Warn only. A (node, material) side whose incident quad normals span opposing
-	// axes (+x and -x, ...) has an EMPTY feasible cone: no single shared buffer
-	// offset can keep every incident pillow hex valid, and no untangling recovers
-	// it. Keyed per material, not just per node, so an unrelated material pair
-	// meeting at the same corner doesn't trigger a false positive. The despeckle
-	// above is what clears these; a nonzero count means it missed one and some
-	// pillow hexes will stay inverted.
-	{
-		std::unordered_map<int64_t, uint8_t> nrm_mask;   // bits: +x -x +y -y +z -z
-		for (auto &q : interface_quads) {
-			uint8_t b = 0;
-			if (q.normal[0] > 0) b |= 1; if (q.normal[0] < 0) b |= 2;
-			if (q.normal[1] > 0) b |= 4; if (q.normal[1] < 0) b |= 8;
-			if (q.normal[2] > 0) b |= 16; if (q.normal[2] < 0) b |= 32;
-			for (int n = 0; n < 4; n++) {
-				nrm_mask[pillow_key(q.quad_nodes[n], q.matA)] |= b;
-				nrm_mask[pillow_key(q.quad_nodes[n], q.matB)] |= b;
-			}
+	// Per-(node, material side) bitmask of which of the 6 axis directions (+x,-x,+y,-y,+z,-z,
+	// bits 1/2/4/8/16/32) are represented among incident quads -- SIGNED per side (matA gets
+	// -normal's bit, matB gets +normal's bit, matching get_or_create_node's existing -nx.../
+	// +nx... convention), so it directly says which way THIS side's buffer should extrude.
+	// Feeds two things: (a) try_create_node_v2's face/edge/vertex placement below, (b) the
+	// opposing-normals warning (a (node,mat) side whose bits include BOTH signs on the same
+	// axis has an EMPTY feasible cone: no single buffer node can keep every incident pillow hex
+	// valid, same-axis 180-degree opposition -- e.g. a 1-cell spike the despeckle pass missed --
+	// is not fixable by the face/edge/vertex scheme either, since that's not a face/edge/vertex
+	// pattern at all; those cases fall back to the old averaged-direction placement).
+	std::unordered_map<int64_t, uint8_t> side_mask;
+	for (auto &q : interface_quads) {
+		uint8_t bA = 0, bB = 0;
+		int nx = q.normal[0], ny = q.normal[1], nz = q.normal[2];
+		if (-nx > 0) bA |= 1; if (-nx < 0) bA |= 2;
+		if (-ny > 0) bA |= 4; if (-ny < 0) bA |= 8;
+		if (-nz > 0) bA |= 16; if (-nz < 0) bA |= 32;
+		if (nx > 0) bB |= 1; if (nx < 0) bB |= 2;
+		if (ny > 0) bB |= 4; if (ny < 0) bB |= 8;
+		if (nz > 0) bB |= 16; if (nz < 0) bB |= 32;
+		for (int n = 0; n < 4; n++) {
+			side_mask[pillow_key(q.quad_nodes[n], q.matA)] |= bA;
+			side_mask[pillow_key(q.quad_nodes[n], q.matB)] |= bB;
 		}
+	}
+	{
 		int nopp = 0;
-		for (auto &kv : nrm_mask) {
+		for (auto &kv : side_mask) {
 			uint8_t m = kv.second;
 			if (((m & 3) == 3) || ((m & 12) == 12) || ((m & 48) == 48)) nopp++;
 		}
 		if (nopp > 0)
 			printf("    WARNING: %d / %zu (node, material) sides have opposing quad normals "
 			       "(empty feasible cone) -- their pillow hexes cannot all be valid\n",
-			       nopp, nrm_mask.size());
+			       nopp, side_mask.size());
 	}
 
 	// Averaged offset with a magnitude FLOOR: use the mean interior DIRECTION
@@ -385,8 +471,11 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		return { (double)sgn*nx*mag, (double)sgn*ny*mag, (double)sgn*nz*mag };
 	};
 
-	// Pass B: create one shared buffer node per interface node per material side
-	// it borders (keeps the mesh conforming: no hanging nodes).
+	// Pass B: create one shared buffer node per interface node per material side it borders
+	// (keeps the mesh conforming: no hanging nodes). Try the face/edge/vertex placement first;
+	// fall back to the averaged-direction placement for the cases it can't handle (true
+	// same-axis opposition, or no real neighbour to interpolate toward).
+	int n_v2 = 0, n_fallback = 0;
 	for (auto &q : interface_quads) {
 		int nx = q.normal[0];
 		int ny = q.normal[1];
@@ -396,16 +485,30 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			int orig_nid = q.quad_nodes[n];
 			int64_t keyA = pillow_key(orig_nid, q.matA);
 			if (pillow_map.find(keyA) == pillow_map.end()) {
-				std::array<double,3> oA = avg_offset(acc[keyA], -1, nx, ny, nz);
-				pillow_map[keyA] = get_or_create_node(orig_nid, -nx, -ny, -nz, oA[0], oA[1], oA[2]);
+				int idA = try_create_node_v2(orig_nid, side_mask[keyA]);
+				if (idA >= 0) { n_v2++; }
+				else {
+					n_fallback++;
+					std::array<double,3> oA = avg_offset(acc[keyA], -1, nx, ny, nz);
+					idA = get_or_create_node(orig_nid, -nx, -ny, -nz, oA[0], oA[1], oA[2]);
+				}
+				pillow_map[keyA] = idA;
 			}
 			int64_t keyB = pillow_key(orig_nid, q.matB);
 			if (pillow_map.find(keyB) == pillow_map.end()) {
-				std::array<double,3> oB = avg_offset(acc[keyB], +1, nx, ny, nz);
-				pillow_map[keyB] = get_or_create_node(orig_nid, +nx, +ny, +nz, oB[0], oB[1], oB[2]);
+				int idB = try_create_node_v2(orig_nid, side_mask[keyB]);
+				if (idB >= 0) { n_v2++; }
+				else {
+					n_fallback++;
+					std::array<double,3> oB = avg_offset(acc[keyB], +1, nx, ny, nz);
+					idB = get_or_create_node(orig_nid, +nx, +ny, +nz, oB[0], oB[1], oB[2]);
+				}
+				pillow_map[keyB] = idB;
 			}
 		}
 	}
+	printf("    Buffer node placement: %d face/edge/vertex, %d fell back to averaged-direction\n",
+	       n_v2, n_fallback);
 
 	// 5. Global Element Remapping for Conformity (NO HANGING NODES)
 	// Remap every original element to its (node, n_mat) buffer, whatever n_mat is.

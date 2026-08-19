@@ -501,7 +501,7 @@ void analyze_full_mesh_quality(hexa_tree_t *mesh, const std::vector<double> &coo
 void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char *root_name, const std::vector<double> &coords, const std::vector<hex_quality_t> &qualities);
 void hexa_mesh_write_msh(hexa_tree_t *mesh, const char *root_name, std::vector<double> *coords);
 void hexa_mesh_write_h5(hexa_tree_t *mesh, const char *root_name, std::vector<double> coords);
-int hexa_mesh_write_vtk(hexa_tree_t *mesh, const char *filename, std::vector<double> *coords);
+int hexa_mesh_write_vtk(hexa_tree_t *mesh, const char *filename, std::vector<double> *coords, const std::vector<int> *invtag = NULL, const std::vector<int> *foldtag = NULL);
 void hexa_debug_face_hanging(hexa_tree_t *mesh);
 unsigned processors_hash_fn(const void *v, const void *u);
 int processors_equal_fn(const void *v1, const void *v2, const void *u);
