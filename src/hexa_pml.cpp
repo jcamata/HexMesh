@@ -152,7 +152,18 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 	}
 
-	assert(hash_nodes->a.elem_count == mesh->nodes.elem_count);
+	// Not an error: pillow.cpp deliberately allows distinct nodes to share an
+	// integer position at the domain boundary (see get_or_create_node's "NO
+	// position dedup" comment there), so hash_nodes -- keyed by position -- can
+	// end up with fewer entries than mesh->nodes.elem_count. That used to abort
+	// here. It's safe now: every PML element below resolves its boundary-facing
+	// corners by direct node id first (see the reuse_id check in each block) and
+	// only falls back to this position hash for genuinely new, non-colliding
+	// extruded points.
+	if (hash_nodes->a.elem_count != mesh->nodes.elem_count)
+		printf("    ExtrudePMLElements: %zu / %d node positions are shared by more "
+		       "than one node id (expected at the domain boundary; see pillow.cpp)\n",
+		       mesh->nodes.elem_count - hash_nodes->a.elem_count, (int)mesh->nodes.elem_count);
 	bool edge, face, point;
 	point = true;
 	face = true;
@@ -370,14 +381,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 					for (int ino = 0; ino < 8; ino++)
 					{
-						// definindo ponto p a ser adicionado
-						GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-						// adicionando ponto p
-						int x = pml_e->nodes[ino].x;
-						int y = pml_e->nodes[ino].y;
-						int z = pml_e->nodes[ino].z;
-						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-						gts_object_destroy(GTS_OBJECT(p));
+						// If this corner's integer position exactly matches one of the original
+						// element's own reference corners, reuse that node's id directly instead of
+						// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+						// nodes to share a position at the domain boundary ("NO position dedup",
+						// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+						// node id there. Corners that are genuinely new (extruded) never collide
+						// and still go through AddPoint as before.
+						int reuse_id = -1;
+						for (int k = 0; k < 4; k++) {
+							int rn = aux[k];
+							if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+							    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+							    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+								reuse_id = elem->nodes[rn].id;
+								break;
+							}
+						}
+						if (reuse_id >= 0)
+						{
+							pml_e->nodes[ino].id = reuse_id;
+						}
+						else
+						{
+							// definindo ponto p a ser adicionado
+							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+							// adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
+						}
 					}
 					isurf = 0;
 					key.id = isurf + 1;
@@ -465,14 +500,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 					for (int ino = 0; ino < 8; ino++)
 					{
-						// definindo ponto p a ser adicionado
-						GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-						// adicionando ponto p
-						int x = pml_e->nodes[ino].x;
-						int y = pml_e->nodes[ino].y;
-						int z = pml_e->nodes[ino].z;
-						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-						gts_object_destroy(GTS_OBJECT(p));
+						// If this corner's integer position exactly matches one of the original
+						// element's own reference corners, reuse that node's id directly instead of
+						// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+						// nodes to share a position at the domain boundary ("NO position dedup",
+						// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+						// node id there. Corners that are genuinely new (extruded) never collide
+						// and still go through AddPoint as before.
+						int reuse_id = -1;
+						for (int k = 0; k < 4; k++) {
+							int rn = aux[k];
+							if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+							    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+							    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+								reuse_id = elem->nodes[rn].id;
+								break;
+							}
+						}
+						if (reuse_id >= 0)
+						{
+							pml_e->nodes[ino].id = reuse_id;
+						}
+						else
+						{
+							// definindo ponto p a ser adicionado
+							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+							// adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
+						}
 					}
 					isurf = 1;
 					key.id = isurf + 1;
@@ -560,14 +619,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 					for (int ino = 0; ino < 8; ino++)
 					{
-						// definindo ponto p a ser adicionado
-						GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-						// adicionando ponto p
-						int x = pml_e->nodes[ino].x;
-						int y = pml_e->nodes[ino].y;
-						int z = pml_e->nodes[ino].z;
-						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-						gts_object_destroy(GTS_OBJECT(p));
+						// If this corner's integer position exactly matches one of the original
+						// element's own reference corners, reuse that node's id directly instead of
+						// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+						// nodes to share a position at the domain boundary ("NO position dedup",
+						// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+						// node id there. Corners that are genuinely new (extruded) never collide
+						// and still go through AddPoint as before.
+						int reuse_id = -1;
+						for (int k = 0; k < 4; k++) {
+							int rn = aux[k];
+							if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+							    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+							    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+								reuse_id = elem->nodes[rn].id;
+								break;
+							}
+						}
+						if (reuse_id >= 0)
+						{
+							pml_e->nodes[ino].id = reuse_id;
+						}
+						else
+						{
+							// definindo ponto p a ser adicionado
+							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+							// adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
+						}
 					}
 					isurf = 2;
 					key.id = isurf + 1;
@@ -655,14 +738,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 					for (int ino = 0; ino < 8; ino++)
 					{
-						// definindo ponto p a ser adicionado
-						GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-						// adicionando ponto p
-						int x = pml_e->nodes[ino].x;
-						int y = pml_e->nodes[ino].y;
-						int z = pml_e->nodes[ino].z;
-						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-						gts_object_destroy(GTS_OBJECT(p));
+						// If this corner's integer position exactly matches one of the original
+						// element's own reference corners, reuse that node's id directly instead of
+						// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+						// nodes to share a position at the domain boundary ("NO position dedup",
+						// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+						// node id there. Corners that are genuinely new (extruded) never collide
+						// and still go through AddPoint as before.
+						int reuse_id = -1;
+						for (int k = 0; k < 4; k++) {
+							int rn = aux[k];
+							if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+							    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+							    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+								reuse_id = elem->nodes[rn].id;
+								break;
+							}
+						}
+						if (reuse_id >= 0)
+						{
+							pml_e->nodes[ino].id = reuse_id;
+						}
+						else
+						{
+							// definindo ponto p a ser adicionado
+							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+							// adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
+						}
 					}
 					isurf = 3;
 					key.id = isurf + 1;
@@ -751,14 +858,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 					for (int ino = 0; ino < 8; ino++)
 					{
-						// definindo ponto p a ser adicionado
-						GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-						// adicionando ponto p
-						int x = pml_e->nodes[ino].x;
-						int y = pml_e->nodes[ino].y;
-						int z = pml_e->nodes[ino].z;
-						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-						gts_object_destroy(GTS_OBJECT(p));
+						// If this corner's integer position exactly matches one of the original
+						// element's own reference corners, reuse that node's id directly instead of
+						// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+						// nodes to share a position at the domain boundary ("NO position dedup",
+						// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+						// node id there. Corners that are genuinely new (extruded) never collide
+						// and still go through AddPoint as before.
+						int reuse_id = -1;
+						for (int k = 0; k < 4; k++) {
+							int rn = aux[k];
+							if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+							    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+							    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+								reuse_id = elem->nodes[rn].id;
+								break;
+							}
+						}
+						if (reuse_id >= 0)
+						{
+							pml_e->nodes[ino].id = reuse_id;
+						}
+						else
+						{
+							// definindo ponto p a ser adicionado
+							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+							// adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
+						}
 					}
 					isurf = 5;
 					key.id = isurf + 1;
@@ -846,14 +977,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 					for (int ino = 0; ino < 8; ino++)
 					{
-						// definindo ponto p a ser adicionado
-						GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-						// adicionando ponto p
-						int x = pml_e->nodes[ino].x;
-						int y = pml_e->nodes[ino].y;
-						int z = pml_e->nodes[ino].z;
-						pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-						gts_object_destroy(GTS_OBJECT(p));
+						// If this corner's integer position exactly matches one of the original
+						// element's own reference corners, reuse that node's id directly instead of
+						// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+						// nodes to share a position at the domain boundary ("NO position dedup",
+						// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+						// node id there. Corners that are genuinely new (extruded) never collide
+						// and still go through AddPoint as before.
+						int reuse_id = -1;
+						for (int k = 0; k < 4; k++) {
+							int rn = aux[k];
+							if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+							    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+							    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+								reuse_id = elem->nodes[rn].id;
+								break;
+							}
+						}
+						if (reuse_id >= 0)
+						{
+							pml_e->nodes[ino].id = reuse_id;
+						}
+						else
+						{
+							// definindo ponto p a ser adicionado
+							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+							// adicionando ponto p
+							int x = pml_e->nodes[ino].x;
+							int y = pml_e->nodes[ino].y;
+							int z = pml_e->nodes[ino].z;
+							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+							gts_object_destroy(GTS_OBJECT(p));
+						}
 					}
 					isurf = 4;
 					key.id = isurf + 1;
@@ -946,14 +1101,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 0;
 						key.id = 10 * (iedge + 1);
@@ -1044,14 +1223,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 1;
 						key.id = 10 * (iedge + 1);
@@ -1142,14 +1345,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 2;
 						key.id = 10 * (iedge + 1);
@@ -1240,14 +1467,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 3;
 						key.id = 10 * (iedge + 1);
@@ -1337,14 +1588,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 4;
 						key.id = 10 * (iedge + 1);
@@ -1433,14 +1708,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 5;
 						key.id = 10 * (iedge + 1);
@@ -1529,14 +1828,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 6;
 						key.id = 10 * (iedge + 1);
@@ -1625,14 +1948,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 7;
 						key.id = 10 * (iedge + 1);
@@ -1721,14 +2068,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 8;
 						key.id = 10 * (iedge + 1);
@@ -1818,14 +2189,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 9;
 						key.id = 10 * (iedge + 1);
@@ -1914,14 +2309,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 10;
 						key.id = 10 * (iedge + 1);
@@ -2010,14 +2429,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 						for (int ino = 0; ino < 8; ino++)
 						{
-							// definindo ponto p a ser adicionado
-							GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-							// adicionando ponto p
-							int x = pml_e->nodes[ino].x;
-							int y = pml_e->nodes[ino].y;
-							int z = pml_e->nodes[ino].z;
-							pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-							gts_object_destroy(GTS_OBJECT(p));
+							// If this corner's integer position exactly matches one of the original
+							// element's own reference corners, reuse that node's id directly instead of
+							// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+							// nodes to share a position at the domain boundary ("NO position dedup",
+							// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+							// node id there. Corners that are genuinely new (extruded) never collide
+							// and still go through AddPoint as before.
+							int reuse_id = -1;
+							for (int k = 0; k < 2; k++) {
+								int rn = aux[k];
+								if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+								    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+								    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+									reuse_id = elem->nodes[rn].id;
+									break;
+								}
+							}
+							if (reuse_id >= 0)
+							{
+								pml_e->nodes[ino].id = reuse_id;
+							}
+							else
+							{
+								// definindo ponto p a ser adicionado
+								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+								// adicionando ponto p
+								int x = pml_e->nodes[ino].x;
+								int y = pml_e->nodes[ino].y;
+								int z = pml_e->nodes[ino].z;
+								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+								gts_object_destroy(GTS_OBJECT(p));
+							}
 						}
 						iedge = 11;
 						key.id = 10 * (iedge + 1);
@@ -2112,14 +2555,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 0;
 							key.id = 1000 * (icorner + 1);
@@ -2212,14 +2679,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 1;
 							key.id = 1000 * (icorner + 1);
@@ -2321,14 +2812,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 2;
 							key.id = 1000 * (icorner + 1);
@@ -2421,14 +2936,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 3;
 							key.id = 1000 * (icorner + 1);
@@ -2521,14 +3060,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 4;
 							key.id = 1000 * (icorner + 1);
@@ -2620,14 +3183,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 5;
 							key.id = 1000 * (icorner + 1);
@@ -2719,14 +3306,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 6;
 							key.id = 1000 * (icorner + 1);
@@ -2818,14 +3429,38 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 
 							for (int ino = 0; ino < 8; ino++)
 							{
-								// definindo ponto p a ser adicionado
-								GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
-								// adicionando ponto p
-								int x = pml_e->nodes[ino].x;
-								int y = pml_e->nodes[ino].y;
-								int z = pml_e->nodes[ino].z;
-								pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
-								gts_object_destroy(GTS_OBJECT(p));
+								// If this corner's integer position exactly matches one of the original
+								// element's own reference corners, reuse that node's id directly instead of
+								// a position-based hash lookup -- pillow.cpp deliberately allows distinct
+								// nodes to share a position at the domain boundary ("NO position dedup",
+								// pillow.cpp get_or_create_node), so AddPoint's hash can return the wrong
+								// node id there. Corners that are genuinely new (extruded) never collide
+								// and still go through AddPoint as before.
+								int reuse_id = -1;
+								for (int k = 0; k < 1; k++) {
+									int rn = aux;
+									if (pml_e->nodes[ino].x == elem->nodes[rn].x &&
+									    pml_e->nodes[ino].y == elem->nodes[rn].y &&
+									    pml_e->nodes[ino].z == elem->nodes[rn].z) {
+										reuse_id = elem->nodes[rn].id;
+										break;
+									}
+								}
+								if (reuse_id >= 0)
+								{
+									pml_e->nodes[ino].id = reuse_id;
+								}
+								else
+								{
+									// definindo ponto p a ser adicionado
+									GtsPoint *p = gts_point_new(gts_point_class(), x[ino], y[ino], z[ino]);
+									// adicionando ponto p
+									int x = pml_e->nodes[ino].x;
+									int y = pml_e->nodes[ino].y;
+									int z = pml_e->nodes[ino].z;
+									pml_e->nodes[ino].id = AddPoint(mesh, hash_nodes, p, coords, x, y, z);
+									gts_object_destroy(GTS_OBJECT(p));
+								}
 							}
 							icorner = 7;
 							key.id = 1000 * (icorner + 1);

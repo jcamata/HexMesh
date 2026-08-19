@@ -1286,6 +1286,24 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 	// x+y+z+ = -36
 	// x-y+z+ = -37
 
+	// The "far" domain-boundary literals used below and further down (global face/edge/corner
+	// detection) used to be the hardcoded 3*mesh->ncellx / 3*mesh->ncelly / 3*mesh->max_z, which
+	// assumes nodes live at exactly 3x element-index resolution (true for the legacy
+	// movingNodes==0 path, which runs RedoNodeMapping's 4x/12x rescale first). For
+	// movingNodes==1 (DoOctree/MovingNodes/ApplyDoublePillowing), nodes are never put through
+	// that rescale and live at 2x resolution instead -- so the hardcoded 3x literal never
+	// matched any node, and every "+"/far-side face, edge, and corner (x+, y+, z==3*max_z)
+	// silently got zero elements while the "0"-side ones (scale-invariant) kept working.
+	// Compute the actual observed extent instead of assuming a fixed multiplier, so this works
+	// under either resolution convention.
+	int32_t x_hi = 0, y_hi = 0, z_hi = 0;
+	for (int ino = 0; ino < mesh->nodes.elem_count; ino++) {
+		octant_node_t *nd = (octant_node_t*) sc_array_index(&mesh->nodes, ino);
+		if (nd->x > x_hi) x_hi = nd->x;
+		if (nd->y > y_hi) y_hi = nd->y;
+		if (nd->z > z_hi) z_hi = nd->z;
+	}
+
 	bool deb = false;
 	bool clamped = true;
 	// vertex hash
@@ -1444,43 +1462,43 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 				elem->nodes[ino].color = -30;
 			}
 			// x+y-z- = -31
-			if (elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 0)
+			if (elem->nodes[ino].x == x_hi && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 0)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -31;
 			}
 			// x+y+z- = -32
-			if (elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 0)
+			if (elem->nodes[ino].x == x_hi && elem->nodes[ino].y == y_hi && elem->nodes[ino].z == 0)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -32;
 			}
 			// x-y+z- = -33
-			if (elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 0)
+			if (elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == y_hi && elem->nodes[ino].z == 0)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -33;
 			}
 			// x-y-z+ = -34
-			if (elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 3 * mesh->max_z)
+			if (elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == z_hi)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -34;
 			}
 			// x+y-z+ = -35
-			if (elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == 3 * mesh->max_z)
+			if (elem->nodes[ino].x == x_hi && elem->nodes[ino].y == mesh->y_start && elem->nodes[ino].z == z_hi)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -35;
 			}
 			// x+y+z+ = -36
-			if (elem->nodes[ino].x == mesh->x_end && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 3 * mesh->max_z)
+			if (elem->nodes[ino].x == x_hi && elem->nodes[ino].y == y_hi && elem->nodes[ino].z == z_hi)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -36;
 			}
 			// x-y+z+ = -37
-			if (elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == mesh->y_end && elem->nodes[ino].z == 3 * mesh->max_z)
+			if (elem->nodes[ino].x == mesh->x_start && elem->nodes[ino].y == y_hi && elem->nodes[ino].z == z_hi)
 			{
 				elem->nodes[ino].fixed = -1;
 				elem->nodes[ino].color = -37;
@@ -1490,7 +1508,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 
 	sc_array_init(&mesh->outsurf, sizeof(octant_t));
 	// id global exterior surface
-	// Deliberately 0/3*ncellx/3*ncelly literals here, NOT mesh->x_start/x_end/
+	// Deliberately 0/x_hi/y_hi/z_hi literals here, NOT mesh->x_start/x_end/
 	// y_start/y_end (used above for the "color" pass): PML must only be placed at
 	// the true exterior of the WHOLE simulation domain, never at an internal MPI
 	// partition seam between two ranks, so this pass needs the global bounds even
@@ -1515,8 +1533,8 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 
 		isurf = 1;
 		elem->surf[isurf].ext = false;
-		if (elem->nodes[FaceNodesMap[isurf][0]].x == 3 * mesh->ncellx && elem->nodes[FaceNodesMap[isurf][1]].x == 3 * mesh->ncellx &&
-			elem->nodes[FaceNodesMap[isurf][2]].x == 3 * mesh->ncellx && elem->nodes[FaceNodesMap[isurf][3]].x == 3 * mesh->ncellx)
+		if (elem->nodes[FaceNodesMap[isurf][0]].x == x_hi && elem->nodes[FaceNodesMap[isurf][1]].x == x_hi &&
+			elem->nodes[FaceNodesMap[isurf][2]].x == x_hi && elem->nodes[FaceNodesMap[isurf][3]].x == x_hi)
 		{
 			elem->surf[isurf].ext = true;
 			if (deb)
@@ -1537,8 +1555,8 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 
 		isurf = 3;
 		elem->surf[isurf].ext = false;
-		if (elem->nodes[FaceNodesMap[isurf][0]].y == 3 * mesh->ncelly && elem->nodes[FaceNodesMap[isurf][1]].y == 3 * mesh->ncelly &&
-			elem->nodes[FaceNodesMap[isurf][2]].y == 3 * mesh->ncelly && elem->nodes[FaceNodesMap[isurf][3]].y == 3 * mesh->ncelly)
+		if (elem->nodes[FaceNodesMap[isurf][0]].y == y_hi && elem->nodes[FaceNodesMap[isurf][1]].y == y_hi &&
+			elem->nodes[FaceNodesMap[isurf][2]].y == y_hi && elem->nodes[FaceNodesMap[isurf][3]].y == y_hi)
 		{
 			elem->surf[isurf].ext = true;
 			if (deb)
@@ -1559,8 +1577,8 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 
 		isurf = 5;
 		elem->surf[isurf].ext = false;
-		if (elem->nodes[FaceNodesMap[isurf][0]].z == 3 * mesh->max_z && elem->nodes[FaceNodesMap[isurf][1]].z == 3 * mesh->max_z &&
-			elem->nodes[FaceNodesMap[isurf][2]].z == 3 * mesh->max_z && elem->nodes[FaceNodesMap[isurf][3]].z == 3 * mesh->max_z)
+		if (elem->nodes[FaceNodesMap[isurf][0]].z == z_hi && elem->nodes[FaceNodesMap[isurf][1]].z == z_hi &&
+			elem->nodes[FaceNodesMap[isurf][2]].z == z_hi && elem->nodes[FaceNodesMap[isurf][3]].z == z_hi)
 		{
 			elem->surf[isurf].ext = true;
 			if (deb)
@@ -1633,7 +1651,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 
 		iedge = 1;
-		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == 3 * mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3 * mesh->ncellx)
+		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == x_hi && elem->nodes[EdgeVerticesMap[iedge][1]].x == x_hi)
 		{
 			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
 			{
@@ -1646,7 +1664,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 
 		iedge = 2;
-		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == 3 * mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3 * mesh->ncelly)
+		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == y_hi && elem->nodes[EdgeVerticesMap[iedge][1]].y == y_hi)
 		{
 			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].z == 0)
 			{
@@ -1685,7 +1703,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 
 		iedge = 5;
-		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == 3 * mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3 * mesh->ncellx)
+		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == x_hi && elem->nodes[EdgeVerticesMap[iedge][1]].x == x_hi)
 		{
 			if (elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
 			{
@@ -1698,9 +1716,9 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 
 		iedge = 6;
-		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == 3 * mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3 * mesh->ncelly)
+		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == y_hi && elem->nodes[EdgeVerticesMap[iedge][1]].y == y_hi)
 		{
-			if (elem->nodes[EdgeVerticesMap[iedge][0]].x == 3 * mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3 * mesh->ncellx)
+			if (elem->nodes[EdgeVerticesMap[iedge][0]].x == x_hi && elem->nodes[EdgeVerticesMap[iedge][1]].x == x_hi)
 			{
 				elem->edge[iedge].ref = true;
 				if (deb)
@@ -1713,7 +1731,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		iedge = 7;
 		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
 		{
-			if (elem->nodes[EdgeVerticesMap[iedge][0]].y == 3 * mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3 * mesh->ncelly)
+			if (elem->nodes[EdgeVerticesMap[iedge][0]].y == y_hi && elem->nodes[EdgeVerticesMap[iedge][1]].y == y_hi)
 			{
 				elem->edge[iedge].ref = true;
 				if (deb)
@@ -1726,7 +1744,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		iedge = 8;
 		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].y == 0)
 		{
-			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == 3 * mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3 * mesh->max_z)
+			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == z_hi && elem->nodes[EdgeVerticesMap[iedge][1]].z == z_hi)
 			{
 				elem->edge[iedge].ref = true;
 				if (deb)
@@ -1737,9 +1755,9 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 
 		iedge = 9;
-		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == 3 * mesh->ncellx && elem->nodes[EdgeVerticesMap[iedge][1]].x == 3 * mesh->ncellx)
+		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == x_hi && elem->nodes[EdgeVerticesMap[iedge][1]].x == x_hi)
 		{
-			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == 3 * mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3 * mesh->max_z)
+			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == z_hi && elem->nodes[EdgeVerticesMap[iedge][1]].z == z_hi)
 			{
 				elem->edge[iedge].ref = true;
 				if (deb)
@@ -1750,9 +1768,9 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		}
 
 		iedge = 10;
-		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == 3 * mesh->ncelly && elem->nodes[EdgeVerticesMap[iedge][1]].y == 3 * mesh->ncelly)
+		if (elem->nodes[EdgeVerticesMap[iedge][0]].y == y_hi && elem->nodes[EdgeVerticesMap[iedge][1]].y == y_hi)
 		{
-			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == 3 * mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3 * mesh->max_z)
+			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == z_hi && elem->nodes[EdgeVerticesMap[iedge][1]].z == z_hi)
 			{
 				elem->edge[iedge].ref = true;
 				if (deb)
@@ -1765,7 +1783,7 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 		iedge = 11;
 		if (elem->nodes[EdgeVerticesMap[iedge][0]].x == 0 && elem->nodes[EdgeVerticesMap[iedge][1]].x == 0)
 		{
-			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == 3 * mesh->max_z && elem->nodes[EdgeVerticesMap[iedge][1]].z == 3 * mesh->max_z)
+			if (elem->nodes[EdgeVerticesMap[iedge][0]].z == z_hi && elem->nodes[EdgeVerticesMap[iedge][1]].z == z_hi)
 			{
 				elem->edge[iedge].ref = true;
 				if (deb)

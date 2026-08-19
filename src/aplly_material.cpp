@@ -142,8 +142,6 @@ void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double>& coords)
 
 			gts_object_destroy(GTS_OBJECT(sb));
 			gts_object_destroy(GTS_OBJECT(seg));
-			gts_object_destroy(GTS_OBJECT(v1));
-			gts_object_destroy(GTS_OBJECT(v2));
 		}
 	}
 }
@@ -209,8 +207,6 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords) {
 
 			gts_object_destroy(GTS_OBJECT(sb));
 			gts_object_destroy(GTS_OBJECT(segments));
-			gts_object_destroy(GTS_OBJECT(v1));
-			gts_object_destroy(GTS_OBJECT(v2));
 			gts_object_destroy(GTS_OBJECT(point));
 		}
 
@@ -226,43 +222,49 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords) {
 			octant_t *elem[8];
 			bool valid_oct = true;
 
-			int mat1 = 0;
-			int mat2 = 0;
-			int color1 = 0;
-			int color2 = 0;
 			for(int iel = 0; iel < 8; iel++){
 				if (oct->id[iel] < 0 || oct->id[iel] >= mesh->elements.elem_count) {
 					valid_oct = false;
 					break;
 				}
 				elem[iel] = (octant_t *)sc_array_index(&mesh->elements,oct->id[iel]);
-
-				if(elem[iel]->n_mat == 0) mat1++;
-				if(elem[iel]->n_mat == 1) mat2++;
-
-				if(elem[iel]->nodes[iel].color == 1) color1++;
-				if(elem[iel]->nodes[iel].color == 2) color2++;
 			}
 			if (!valid_oct) continue;
 
-			if((mat1 == color1 || mat1 == color2) && (mat2 == color1 || mat2 == color2)){
+			// Positional check: n_mat and color must agree on WHICH corner is which side, not
+			// just how many of each (an aggregate-count match doesn't rule out a scrambled
+			// element-to-color correspondence). color's 1/2 labels are arbitrary relative to
+			// n_mat's 0/1 (GetOctreeBipartition always starts its BFS labeling at corner 0, see
+			// moving_nodes.cpp), so try both label mappings before declaring a mismatch.
+			// Elements with n_mat outside {0,1} (multi-material octree corners) never match this
+			// binary color scheme and always fall through to the per-corner recompute below.
+			bool consistent = false;
+			for (int swap = 0; swap < 2 && !consistent; swap++) {
+				bool ok = true;
+				for (int iel = 0; iel < 8; iel++) {
+					if (elem[iel]->n_mat != 0 && elem[iel]->n_mat != 1) { ok = false; break; }
+					int expect_color = (elem[iel]->n_mat == 0) == (swap == 0) ? 1 : 2;
+					if (elem[iel]->nodes[iel].color != expect_color) { ok = false; break; }
+				}
+				consistent = ok;
+			}
+
+			if(consistent){
 
 			}else{
-				//division in a z-plane
-				if((elem[0]->nodes[0].color == 1 && elem[1]->nodes[1].color == 1 &&
-						elem[2]->nodes[2].color == 1 && elem[3]->nodes[3].color == 1 ) &&
-						(elem[4]->nodes[4].color == 2 && elem[5]->nodes[5].color == 2 &&
-								elem[6]->nodes[6].color == 2 && elem[7]->nodes[7].color == 2)){
-					elem[0]->n_mat = 1;
-					elem[1]->n_mat = 1;
-					elem[2]->n_mat = 1;
-					elem[3]->n_mat = 1;
-
-					elem[4]->n_mat = 0;
-					elem[5]->n_mat = 0;
-					elem[6]->n_mat = 0;
-					elem[7]->n_mat = 0;
-				}else{
+				// Previously: a "clean top/bottom split" color pattern short-circuited straight to a
+				// hardcoded n_mat assignment (corners 0-3 -> 1, corners 4-7 -> 0), skipping the
+				// geometric ray-cast below entirely. That assumed a fixed top/bottom <-> corner-index
+				// correspondence, but (a) z orientation is inverted in this mesh (see h5 node reorder
+				// {4,5,6,7,0,1,2,3} in the output writer) so "corners 0-3" isn't reliably one physical
+				// side, and (b) `.color` comes from ClassifyOctreeCorners, which runs on PRE-warp
+				// coordinates (moving_nodes.cpp's MovingNodes calls it right after DoOctree, before
+				// WarpLatticeToCoastline/ProjectFreeNodes move nodes toward the real coastline) --
+				// exactly the octants near the real, non-flat interface can look like a clean split in
+				// that stale color topology while the POST-warp geometry (what n_mat should reflect)
+				// no longer agrees. Always verify against current geometry instead of trusting the
+				// color pattern's shape.
+				{
 					for(int iel = 0; iel < 8; iel++){
 						int node = elem[iel]->nodes[iel].id;
 						if (node < 0 || (3 * node + 2) >= (int) coords.size()) {
@@ -304,8 +306,6 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords) {
 
 						gts_object_destroy(GTS_OBJECT(sb));
 						gts_object_destroy(GTS_OBJECT(segments));
-						gts_object_destroy(GTS_OBJECT(v1));
-						gts_object_destroy(GTS_OBJECT(v2));
 					}
 				}
 			}

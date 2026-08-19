@@ -864,8 +864,14 @@ static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coord
 					: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
 				if (!q) continue;
 				double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
-				if (!pt || d < best) { pt = q; best = d; }
+				if (!pt || d < best) { if (pt) gts_object_destroy(GTS_OBJECT(pt)); pt = q; best = d; }
+				else gts_object_destroy(GTS_OBJECT(q));
 			}
+			if (list) g_slist_free(list);
+
+			gts_object_destroy(GTS_OBJECT(bb));
+			gts_object_destroy(GTS_OBJECT(seg));
+
 			if (!pt) continue;
 
 			// the two inner nodes of this octree edge share the midpoint column
@@ -879,6 +885,7 @@ static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coord
 				ay[c] += pt->y - coords[3*nd->id+1];
 				an[c]++;
 			}
+			gts_object_destroy(GTS_OBJECT(pt));
 		}
 	}
 
@@ -928,11 +935,8 @@ static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coord
 		if (m > umax) umax = m;
 		if (m > lim) { ux[c] *= lim/m; uy[c] *= lim/m; n_clamped++; }
 	}
-	const double scale = 1.0;
-
 	// --- Phase 3: apply, then re-sample z -------------------------------------
 	double zmin = -mesh->input.z;
-	GtsPoint *p = gts_point_new(gts_point_class(), 0.0, 0.0, mesh->tdata.bbox->z2);
 	std::vector<double> zmax_col(ncol, 0.0);
 	std::vector<char> have_z(ncol, 0);
 
@@ -940,14 +944,24 @@ static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coord
 		octant_node_t *n = (octant_node_t*) sc_array_index(&mesh->nodes, i);
 		if (n->x < 0 || n->x >= nx || n->y < 0 || n->y >= ny) continue;
 		size_t c = COL(n->x, n->y);
-		coords[3*n->id+0] += scale * ux[c];
-		coords[3*n->id+1] += scale * uy[c];
+		coords[3*n->id+0] += ux[c];
+		coords[3*n->id+1] += uy[c];
 
 		if (!have_z[c]) {
-			p->x = coords[3*n->id+0];
-			p->y = coords[3*n->id+1];
-			p->z = mesh->tdata.bbox->z2;
-			zmax_col[c] = mesh->tdata.bbox->z2 - gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
+			double zmax;
+			// Vertical ray-cast: the true surface height under (x, y), via the
+			// same helper GetMeshFromSurface uses -- not the nearest-point
+			// Euclidean distance, which is wrong on steep slopes and
+			// near-vertical walls (e.g. a coastline).
+			if (!eval_gts_height(mesh, 1000, coords[3*n->id+0], coords[3*n->id+1], zmax)) {
+				GtsPoint *p = gts_point_new(gts_point_class(), coords[3*n->id+0], coords[3*n->id+1], mesh->tdata.bbox->z2);
+				double d = gts_bb_tree_point_distance(mesh->tdata.bbt, p, distance, NULL);
+				zmax = mesh->tdata.bbox->z2 - d;
+				gts_object_destroy(GTS_OBJECT(p));
+				printf("    Lattice warp: vertical ray missed topo surface at (%f, %f); "
+				       "using nearest-point fallback\n", coords[3*n->id+0], coords[3*n->id+1]);
+			}
+			zmax_col[c] = zmax;
 			have_z[c] = 1;
 		}
 		double dz = (zmax_col[c] - zmin) / (double) mesh->ncellz;
@@ -1117,17 +1131,23 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 							: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
 						if (!q) continue;
 						double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
-						if (!pt || d < best) { pt = q; best = d; }
+						if (!pt || d < best) { if (pt) gts_object_destroy(GTS_OBJECT(pt)); pt = q; best = d; }
+						else gts_object_destroy(GTS_OBJECT(q));
 					}
 					if (list) g_slist_free(list);
 				}
 			}
+
+			gts_object_destroy(GTS_OBJECT(bb));
+			gts_object_destroy(GTS_OBJECT(seg));
+
 			if (!pt) continue;
 
 			// Each edge is shared between elem0 (inner node = vertex[1]) and
 			// elem1 (inner node = vertex[0]); both get snapped to the same point.
 			record(elem0->nodes[EdgeVerticesMap[iedge][1]].id, pt->x, pt->y, pt->z);
 			record(elem1->nodes[EdgeVerticesMap[iedge][0]].id, pt->x, pt->y, pt->z);
+			gts_object_destroy(GTS_OBJECT(pt));
 		}
 	}
 	flush();
@@ -1181,24 +1201,35 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 			GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
 			GtsBBox *bb = gts_bbox_segment(gts_bbox_class(), seg);
 
+			// Same rationale as Pass 1: keep the candidate nearest the diagonal's
+			// midpoint, not whichever the bb-tree happens to return first.
 			GtsPoint *pt = NULL;
-			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
-				if (!mesh->gdata_vec[k].bbt) continue;
-				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
-				while (list) {
-					GtsBBox *b = GTS_BBOX(list->data);
-					pt = mesh->input.CgalUse
-						? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-						: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
-					if (pt) break;
-					list = list->next;
+			{
+				const double mx = 0.5*(x1+x2), my = 0.5*(y1+y2), mz = 0.5*(z1+z2);
+				double best = 0.0;
+				for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+					if (!mesh->gdata_vec[k].bbt) continue;
+					GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
+					for (GSList *l = list; l; l = l->next) {
+						GtsBBox *b = GTS_BBOX(l->data);
+						GtsPoint *q = mesh->input.CgalUse
+							? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+							: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+						if (!q) continue;
+						double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
+						if (!pt || d < best) { if (pt) gts_object_destroy(GTS_OBJECT(pt)); pt = q; best = d; }
+						else gts_object_destroy(GTS_OBJECT(q));
+					}
+					if (list) g_slist_free(list);
 				}
-				if (list) g_slist_free(list);
-				if (pt) break;
 			}
+
+			gts_object_destroy(GTS_OBJECT(bb));
+			gts_object_destroy(GTS_OBJECT(seg));
 
 			if (!pt) { face_centroid_fallback(); continue; }
 			record(center, pt->x, pt->y, pt->z);
+			gts_object_destroy(GTS_OBJECT(pt));
 		}
 	}
 	flush();
@@ -1238,21 +1269,31 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
 		GtsBBox *bb = gts_bbox_segment(gts_bbox_class(), seg);
 
+		// Same rationale as Pass 1: keep the candidate nearest the diagonal's
+		// midpoint, not whichever the bb-tree happens to return first.
 		GtsPoint *pt = NULL;
-		for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
-			if (!mesh->gdata_vec[k].bbt) continue;
-			GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
-			while (list) {
-				GtsBBox *b = GTS_BBOX(list->data);
-				pt = mesh->input.CgalUse
-					? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
-					: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
-				if (pt) break;
-				list = list->next;
+		{
+			const double mx = 0.5*(x1+x2), my = 0.5*(y1+y2), mz = 0.5*(z1+z2);
+			double best = 0.0;
+			for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+				if (!mesh->gdata_vec[k].bbt) continue;
+				GSList *list = gts_bb_tree_overlap(mesh->gdata_vec[k].bbt, bb);
+				for (GSList *l = list; l; l = l->next) {
+					GtsBBox *b = GTS_BBOX(l->data);
+					GtsPoint *q = mesh->input.CgalUse
+						? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+						: SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+					if (!q) continue;
+					double d = (q->x-mx)*(q->x-mx) + (q->y-my)*(q->y-my) + (q->z-mz)*(q->z-mz);
+					if (!pt || d < best) { if (pt) gts_object_destroy(GTS_OBJECT(pt)); pt = q; best = d; }
+					else gts_object_destroy(GTS_OBJECT(q));
+				}
+				if (list) g_slist_free(list);
 			}
-			if (list) g_slist_free(list);
-			if (pt) break;
 		}
+
+		gts_object_destroy(GTS_OBJECT(bb));
+		gts_object_destroy(GTS_OBJECT(seg));
 
 		if (!pt) {
 			double xx = 0, yy = 0, zz = 0; int count = 0;
@@ -1266,6 +1307,7 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 			continue;
 		}
 		record(center_node, pt->x, pt->y, pt->z);
+		gts_object_destroy(GTS_OBJECT(pt));
 	}
 	flush();
 
@@ -1422,27 +1464,23 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	}
 	printf(" Total of %d fixed nodes\n", (int)nodes_b_mat.size());
 
-	// Assign node colors: propagate material-side label across octree cut edges.
+	// Assign node colors: verified 2-coloring of the octree's cut-edge pattern via
+	// GetOctreeBipartition (moving_nodes.cpp:771), the same routine ProjectFreeNodes's own
+	// Pass 2/3 already trust. The previous ad-hoc propagation here iterated corners in a
+	// fixed 0..7 order and, on every non-cut edge, unconditionally overwrote the neighbour's
+	// color with its own -- with no contradiction check, unlike GetOctreeBipartition's BFS
+	// (which explicitly rejects an inconsistent cut pattern). It could silently produce a
+	// self-inconsistent coloring for a cube-graph cut pattern GetOctreeBipartition would have
+	// refused. Apply_material's octree-corner consistency check trusts these colors, so an
+	// inconsistent one undermines that check regardless of how it compares mat vs. color.
 	for (int ioc = 0; ioc < mesh->oct.elem_count; ioc++) {
 		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
-		if (!IsCompleteOctree(oct)) continue;   // oct->id[iel] == -1 would index before the array
-		octant_t *elems[8];
-		for (int iel = 0; iel < 8; iel++)
-			elems[iel] = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
-
-		for (int ino = 0; ino < 8; ino++) {
-			for (int k = 0; k < 3; k++) {
-				int nb = OctNeighbourMap[ino][k];
-				if (!oct->edge[VertexEdgeMap[ino][k]]) {
-					if (elems[ino]->nodes[ino].color == -1)
-						elems[ino]->nodes[ino].color = 1;
-					elems[nb]->nodes[nb].color = elems[ino]->nodes[ino].color;
-				} else {
-					if (elems[ino]->nodes[ino].color != 2 &&
-							elems[nb]->nodes[nb].color == -1)
-						elems[nb]->nodes[nb].color = 2;
-				}
-			}
+		if (!IsCompleteOctree(oct) || !IsOctreeCutPatternRegular(oct)) continue; // matches the 3 sibling GetOctreeBipartition call sites in this file
+		int B[8];
+		if (!GetOctreeBipartition(oct, B)) continue;   // inconsistent cut pattern -- leave colors unset
+		for (int iel = 0; iel < 8; iel++) {
+			octant_t *elem = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
+			elem->nodes[iel].color = B[iel] ? 2 : 1;
 		}
 	}
 }

@@ -58,7 +58,12 @@ int main(int argc, char **argv) {
   topo = mesh.input.topo.c_str();
   bathy = mesh.input.inter.c_str();
   printf("GetMeshFromSurface\n");
-  printf("Loading files:\n \t %s \n \t %s \n", bathy, topo);
+  printf("Loading files:\n \t %s \n", topo);
+  if (mesh.input.inter_files.empty()) {
+    printf(" \t %s \n", bathy);
+  } else {
+    for (const auto &f : mesh.input.inter_files) printf(" \t %s \n", f.c_str());
+  }
   start = std::chrono::steady_clock::now();
   // Note that here we use a gts file.
   // There is a tool called stl2gts that convert STL files to GTS.
@@ -149,12 +154,17 @@ int main(int argc, char **argv) {
     // do nothing
   } else {
     // add pml
+    // SurfaceIdentification populates mesh->outsurf (ExtrudePMLElements' only source of
+    // elements to extrude) and tags domain-boundary node colors ExtrudePMLElements reads
+    // directly -- required regardless of movingNodes. RedoNodeMapping's integer-lattice
+    // rescale is legacy setup for the old PillowingInterface() pillow path (now dead code,
+    // ApplyDoublePillowing replaced it for movingNodes==1) and SurfaceIdentification's own
+    // domain-boundary check (node.x == 3*mesh->ncellx) is scale-invariant under that rescale,
+    // so it is not needed here.
     if (mesh.input.movingNodes == 0) {
       RedoNodeMapping(&mesh);
-      SurfaceIdentification(&mesh, coords);
-    } else {
-      // do nothing
     }
+    SurfaceIdentification(&mesh, coords);
     start = std::chrono::steady_clock::now();
     printf(" Extrude elements\n\n");
     ExtrudePMLElements(&mesh, coords);

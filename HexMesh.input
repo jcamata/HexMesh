@@ -1,15 +1,14 @@
 # topo file
 # topo = ./input/MaunaLoaGEBCO_topo.gts 
 topo = ./input/ArgostoliGEBCO_topo.gts
-# topo = ./input/JapanEBCO_topo.gts 
+# topo = ./input/JapanEBCO_topo.gts
+# topo = ./input/Lore_topography.gts 
+# topo = ./input/GiensVadim_topo.gts
 # topo = ./input/plane_z10.gts
 # number of interfaces
-interfaceNumber = 1 #only zero or one interface is admitted now
-# inter = ./input/MaunaLoaGEBCO_bathy.gts 
+interfaceNumber = 2
 inter = ./input/ArgostoliGEBCO_bathy.gts
-# inter = ./input/JapanEBCO_bathy.gts 
-# inter = ./input/plane_z5.gts
-# it should change when more than one interface is allowed
+inter = ./input/flat_layer_z-50000.gts
 
 # refinement level
 ref = 4 # the mesh is a cube with 2*3^ref elements in x and y coord
@@ -18,20 +17,22 @@ ref = 4 # the mesh is a cube with 2*3^ref elements in x and y coord
 # example : ref = 5, nel = 8,079,264
 
 # depth of the model
-z = 75000
+z = 100000
 # it should be function in the near future
 # the depth for changes from 3->1 elements 
-zcuts = 10000; 20000; 30000 
+zcuts = 10000; 30000; 40000 
 
 # move nodes in smart octree 
 movingNodes = 1 # zero to dont apply and 1 to apply
 
 # Material definition
 # number of materials
-nmat = 2
+nmat = 3
 #define material 1
 S 6300 2300 5000 #solid vp(m/s) vs(m/s) rho(kg/m^3)
-#define mateial 2
+#define material 2
+S 7000 3500 5500 #solid vp(m/s) vs(m/s) rho(kg/m^3)
+#define mateial 3
 F 1500 0 1000 #fluid vp(m/s) vs(m/s) rho(kg/m^3)
 
 #PML def

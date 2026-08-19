@@ -543,8 +543,6 @@ void GetInterceptedElements(hexa_tree_t *mesh, std::vector<double> &coords, std:
             if (point[edge]) gts_object_destroy(GTS_OBJECT(point[edge]));
             gts_object_destroy(GTS_OBJECT(sb));
             gts_object_destroy(GTS_OBJECT(segments[edge]));
-            gts_object_destroy(GTS_OBJECT(v1));
-            gts_object_destroy(GTS_OBJECT(v2));
         }
         // printf("\n");
 

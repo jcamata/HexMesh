@@ -118,14 +118,15 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	int min_gz = 0;
 	int max_gz = 3 * mesh->max_z * N_FACTOR;
 
-	// Structure to store interface quad face info
+	// Structure to store interface quad face info. A and B are the two materials
+	// meeting at this quad, oriented deterministically by n_mat (A = lower value)
+	// so run-to-run output doesn't depend on element scan order.
 	typedef struct {
-		int elem0_id; // Material 0 element
-		int elem1_id; // Material 1 element
-		int face0;    // face index in elem0
-		int face1;    // face index in elem1
-		int quad_nodes[4]; // global node IDs of the quad
-		int normal[3]; // face normal vector (nx, ny, nz) pointing from Mat 0 to Mat 1
+		int elemA_id, elemB_id; // the two elements on either side
+		int matA, matB;         // their actual materials (matA < matB)
+		int faceA, faceB;       // face index in elemA / elemB
+		int quad_nodes[4];      // global node IDs of the quad
+		int normal[3]; // face normal vector (nx, ny, nz) pointing from the A side to the B side
 	} interface_quad_t;
 
 	std::vector<interface_quad_t> interface_quads;
@@ -178,7 +179,23 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			if (flip.empty()) break;
 			for (int iel : flip) {
 				octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
-				elem->n_mat = (elem->n_mat == 0) ? 1 : 0;
+				// Reassign to whichever material is the majority among the (up to 6)
+				// face neighbours, ties broken by lowest n_mat -- a fixed 0<->1 toggle
+				// only makes sense with exactly two materials.
+				std::unordered_map<int,int> count;
+				for (int f = 0; f < 6; f++) {
+					int j = nb[iel][f];
+					if (j < 0) continue;
+					octant_t *o = (octant_t *) sc_array_index(&mesh->elements, j);
+					count[o->n_mat]++;
+				}
+				int best_mat = elem->n_mat, best_count = -1;
+				for (auto &kv : count) {
+					if (kv.second > best_count || (kv.second == best_count && kv.first < best_mat)) {
+						best_count = kv.second; best_mat = kv.first;
+					}
+				}
+				elem->n_mat = best_mat;
 			}
 			nflip_total += (int)flip.size();
 		}
@@ -203,28 +220,30 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 				fmap[key] = { iel, iface };
 			} else {
 				octant_t *prev_elem = (octant_t *) sc_array_index(&mesh->elements, it->second.elem_id);
-				bool cur0 = (elem->n_mat == 0);
-				bool prev0 = (prev_elem->n_mat == 0);
-				if (cur0 != prev0) {
+				if (elem->n_mat != prev_elem->n_mat) {
 					interface_quad_t quad;
-					if (cur0) {
-						quad.elem0_id = elem->id;
-						quad.elem1_id = prev_elem->id;
-						quad.face0 = iface;
-						quad.face1 = it->second.face_idx;
+					// Lower n_mat is always "A", regardless of scan order -- keeps
+					// interface_quads (and everything derived from it) reproducible
+					// across runs of the same input.
+					bool curA = (elem->n_mat < prev_elem->n_mat);
+					if (curA) {
+						quad.elemA_id = elem->id;      quad.matA = elem->n_mat;
+						quad.elemB_id = prev_elem->id; quad.matB = prev_elem->n_mat;
+						quad.faceA = iface;
+						quad.faceB = it->second.face_idx;
 					} else {
-						quad.elem0_id = prev_elem->id;
-						quad.elem1_id = elem->id;
-						quad.face0 = it->second.face_idx;
-						quad.face1 = iface;
+						quad.elemA_id = prev_elem->id; quad.matA = prev_elem->n_mat;
+						quad.elemB_id = elem->id;      quad.matB = elem->n_mat;
+						quad.faceA = it->second.face_idx;
+						quad.faceB = iface;
 					}
-					quad.normal[0] = FaceNormal[quad.face0][0];
-					quad.normal[1] = FaceNormal[quad.face0][1];
-					quad.normal[2] = FaceNormal[quad.face0][2];
+					quad.normal[0] = FaceNormal[quad.faceA][0];
+					quad.normal[1] = FaceNormal[quad.faceA][1];
+					quad.normal[2] = FaceNormal[quad.faceA][2];
 
-					octant_t *e0 = (octant_t *) sc_array_index(&mesh->elements, quad.elem0_id);
+					octant_t *eA = (octant_t *) sc_array_index(&mesh->elements, quad.elemA_id);
 					for (int n = 0; n < 4; n++) {
-						quad.quad_nodes[n] = e0->nodes[FaceNodesMap[quad.face0][n]].id;
+						quad.quad_nodes[n] = eA->nodes[FaceNodesMap[quad.faceA][n]].id;
 					}
 					interface_quads.push_back(quad);
 				}
@@ -293,14 +312,19 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		return new_id;
 	};
 
-	// 4. Map every interface node to Mat 0 and Mat 1 buffer nodes using primary face normal
-	std::unordered_map<int, int> pillow_map_mat0;
-	std::unordered_map<int, int> pillow_map_mat1;
+	// 4. Map every interface node, per material side it borders, to its buffer node.
+	// Keyed by (node id, material id) instead of a fixed mat0/mat1 pair, so a node
+	// sitting at a junction of 3+ materials gets one buffer per material side, not
+	// just two.
+	auto pillow_key = [](int node_id, int mat_id) -> int64_t {
+		return ((int64_t)node_id << 32) | (uint32_t)mat_id;
+	};
+	std::unordered_map<int64_t, int> pillow_map;
 
-	// Pass A: accumulate, per interface node and per material side, the interior
-	// offset (interior-minus-interface) over ALL incident interface faces.
-	// {sum_x, sum_y, sum_z, count, sum_magnitude}.
-	std::unordered_map<int, std::array<double,5>> acc0, acc1;
+	// Pass A: accumulate, per (interface node, material side), the interior
+	// offset (interior-minus-interface) over ALL incident interface faces that
+	// border that material. {sum_x, sum_y, sum_z, count, sum_magnitude}.
+	std::unordered_map<int64_t, std::array<double,5>> acc;
 	auto accumulate = [&](std::array<double,5>& a, int inode, int nid) {
 		double dx=coords[3*inode+0]-coords[3*nid+0];
 		double dy=coords[3*inode+1]-coords[3*nid+1];
@@ -308,28 +332,33 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		a[0]+=dx; a[1]+=dy; a[2]+=dz; a[3]+=1.0; a[4]+=std::sqrt(dx*dx+dy*dy+dz*dz);
 	};
 	for (auto &q : interface_quads) {
-		octant_t *e0 = (octant_t *) sc_array_index(&mesh->elements, q.elem0_id);
-		octant_t *e1 = (octant_t *) sc_array_index(&mesh->elements, q.elem1_id);
+		octant_t *eA = (octant_t *) sc_array_index(&mesh->elements, q.elemA_id);
+		octant_t *eB = (octant_t *) sc_array_index(&mesh->elements, q.elemB_id);
 		for (int n = 0; n < 4; n++) {
 			int nid = q.quad_nodes[n];
-			accumulate(acc0[nid], e0->nodes[FaceNodesMap_inv[q.face0][n]].id, nid);
-			accumulate(acc1[nid], e1->nodes[FaceNodesMap_inv[q.face1][n]].id, nid);
+			accumulate(acc[pillow_key(nid, q.matA)], eA->nodes[FaceNodesMap_inv[q.faceA][n]].id, nid);
+			accumulate(acc[pillow_key(nid, q.matB)], eB->nodes[FaceNodesMap_inv[q.faceB][n]].id, nid);
 		}
 	}
 
-	// Warn only. An interface node whose incident quad normals span opposing axes
-	// (+x and -x, ...) has an EMPTY feasible cone: no single shared buffer offset
-	// can keep every incident pillow hex valid, and no untangling recovers it.
-	// The despeckle above is what clears these; a nonzero count means it missed
-	// one and some pillow hexes will stay inverted.
+	// Warn only. A (node, material) side whose incident quad normals span opposing
+	// axes (+x and -x, ...) has an EMPTY feasible cone: no single shared buffer
+	// offset can keep every incident pillow hex valid, and no untangling recovers
+	// it. Keyed per material, not just per node, so an unrelated material pair
+	// meeting at the same corner doesn't trigger a false positive. The despeckle
+	// above is what clears these; a nonzero count means it missed one and some
+	// pillow hexes will stay inverted.
 	{
-		std::unordered_map<int, uint8_t> nrm_mask;   // bits: +x -x +y -y +z -z
+		std::unordered_map<int64_t, uint8_t> nrm_mask;   // bits: +x -x +y -y +z -z
 		for (auto &q : interface_quads) {
 			uint8_t b = 0;
 			if (q.normal[0] > 0) b |= 1; if (q.normal[0] < 0) b |= 2;
 			if (q.normal[1] > 0) b |= 4; if (q.normal[1] < 0) b |= 8;
 			if (q.normal[2] > 0) b |= 16; if (q.normal[2] < 0) b |= 32;
-			for (int n = 0; n < 4; n++) nrm_mask[q.quad_nodes[n]] |= b;
+			for (int n = 0; n < 4; n++) {
+				nrm_mask[pillow_key(q.quad_nodes[n], q.matA)] |= b;
+				nrm_mask[pillow_key(q.quad_nodes[n], q.matB)] |= b;
+			}
 		}
 		int nopp = 0;
 		for (auto &kv : nrm_mask) {
@@ -337,7 +366,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			if (((m & 3) == 3) || ((m & 12) == 12) || ((m & 48) == 48)) nopp++;
 		}
 		if (nopp > 0)
-			printf("    WARNING: %d / %zu interface nodes have opposing quad normals "
+			printf("    WARNING: %d / %zu (node, material) sides have opposing quad normals "
 			       "(empty feasible cone) -- their pillow hexes cannot all be valid\n",
 			       nopp, nrm_mask.size());
 	}
@@ -356,8 +385,8 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		return { (double)sgn*nx*mag, (double)sgn*ny*mag, (double)sgn*nz*mag };
 	};
 
-	// Pass B: create one shared buffer node per interface node per side (keeps
-	// the mesh conforming: no hanging nodes).
+	// Pass B: create one shared buffer node per interface node per material side
+	// it borders (keeps the mesh conforming: no hanging nodes).
 	for (auto &q : interface_quads) {
 		int nx = q.normal[0];
 		int ny = q.normal[1];
@@ -365,41 +394,32 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 
 		for (int n = 0; n < 4; n++) {
 			int orig_nid = q.quad_nodes[n];
-			if (pillow_map_mat0.find(orig_nid) == pillow_map_mat0.end()) {
-				std::array<double,3> o0 = avg_offset(acc0[orig_nid], -1, nx, ny, nz);
-				std::array<double,3> o1 = avg_offset(acc1[orig_nid], +1, nx, ny, nz);
-				pillow_map_mat0[orig_nid] = get_or_create_node(orig_nid, -nx, -ny, -nz, o0[0], o0[1], o0[2]);
-				pillow_map_mat1[orig_nid] = get_or_create_node(orig_nid, +nx, +ny, +nz, o1[0], o1[1], o1[2]);
+			int64_t keyA = pillow_key(orig_nid, q.matA);
+			if (pillow_map.find(keyA) == pillow_map.end()) {
+				std::array<double,3> oA = avg_offset(acc[keyA], -1, nx, ny, nz);
+				pillow_map[keyA] = get_or_create_node(orig_nid, -nx, -ny, -nz, oA[0], oA[1], oA[2]);
+			}
+			int64_t keyB = pillow_key(orig_nid, q.matB);
+			if (pillow_map.find(keyB) == pillow_map.end()) {
+				std::array<double,3> oB = avg_offset(acc[keyB], +1, nx, ny, nz);
+				pillow_map[keyB] = get_or_create_node(orig_nid, +nx, +ny, +nz, oB[0], oB[1], oB[2]);
 			}
 		}
 	}
 
 	// 5. Global Element Remapping for Conformity (NO HANGING NODES)
-	// Remap ALL original elements in Mat 0 and Mat 1 to point to their buffer nodes
+	// Remap every original element to its (node, n_mat) buffer, whatever n_mat is.
 	size_t n_orig_elems = mesh->elements.elem_count;
 	for (size_t iel = 0; iel < n_orig_elems; iel++) {
 		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
-		if (elem->n_mat == 0) {
-			for (int ino = 0; ino < 8; ino++) {
-				auto it = pillow_map_mat0.find(elem->nodes[ino].id);
-				if (it != pillow_map_mat0.end()) {
-					elem->nodes[ino].id = it->second;
-					octant_node_t *pn = (octant_node_t *) sc_array_index(&mesh->nodes, it->second);
-					elem->nodes[ino].x = pn->x;
-					elem->nodes[ino].y = pn->y;
-					elem->nodes[ino].z = pn->z;
-				}
-			}
-		} else if (elem->n_mat == 1) {
-			for (int ino = 0; ino < 8; ino++) {
-				auto it = pillow_map_mat1.find(elem->nodes[ino].id);
-				if (it != pillow_map_mat1.end()) {
-					elem->nodes[ino].id = it->second;
-					octant_node_t *pn = (octant_node_t *) sc_array_index(&mesh->nodes, it->second);
-					elem->nodes[ino].x = pn->x;
-					elem->nodes[ino].y = pn->y;
-					elem->nodes[ino].z = pn->z;
-				}
+		for (int ino = 0; ino < 8; ino++) {
+			auto it = pillow_map.find(pillow_key(elem->nodes[ino].id, elem->n_mat));
+			if (it != pillow_map.end()) {
+				elem->nodes[ino].id = it->second;
+				octant_node_t *pn = (octant_node_t *) sc_array_index(&mesh->nodes, it->second);
+				elem->nodes[ino].x = pn->x;
+				elem->nodes[ino].y = pn->y;
+				elem->nodes[ino].z = pn->z;
 			}
 		}
 	}
@@ -409,68 +429,68 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	for (size_t iq = 0; iq < interface_quads.size(); iq++) {
 		interface_quad_t q = interface_quads[iq];
 
-		int mat0_nodes[4], mat1_nodes[4];
+		int matA_nodes[4], matB_nodes[4];
 		for (int n = 0; n < 4; n++) {
 			int orig_nid = q.quad_nodes[n];
-			mat0_nodes[n] = pillow_map_mat0[orig_nid];
-			mat1_nodes[n] = pillow_map_mat1[orig_nid];
+			matA_nodes[n] = pillow_map[pillow_key(orig_nid, q.matA)];
+			matB_nodes[n] = pillow_map[pillow_key(orig_nid, q.matB)];
 		}
 
-		// Create Pillow Element 0 (Mat 0 side)
-		octant_t *elem0 = (octant_t *) sc_array_index(&mesh->elements, q.elem0_id);
-		int8_t lvl0 = elem0->level;
-		int32_t ex0 = elem0->x, ey0 = elem0->y, ez0 = elem0->z;
+		// Create Pillow Element A (matA side)
+		octant_t *elemA = (octant_t *) sc_array_index(&mesh->elements, q.elemA_id);
+		int8_t lvlA = elemA->level;
+		int32_t exA = elemA->x, eyA = elemA->y, ezA = elemA->z;
 
-		octant_t *pelem0 = (octant_t *) sc_array_push(&mesh->elements);
-		memset(pelem0, 0, sizeof(octant_t));
-		pelem0->id = (int64_t)(mesh->elements.elem_count - 1);
-		pelem0->n_mat = 0;
-		pelem0->level = lvl0;
-		pelem0->x = ex0; pelem0->y = ey0; pelem0->z = ez0;
+		octant_t *pelemA = (octant_t *) sc_array_push(&mesh->elements);
+		memset(pelemA, 0, sizeof(octant_t));
+		pelemA->id = (int64_t)(mesh->elements.elem_count - 1);
+		pelemA->n_mat = q.matA;
+		pelemA->level = lvlA;
+		pelemA->x = exA; pelemA->y = eyA; pelemA->z = ezA;
 
 		// Exact 3D Topological Assignment using FaceNodesMap and FaceNodesMap_inv
 		for (int k = 0; k < 4; k++) {
-			int lo = FaceNodesMap[q.face0][k];     // face nodes (original interface)
-			int li = FaceNodesMap_inv[q.face0][k]; // opposite face nodes (Mat 0 buffer)
+			int lo = FaceNodesMap[q.faceA][k];     // face nodes (original interface)
+			int li = FaceNodesMap_inv[q.faceA][k]; // opposite face nodes (matA buffer)
 
-			pelem0->nodes[lo].id = q.quad_nodes[k];
+			pelemA->nodes[lo].id = q.quad_nodes[k];
 			octant_node_t *n_lo = (octant_node_t *) sc_array_index(&mesh->nodes, q.quad_nodes[k]);
-			pelem0->nodes[lo].x = n_lo->x; pelem0->nodes[lo].y = n_lo->y; pelem0->nodes[lo].z = n_lo->z;
-			pelem0->nodes[lo].fixed = n_lo->fixed; pelem0->nodes[lo].color = n_lo->color;
+			pelemA->nodes[lo].x = n_lo->x; pelemA->nodes[lo].y = n_lo->y; pelemA->nodes[lo].z = n_lo->z;
+			pelemA->nodes[lo].fixed = n_lo->fixed; pelemA->nodes[lo].color = n_lo->color;
 
-			pelem0->nodes[li].id = mat0_nodes[k];
-			octant_node_t *n_li = (octant_node_t *) sc_array_index(&mesh->nodes, mat0_nodes[k]);
-			pelem0->nodes[li].x = n_li->x; pelem0->nodes[li].y = n_li->y; pelem0->nodes[li].z = n_li->z;
-			pelem0->nodes[li].fixed = n_li->fixed; pelem0->nodes[li].color = n_li->color;
+			pelemA->nodes[li].id = matA_nodes[k];
+			octant_node_t *n_li = (octant_node_t *) sc_array_index(&mesh->nodes, matA_nodes[k]);
+			pelemA->nodes[li].x = n_li->x; pelemA->nodes[li].y = n_li->y; pelemA->nodes[li].z = n_li->z;
+			pelemA->nodes[li].fixed = n_li->fixed; pelemA->nodes[li].color = n_li->color;
 		}
 		n_created_pillow++;
 
-		// Create Pillow Element 1 (Mat 1 side)
-		octant_t *elem1 = (octant_t *) sc_array_index(&mesh->elements, q.elem1_id);
-		int8_t lvl1 = elem1->level;
-		int32_t ex1 = elem1->x, ey1 = elem1->y, ez1 = elem1->z;
+		// Create Pillow Element B (matB side)
+		octant_t *elemB = (octant_t *) sc_array_index(&mesh->elements, q.elemB_id);
+		int8_t lvlB = elemB->level;
+		int32_t exB = elemB->x, eyB = elemB->y, ezB = elemB->z;
 
-		octant_t *pelem1 = (octant_t *) sc_array_push(&mesh->elements);
-		memset(pelem1, 0, sizeof(octant_t));
-		pelem1->id = (int64_t)(mesh->elements.elem_count - 1);
-		pelem1->n_mat = 1;
-		pelem1->level = lvl1;
-		pelem1->x = ex1; pelem1->y = ey1; pelem1->z = ez1;
+		octant_t *pelemB = (octant_t *) sc_array_push(&mesh->elements);
+		memset(pelemB, 0, sizeof(octant_t));
+		pelemB->id = (int64_t)(mesh->elements.elem_count - 1);
+		pelemB->n_mat = q.matB;
+		pelemB->level = lvlB;
+		pelemB->x = exB; pelemB->y = eyB; pelemB->z = ezB;
 
 		// Exact 3D Topological Assignment using FaceNodesMap and FaceNodesMap_inv
 		for (int k = 0; k < 4; k++) {
-			int lo = FaceNodesMap[q.face1][k];     // face nodes (original interface)
-			int li = FaceNodesMap_inv[q.face1][k]; // opposite face nodes (Mat 1 buffer)
+			int lo = FaceNodesMap[q.faceB][k];     // face nodes (original interface)
+			int li = FaceNodesMap_inv[q.faceB][k]; // opposite face nodes (matB buffer)
 
-			pelem1->nodes[lo].id = q.quad_nodes[k];
+			pelemB->nodes[lo].id = q.quad_nodes[k];
 			octant_node_t *n_lo = (octant_node_t *) sc_array_index(&mesh->nodes, q.quad_nodes[k]);
-			pelem1->nodes[lo].x = n_lo->x; pelem1->nodes[lo].y = n_lo->y; pelem1->nodes[lo].z = n_lo->z;
-			pelem1->nodes[lo].fixed = n_lo->fixed; pelem1->nodes[lo].color = n_lo->color;
+			pelemB->nodes[lo].x = n_lo->x; pelemB->nodes[lo].y = n_lo->y; pelemB->nodes[lo].z = n_lo->z;
+			pelemB->nodes[lo].fixed = n_lo->fixed; pelemB->nodes[lo].color = n_lo->color;
 
-			pelem1->nodes[li].id = mat1_nodes[k];
-			octant_node_t *n_li = (octant_node_t *) sc_array_index(&mesh->nodes, mat1_nodes[k]);
-			pelem1->nodes[li].x = n_li->x; pelem1->nodes[li].y = n_li->y; pelem1->nodes[li].z = n_li->z;
-			pelem1->nodes[li].fixed = n_li->fixed; pelem1->nodes[li].color = n_li->color;
+			pelemB->nodes[li].id = matB_nodes[k];
+			octant_node_t *n_li = (octant_node_t *) sc_array_index(&mesh->nodes, matB_nodes[k]);
+			pelemB->nodes[li].x = n_li->x; pelemB->nodes[li].y = n_li->y; pelemB->nodes[li].z = n_li->z;
+			pelemB->nodes[li].fixed = n_li->fixed; pelemB->nodes[li].color = n_li->color;
 		}
 		n_created_pillow++;
 	}
