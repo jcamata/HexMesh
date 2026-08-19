@@ -1,21 +1,21 @@
 # =====================================================================
-# Preproc Input Configuration - Kashiwazaki Region (Japan)
+# Preproc Input Configuration - Lore Region (N Corsica / Ligurian Sea)
 # =====================================================================
 
-# Bounding Box for Kashiwazaki (Lat/Lon degrees)
-# Bounds: [37°10' 37°40' 138°15' 138°55']
-lat_min = 37.166667
-lat_max = 37.666667
-lon_min = 138.25
-lon_max = 138.916667
+# Bounding Box for Lore (Lat/Lon degrees)
+# Bounds: [41°43'46" 42°24'12" 9°10'06" 10°45'08"]
+lat_min = 41.729519
+lat_max = 42.403398
+lon_min = 9.168213
+lon_max = 10.752287
 
 # Feature Filtering & Bathymetry Floor (in meters)
-h_min_feature = 10.0
+h_min_feature = 100.0
 coastline_tolerance = 1.0
 z_min = -50.0
 
 # Data Files & Direct HTTP Download URLs
-nc_file = kashiwazaki_gebco.nc
+nc_file = Lore_gebco.nc
 gebco_url = https://coastwatch.pfeg.noaa.gov/erddap/griddap/ETOPO_2022_v1_15s.nc?z[({lat_min}):1:({lat_max})][({lon_min}):1:({lon_max})]
 
 coastline_file = gshhg/GSHHS_shp/f/GSHHS_f_L1.shp
@@ -29,13 +29,13 @@ include_dams = false
 
 # Geological Velocity Model (PREM)
 geology_model = PREM
-material_output_file = kashiwazaki_material.input
+material_output_file = Lore_material.input
 
 # Output Surface Mesh File Names
-bathymetry_gts = kashiwazaki_bathymetry.gts
-bathymetry_stl = kashiwazaki_bathymetry.stl
-bathymetry_vtk = kashiwazaki_bathymetry.vtk
+bathymetry_gts = Lore_bathymetry.gts
+bathymetry_stl = Lore_bathymetry.stl
+bathymetry_vtk = Lore_bathymetry.vtk
 
-topography_gts = kashiwazaki_topography.gts
-topography_stl = kashiwazaki_topography.stl
-topography_vtk = kashiwazaki_topography.vtk
+topography_gts = Lore_topography.gts
+topography_stl = Lore_topography.stl
+topography_vtk = Lore_topography.vtk

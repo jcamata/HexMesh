@@ -1,0 +1,39 @@
+# =====================================================================
+# Preproc Input Configuration File
+# =====================================================================
+
+# Region of Interest (Bounding Box in Lat/Lon degrees)
+lat_min = 35.0
+lat_max = 45.0
+lon_min = -10.0
+lon_max = 0.0
+
+# Feature Filtering & Smoothing (in meters)
+h_min_feature = 5000.0
+coastline_tolerance = 500.0
+z_min = -200.0
+
+# Input Data Files & Download URLs
+nc_file = GEBCO_2023.nc
+gebco_url = https://www.bodc.ac.uk/data/open_download/gebco/gebco_2023/zip/
+coastline_file = coastline.geojson
+coastline_url = https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip
+
+# Water Features Flags
+include_coastline = true
+include_lakes = true
+include_rivers = false
+include_dams = false
+
+# Geological Velocity Model (PREM / CRUST1.0 / NONE)
+geology_model = PREM
+material_output_file = material.input
+
+# Output File Names
+bathymetry_gts = output_bathymetry.gts
+bathymetry_stl = output_bathymetry.stl
+bathymetry_vtk = output_bathymetry.vtk
+
+topography_gts = output_topography.gts
+topography_stl = output_topography.stl
+topography_vtk = output_topography.vtk

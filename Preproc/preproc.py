@@ -25,6 +25,7 @@ def main():
     print(f"Coastline Tolerance: {config.coastline_tolerance} m")
     print(f"NetCDF File: {config.nc_file}")
     print(f"Coastline File: {config.coastline_file}")
+    print(f"Use CDT (Constrained Delaunay): {config.use_cdt}")
     print(f"Geology Model: {config.geology_model}")
     print("------------------------------------\n")
 
@@ -49,7 +50,7 @@ def main():
     if config.include_coastline:
         coastlines, land = load_and_smooth_coastlines(
             config.coastline_file, config.lat_min, config.lat_max, config.lon_min, config.lon_max, config.coastline_tolerance,
-            raw_vtk=config.coastline_vtk
+            raw_vtk=config.coastline_vtk, max_segment_m=pixel_res_m / 2.0
         )
         if not coastlines:
             coastlines = extract_coastline_from_grid(
@@ -60,14 +61,14 @@ def main():
     print("\nBuilding Bathymetry Mesh...")
     bathy_verts, bathy_tris = build_bathymetry_mesh(
         elevations, config.lat_min, config.lat_max, config.lon_min, config.lon_max, coastlines,
-        z_min_bathymetry=config.z_min_bathymetry, land=land
+        z_min_bathymetry=config.z_min_bathymetry, land=land, use_cdt=config.use_cdt
     )
 
     # 6. Build Topography Mesh (z < 0 flattened to 0, z >= 0 preserved)
     print("\nBuilding Topography Mesh...")
     topo_verts, topo_tris = build_topography_mesh(
         elevations, config.lat_min, config.lat_max, config.lon_min, config.lon_max, coastlines,
-        land=land, coast_band_m=config.coastline_tolerance
+        land=land, coast_band_m=config.coastline_tolerance, use_cdt=config.use_cdt
     )
 
     # 7. Export surface meshes

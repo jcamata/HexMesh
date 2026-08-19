@@ -59,6 +59,7 @@ Parsed by `config.py`; unknown keys are ignored, `#` and `;` start a comment.
 | `nc_file` `gebco_url` | elevation grid and where to download it |
 | `coastline_file` `coastline_url` | coastline vectors — see *Coastline source* below. A `.zip` URL is downloaded and unpacked automatically; `coastline_file` names a file inside it |
 | `include_coastline` | insert the coastline into the triangulation and build the wall |
+| `use_cdt` | `true` (default): use Constrained Delaunay Triangulation (`triangle` package) to lock triangle edges strictly to coastline segments, eliminating pixelated/sawtooth artifacts. `false`: fallback to unconstrained `scipy.spatial.Delaunay` |
 | `coastline_vtk` | debug output: the clipped input coastlines **before** simplification, as VTK polylines at z = 0 (empty ⇒ not written) |
 | `geology_model` `material_output_file` | `PREM` velocity profile output |
 | `bathymetry_gts/stl/vtk`, `topography_gts/stl/vtk` | output file names (empty ⇒ not written) |

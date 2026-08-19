@@ -11,7 +11,7 @@ def _as_polylines(geom):
         return _as_polylines(geom.boundary)
     return []
 
-def load_and_smooth_coastlines(filepath: str, lat_min: float, lat_max: float, lon_min: float, lon_max: float, tolerance_m: float, raw_vtk: str = None):
+def load_and_smooth_coastlines(filepath: str, lat_min: float, lat_max: float, lon_min: float, lon_max: float, tolerance_m: float, raw_vtk: str = None, max_segment_m: float = None):
     """
     Loads coastline / hydrography vectors using geopandas & shapely, clips to bounding box,
     and applies Douglas-Peucker polyline simplification (shapely.simplify).
@@ -57,6 +57,12 @@ def load_and_smooth_coastlines(filepath: str, lat_min: float, lat_max: float, lo
                 # triangulation, otherwise the seam and the inside/outside test disagree
                 # by up to `tolerance`.
                 simplified = geom.simplify(tolerance=tol_deg, preserve_topology=True)
+                # Segmentize to prevent long straight segments from causing Delaunay zigzags
+                if max_segment_m and max_segment_m > 0 and hasattr(simplified, 'segmentize'):
+                    import shapely
+                    seg_deg = max_segment_m / 111320.0
+                    simplified = shapely.segmentize(simplified, max_segment_length=seg_deg)
+
                 raw.extend(_as_polylines(geom))
                 polylines.extend(_as_polylines(simplified))
                 if simplified.geom_type in ('Polygon', 'MultiPolygon'):

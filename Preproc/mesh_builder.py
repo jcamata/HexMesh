@@ -89,11 +89,53 @@ def write_coastline_vtk(path: str, polylines: list, lat_min: float, lat_max: flo
         for i in range(len(cells)):
             f.write(f"{i}\n")
 
-def build_bathymetry_mesh(elevations: np.ndarray, lat_min: float, lat_max: float, lon_min: float, lon_max: float, coastlines: list, z_min_bathymetry: float = None, land=None):
+def _triangulate_2d(pts: np.ndarray, segments: list = None, use_cdt: bool = True):
+    """
+    Deduplicates points and cleans segments, then triangulates 2D points.
+    If use_cdt=True and segments are provided, uses 'triangle' library for CDT.
+    Returns (cleaned_pts, triangles, inv_map).
+    """
+    if pts is None or len(pts) == 0:
+        return pts, np.zeros((0, 3), dtype=np.int32), np.array([], dtype=np.int32)
+
+    # 1. Round to 1 mm (1e-3 m) to merge coincident/near-coincident vertices and prevent CDT segfaults
+    rounded_pts = np.round(pts, decimals=3)
+    cleaned_pts, inv_map = np.unique(rounded_pts, axis=0, return_inverse=True)
+
+    cleaned_segs = None
+    if segments is not None and len(segments) > 0:
+        segs_arr = np.array(segments, dtype=np.int32)
+        mapped_segs = inv_map[segs_arr]
+        # remove self loops (start == end)
+        valid = mapped_segs[:, 0] != mapped_segs[:, 1]
+        mapped_segs = mapped_segs[valid]
+        if len(mapped_segs) > 0:
+            sorted_segs = np.sort(mapped_segs, axis=1)
+            cleaned_segs = np.unique(sorted_segs, axis=0)
+
+    if use_cdt and cleaned_segs is not None and len(cleaned_segs) > 0:
+        try:
+            import triangle as tr
+            data = {
+                'vertices': np.ascontiguousarray(cleaned_pts, dtype=np.float64),
+                'segments': np.ascontiguousarray(cleaned_segs, dtype=np.int32)
+            }
+            res = tr.triangulate(data, 'pc')
+            print(f"  CDT: Constrained Delaunay Triangulation performed with {len(cleaned_segs)} segments "
+                  f"via 'triangle' package ({len(res['triangles'])} triangles).")
+            return cleaned_pts, res['triangles'].astype(np.int32), inv_map
+        except Exception as e:
+            print(f"  Warning: CDT via 'triangle' failed ({e}), falling back to scipy.spatial.Delaunay.")
+
+    from scipy.spatial import Delaunay
+    tris = Delaunay(cleaned_pts).simplices.astype(np.int32)
+    return cleaned_pts, tris, inv_map
+
+def build_bathymetry_mesh(elevations: np.ndarray, lat_min: float, lat_max: float, lon_min: float, lon_max: float, coastlines: list, z_min_bathymetry: float = None, land=None, use_cdt: bool = True):
     """
     Replicates the mainSRTM.m bathymetry (bathy1 + bathy2 + vertical coastline wall).
 
-    One Delaunay over DEM grid points + inserted coastline points; each triangle is
+    One Delaunay (or CDT) over DEM grid points + inserted coastline points; each triangle is
     classified land/water by the DEM sign at its centroid, then:
       - bathy1 (water): sea floor at the DEM depth; nodes on the coastline seam forced to z = 0
       - bathy2 (land) : flat plateau at z_top = 2*max(z), on a duplicated set of nodes, so the
@@ -126,23 +168,25 @@ def build_bathymetry_mesh(elevations: np.ndarray, lat_min: float, lat_max: float
     n_dem = len(dem_pts)
 
     coast_pts = []
+    segments = []
     for coastline in coastlines or []:
+        line_indices = []
         for lat, lon in coastline:
             if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
                 cx, cy, _ = project_to_meters(lat, lon, 0.0, center_lat, center_lon)
+                idx = n_dem + len(coast_pts)
                 coast_pts.append([cx, cy])
+                line_indices.append(idx)
+        for i in range(len(line_indices) - 1):
+            segments.append([line_indices[i], line_indices[i + 1]])
 
     try:
-        from scipy.spatial import Delaunay
-    except ImportError:
-        print("scipy not available: falling back to plain grid triangulation (no coastline wall).")
-        z_final = np.where(elevations > 0, z_top, elevations)
-        verts = np.column_stack([dem_pts[:, 0], dem_pts[:, 1], z_final.ravel()])
-        return verts, _build_grid_triangles(height, width)
+        raw_pts = np.vstack([dem_pts, np.array(coast_pts)]) if coast_pts else dem_pts
+    except Exception:
+        raw_pts = dem_pts
 
-    pts = np.vstack([dem_pts, np.array(coast_pts)]) if coast_pts else dem_pts
     print(f"Inserting {len(coast_pts)} coastline points into the bathymetry triangulation...")
-    tris = Delaunay(pts).simplices
+    pts, tris, inv_map = _triangulate_2d(raw_pts, segments, use_cdt=use_cdt)
 
     # land / water per triangle, at its centroid
     cent = pts[tris].mean(axis=1)
@@ -163,7 +207,7 @@ def build_bathymetry_mesh(elevations: np.ndarray, lat_min: float, lat_max: float
     # sea level but lies outside the coastline is a shallow bank, pushed down to minwater.
     z_water = np.zeros(len(pts))
     e = elevations.ravel()
-    z_water[:n_dem] = np.where(e >= 0, minwater, e)
+    z_water[inv_map[:n_dem]] = np.where(e >= 0, minwater, e)
     if land is not None:
         n_bank = int(np.sum((e >= 0) & ~_is_land(dem_pts[:, 0], dem_pts[:, 1], land, elevations,
                                                  center_lat, center_lon, x_grid[0, 0], y_grid[0, 0],
@@ -199,7 +243,7 @@ def build_bathymetry_mesh(elevations: np.ndarray, lat_min: float, lat_max: float
           f"({len(water_tris)} water, {len(land_tris)} land plateau, {len(wall)} wall).")
     return verts, tri_all.astype(np.int32)
 
-def build_topography_mesh(elevations: np.ndarray, lat_min: float, lat_max: float, lon_min: float, lon_max: float, coastlines: list = None, land=None, coast_band_m: float = 0.0):
+def build_topography_mesh(elevations: np.ndarray, lat_min: float, lat_max: float, lon_min: float, lon_max: float, coastlines: list = None, land=None, coast_band_m: float = 0.0, use_cdt: bool = True):
     """
     Generates Topography surface mesh, following mainSRTM.m:
     - everything outside the coastline (water) is flattened to z = 0
@@ -242,32 +286,33 @@ def build_topography_mesh(elevations: np.ndarray, lat_min: float, lat_max: float
               + (f"; {n_deep} land nodes kept below sea level." if n_deep else "."))
 
     dem_pts_2d = np.column_stack([x_grid.ravel(), y_grid.ravel()])
-    dem_pts_3d = np.column_stack([x_grid.ravel(), y_grid.ravel(), z_final.ravel()])
+    n_dem = len(dem_pts_2d)
 
     coast_pts_2d = []
-    coast_pts_3d = []
+    segments = []
     if coastlines:
         for coastline in coastlines:
+            line_indices = []
             for lat, lon in coastline:
                 if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
                     cx, cy, _ = project_to_meters(lat, lon, 0.0, center_lat, center_lon)
+                    idx = n_dem + len(coast_pts_2d)
                     coast_pts_2d.append([cx, cy])
-                    coast_pts_3d.append([cx, cy, 0.0])
+                    line_indices.append(idx)
+            for i in range(len(line_indices) - 1):
+                segments.append([line_indices[i], line_indices[i + 1]])
 
     if len(coast_pts_2d) > 0:
         print(f"Merging {len(coast_pts_2d)} coastline points into DEM topography surface mesh via Delaunay triangulation...")
         all_pts_2d = np.vstack([dem_pts_2d, np.array(coast_pts_2d)])
-        all_pts_3d = np.vstack([dem_pts_3d, np.array(coast_pts_3d)])
-        try:
-            from scipy.spatial import Delaunay
-            tri = Delaunay(all_pts_2d)
-            triangles = tri.simplices
-        except ImportError:
-            print("scipy not available, using standard grid triangulation.")
-            all_pts_3d = dem_pts_3d
-            triangles = _build_grid_triangles(height, width)
+        cleaned_pts_2d, triangles, inv_map = _triangulate_2d(all_pts_2d, segments, use_cdt=use_cdt)
+        
+        pts_3d_z = np.zeros(len(cleaned_pts_2d))
+        pts_3d_z[inv_map[:n_dem]] = z_final.ravel()
+        pts_3d_z[inv_map[n_dem:]] = 0.0
+        all_pts_3d = np.column_stack([cleaned_pts_2d, pts_3d_z])
     else:
-        all_pts_3d = dem_pts_3d
+        all_pts_3d = np.column_stack([dem_pts_2d, z_final.ravel()])
         triangles = _build_grid_triangles(height, width)
 
     print(f"Generated Topography Mesh: {len(all_pts_3d)} vertices, {len(triangles)} triangles.")
@@ -295,51 +340,46 @@ def export_mesh_files(vertices: np.ndarray, triangles: np.ndarray, stl_file: str
                 base = i * 3 + 1
                 f.write(f"{base} {base + 1} {base + 2}\n")
 
-    # 2. Export STL (Disabled - STL file generation commented out)
-    # if stl_file:
-    #     print(f"Writing STL file: '{stl_file}'")
-    #     try:
-    #         import trimesh
-    #         mesh = trimesh.Trimesh(vertices=vertices, faces=triangles)
-    #         mesh.export(stl_file)
-    #     except ImportError:
-    #         # Native STL binary writer
-    #         import struct
-    #         with open(stl_file, 'wb') as f:
-    #             header = b"GEBCO Python Preproc Metric STL".ljust(80, b'\x00')
-    #             f.write(header)
-    #             f.write(struct.pack('<I', len(triangles)))
-    #
-    #             for t in triangles:
-    #                 v0, v1, v2 = vertices[t[0]], vertices[t[1]], vertices[t[2]]
-    #                 u = v1 - v0
-    #                 v = v2 - v0
-    #                 n = np.cross(u, v)
-    #                 norm = np.linalg.norm(n)
-    #                 n = n / norm if norm > 0 else np.array([0, 0, 1])
-    #
-    #                 f.write(struct.pack('<fff', *n))
-    #                 f.write(struct.pack('<fff', *v0))
-    #                 f.write(struct.pack('<fff', *v1))
-    #                 f.write(struct.pack('<fff', *v2))
-    #                 f.write(struct.pack('<H', 0))
+    # 2. Export STL (Binary STL Format)
+    if stl_file:
+        print(f"Writing STL file: '{stl_file}'")
+        try:
+            import trimesh
+            mesh = trimesh.Trimesh(vertices=vertices, faces=triangles)
+            mesh.export(stl_file)
+        except Exception:
+            import struct
+            with open(stl_file, 'wb') as f:
+                header = b"GEBCO Python Preproc Metric STL".ljust(80, b'\x00')
+                f.write(header)
+                f.write(struct.pack('<I', len(triangles)))
 
-    # 3. Export VTK (ASCII Unstructured Grid)
+                for t in triangles:
+                    v0, v1, v2 = vertices[t[0]], vertices[t[1]], vertices[t[2]]
+                    u = v1 - v0
+                    v = v2 - v0
+                    n = np.cross(u, v)
+                    norm = np.linalg.norm(n)
+                    n = n / norm if norm > 0 else np.array([0, 0, 1])
+
+                    f.write(struct.pack('<fff', *n))
+                    f.write(struct.pack('<fff', *v0))
+                    f.write(struct.pack('<fff', *v1))
+                    f.write(struct.pack('<fff', *v2))
+                    f.write(struct.pack('<H', 0))
+
+    # 3. Export VTK (ASCII PolyData Surface Format)
     if vtk_file:
         print(f"Writing VTK file: '{vtk_file}'")
         with open(vtk_file, 'w', encoding='utf-8') as f:
             f.write("# vtk DataFile Version 3.0\n")
             f.write("Preproc Surface Mesh\n")
             f.write("ASCII\n")
-            f.write("DATASET UNSTRUCTURED_GRID\n")
+            f.write("DATASET POLYDATA\n")
             f.write(f"POINTS {len(vertices)} double\n")
             for v in vertices:
                 f.write(f"{v[0]:.4f} {v[1]:.4f} {v[2]:.4f}\n")
 
-            f.write(f"\nCELLS {len(triangles)} {len(triangles) * 4}\n")
+            f.write(f"\nPOLYGONS {len(triangles)} {len(triangles) * 4}\n")
             for t in triangles:
                 f.write(f"3 {t[0]} {t[1]} {t[2]}\n")
-
-            f.write(f"\nCELL_TYPES {len(triangles)}\n")
-            for _ in range(len(triangles)):
-                f.write("5\n") # VTK_TRIANGLE = 5

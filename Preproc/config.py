@@ -18,6 +18,7 @@ class PreprocConfig:
     coastline_url: str = "https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip"
 
     include_coastline: bool = True
+    use_cdt: bool = True
     include_lakes: bool = False
     include_rivers: bool = False
     include_dams: bool = False

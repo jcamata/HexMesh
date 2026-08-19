@@ -10,7 +10,6 @@
 #include <sc.h>
 #include <sc_containers.h>
 #include "hexa.h"
-#include "mesh_geom.h"
 
 /*
  * Double-Layer Pillowing for Spectral Hexahedral Elements (Conforming Mesh for Continuous Galerkin).
@@ -346,9 +345,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		double py_new = py + PILLOW_FRACTION * oy;
 		double pz_new = pz + PILLOW_FRACTION * oz;
 
-		int id = push_buffer_node(orig_node_id, target_x, target_y, target_z, px_new, py_new, pz_new, ox, oy, oz);
-		buffer_via_v2[id] = false; // ponytail: bug3i evidence, remove after
-		return id;
+		return push_buffer_node(orig_node_id, target_x, target_y, target_z, px_new, py_new, pz_new, ox, oy, oz);
 	};
 
 	// NEW placement: classify the (interface node, material side) by how many distinct AXES its
@@ -386,9 +383,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		double px_new = px + V2_FRACTION*(nx_-px), py_new = py + V2_FRACTION*(ny_-py), pz_new = pz + V2_FRACTION*(nz_-pz);
 		double ox = nx_-px, oy = ny_-py, oz = nz_-pz; // unscaled, for buffer_dir bookkeeping only
 
-		int id = push_buffer_node(orig_node_id, target_x, target_y, target_z, px_new, py_new, pz_new, ox, oy, oz);
-		buffer_via_v2[id] = true; // ponytail: bug3i evidence, remove after
-		return id;
+		return push_buffer_node(orig_node_id, target_x, target_y, target_z, px_new, py_new, pz_new, ox, oy, oz);
 	};
 
 	// 4. Map every interface node, per material side it borders, to its buffer node.
