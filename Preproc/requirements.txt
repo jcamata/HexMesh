@@ -1,0 +1,10 @@
+numpy
+scipy
+xarray
+netCDF4
+geopandas
+shapely
+trimesh
+triangle
+requests
+tqdm
