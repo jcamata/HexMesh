@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
   hexa_mesh(&mesh);
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
-  fprintf(mesh.profile, "Time in the initialization %lld millisecond(s).\n",
-          elapsed.count());
+  // fprintf(mesh.profile, "Time in the initialization %lld millisecond(s).\n",
+  //         elapsed.count());
   std::cout << "Time in the initialization " << elapsed.count()
             << " millisecond(s)." << std::endl;
 
@@ -77,8 +77,8 @@ int main(int argc, char **argv) {
   GetMeshFromSurface(&mesh, topo, coords);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
-  fprintf(mesh.profile, "Time in the GetMeshFromSurface %lld millisecond(s).\n",
-          elapsed.count());
+  // fprintf(mesh.profile, "Time in the GetMeshFromSurface %lld millisecond(s).\n",
+  //         elapsed.count());
   std::cout << "Time in the GetMeshFromSurface " << elapsed.count()
             << " millisecond(s)." << std::endl;
 
@@ -91,9 +91,9 @@ int main(int argc, char **argv) {
     printf(" Elements intercepted: %zu\n\n", element_ids.size());
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start);
-    fprintf(mesh.profile,
-            "Time in the GetInterceptedElements %lld millisecond(s).\n",
-            elapsed.count());
+    // fprintf(mesh.profile,
+    //         "Time in the GetInterceptedElements %lld millisecond(s).\n",
+    //         elapsed.count());
     std::cout << "Time in GetInterceptedElements " << elapsed.count()
               << " millisecond(s)." << std::endl;
 
@@ -104,8 +104,8 @@ int main(int argc, char **argv) {
       MovingNodes(&mesh, coords, nodes_b_mat);
       elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
           std::chrono::steady_clock::now() - start);
-      fprintf(mesh.profile, "Time in the MovingNodes %lld millisecond(s).\n",
-              elapsed.count());
+      // fprintf(mesh.profile, "Time in the MovingNodes %lld millisecond(s).\n",
+      //         elapsed.count());
       std::cout << "Time in MovingNodes " << elapsed.count()
                 << " millisecond(s)." << std::endl;
     }
@@ -117,8 +117,8 @@ int main(int argc, char **argv) {
   Apply_material(&mesh, coords);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
-  fprintf(mesh.profile, "Time in the Apply_material %lld millisecond(s).\n",
-          elapsed.count());
+  // fprintf(mesh.profile, "Time in the Apply_material %lld millisecond(s).\n",
+  //         elapsed.count());
   std::cout << "Time in Apply_material " << elapsed.count()
             << " millisecond(s)." << std::endl;
 
@@ -130,9 +130,9 @@ int main(int argc, char **argv) {
     ApplyDoublePillowing(&mesh, coords, nodes_b_mat);
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start);
-    fprintf(mesh.profile,
-            "Time in the PillowingInterface %lld millisecond(s).\n",
-            elapsed.count());
+    // fprintf(mesh.profile,
+    //         "Time in the PillowingInterface %lld millisecond(s).\n",
+    //         elapsed.count());
     std::cout << "Time in PillowingInterface " << elapsed.count()
               << " millisecond(s)." << std::endl;
   }
@@ -145,8 +145,8 @@ int main(int argc, char **argv) {
     MeshOptimization(&mesh, coords, nodes_b_mat);
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start);
-    fprintf(mesh.profile, "Time in the MeshOptimization %lld millisecond(s).\n",
-            elapsed.count());
+    // fprintf(mesh.profile, "Time in the MeshOptimization %lld millisecond(s).\n",
+    //         elapsed.count());
     std::cout << "Time in MeshOptimization " << elapsed.count()
               << " millisecond(s)." << std::endl;
   }
@@ -190,9 +190,9 @@ int main(int argc, char **argv) {
     ExtrudePMLElements(&mesh, coords);
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start);
-    fprintf(mesh.profile,
-            "Time in the ExtrudePMLElements %lld millisecond(s).\n",
-            elapsed.count());
+    // fprintf(mesh.profile,
+    //         "Time in the ExtrudePMLElements %lld millisecond(s).\n",
+    //         elapsed.count());
     std::cout << "Time in ExtrudePMLElements " << elapsed.count()
               << " millisecond(s)." << std::endl;
   }
@@ -314,8 +314,8 @@ int main(int argc, char **argv) {
   hexa_mesh_write_h5(&mesh, out_prefix.c_str(), coords, &dtcrit_elem);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
-  fprintf(mesh.profile, "Time in Writing output files %lld millisecond(s).\n",
-          elapsed.count());
+  // fprintf(mesh.profile, "Time in Writing output files %lld millisecond(s).\n",
+  //         elapsed.count());
   std::cout << "Time in Writing output files " << elapsed.count()
             << " millisecond(s)." << std::endl;
 
@@ -330,8 +330,8 @@ int main(int argc, char **argv) {
   std::vector<double>().swap(coords);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
-  fprintf(mesh.profile, "Time in the Cleaning variables %lld millisecond(s).\n",
-          elapsed.count());
+  // fprintf(mesh.profile, "Time in the Cleaning variables %lld millisecond(s).\n",
+  //         elapsed.count());
   std::cout << "Time in Cleaning variables " << elapsed.count()
             << " millisecond(s)." << std::endl;
 

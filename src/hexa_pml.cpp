@@ -114,12 +114,12 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	const int layers_z = mesh->input.nlayersz;
 
 	// material.input file 2 SEM3D
-	FILE *fp;
-	fp = fopen("DebugPML.txt", "w");
-	if (fp == NULL)
-	{
-		printf("Error opening PML file\n");
-	}
+	// FILE *fp;
+	// fp = fopen("DebugPML.txt", "w");
+	// if (fp == NULL)
+	// {
+	// 	printf("Error opening PML file\n");
+	// }
 
 	// I should create a toto sc_array
 	// it avoid segmentation fault when we perform a
@@ -3507,35 +3507,33 @@ void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords)
 	}
 
 	// write pml file
-	fprintf(fp, "Test\n");
-	for(int i = 0; i < hash_matpml->a.elem_count; i++){
-		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
-		//if(pmlT->id < 8){
-			fprintf(fp, "Hash id: %d, mat: %d, matref: %d, tag: %d\n", pmlT->id, pmlT->mat, pmlT->matref, pmlT->tag);
-			fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
-			fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
-			fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
-		//}
-	}
-	for(int i = 0; i < hash_matpml->a.elem_count; i++){
-		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
-		if(pmlT->id < 200 && pmlT->id > 7){
-			fprintf(fp, "Hash id: %d, mat: %d, matref: %d\n", pmlT->id, pmlT->mat, pmlT->matref);
-			fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
-			fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
-			fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
-		}
-	}
-	for(int i = 0; i < hash_matpml->a.elem_count; i++){
-		pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
-		if(pmlT->id > 299){
-			fprintf(fp, "Hash id: %d, mat: %d, matref: %d\n", pmlT->id, pmlT->mat, pmlT->matref);
-			fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
-			fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
-			fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
-		}
-	}
-	fclose(fp);
+	// fprintf(fp, "Test\n");
+	// for(int i = 0; i < hash_matpml->a.elem_count; i++){
+	// 	pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
+	// 	fprintf(fp, "Hash id: %d, mat: %d, matref: %d, tag: %d\n", pmlT->id, pmlT->mat, pmlT->matref, pmlT->tag);
+	// 	fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
+	// 	fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
+	// 	fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
+	// }
+	// for(int i = 0; i < hash_matpml->a.elem_count; i++){
+	// 	pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
+	// 	if(pmlT->id < 200 && pmlT->id > 7){
+	// 		fprintf(fp, "Hash id: %d, mat: %d, matref: %d\n", pmlT->id, pmlT->mat, pmlT->matref);
+	// 		fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
+	// 		fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
+	// 		fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
+	// 	}
+	// }
+	// for(int i = 0; i < hash_matpml->a.elem_count; i++){
+	// 	pmlmat_t *pmlT = (pmlmat_t *)sc_array_index(&hash_matpml->a, i);
+	// 	if(pmlT->id > 299){
+	// 		fprintf(fp, "Hash id: %d, mat: %d, matref: %d\n", pmlT->id, pmlT->mat, pmlT->matref);
+	// 		fprintf(fp, "xmin: %f,  xmax: %f\n", pmlT->xmin, pmlT->xmax);
+	// 		fprintf(fp, "ymin: %f,  ymax: %f\n", pmlT->ymin, pmlT->ymax);
+	// 		fprintf(fp, "zmin: %f,  zmax: %f\n", pmlT->zmin, pmlT->zmax);
+	// 	}
+	// }
+	// fclose(fp);
 
 
 	// material.input file 2 SEM3D

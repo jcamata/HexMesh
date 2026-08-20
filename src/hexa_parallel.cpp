@@ -12,17 +12,19 @@ void hexa_init(int argc, char* argv[], hexa_tree_t* mesh)
 	}
 	MPI_Comm_size(MPI_COMM_WORLD, &mesh->mpi_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &mesh->mpi_rank);
-	char fdname[80];
-	sprintf(fdname,"Profile_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-	mesh->profile = fopen(fdname,"w");
+	// char fdname[80];
+	// sprintf(fdname,"Profile_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	// mesh->profile = fopen(fdname,"w");
+	mesh->profile = NULL;
 
 #ifdef HEXA_DEBUG_
-	fdname[80];
-	sprintf(fdname,"debug_%04d_%04d.dbg", mesh->mpi_size, mesh->mpi_rank);
-	mesh->fdbg = fopen(fdname,"w");
+	// fdname[80];
+	// sprintf(fdname,"debug_%04d_%04d.dbg", mesh->mpi_size, mesh->mpi_rank);
+	// mesh->fdbg = fopen(fdname,"w");
 
-	fprintf(mesh->fdbg,"MESH INIT \n");
-	fprintf(mesh->fdbg," Number of processors: %d\n Processor rank: %d\n", mesh->mpi_size, mesh->mpi_rank);
+	// fprintf(mesh->fdbg,"MESH INIT \n");
+	// fprintf(mesh->fdbg," Number of processors: %d\n Processor rank: %d\n", mesh->mpi_size, mesh->mpi_rank);
+	mesh->fdbg = NULL;
 #endif
 }
 
@@ -133,18 +135,20 @@ void hexa_processors_interval(hexa_tree_t* mesh)
 	mesh->neighbors[8] = n8;
 
 #ifdef HEXA_DEBUG_
-	fprintf(mesh->fdbg," Locally owned region\n");
-	fprintf(mesh->fdbg,"  x ranges from %d to %d (len = %d) \n", mesh->x_start, mesh->x_end, x);
-	fprintf(mesh->fdbg,"  y ranges from %d to %d (len = %d) \n", mesh->y_start, mesh->y_end, y);
-	fprintf(mesh->fdbg,"Neighbors processors:   \n");
-	fprintf(mesh->fdbg,"  Corner left-bottom  : %d\n", mesh->neighbors[0]);
-	fprintf(mesh->fdbg,"  Bottom              : %d\n", mesh->neighbors[1]);
-	fprintf(mesh->fdbg,"  Corner right-bottom : %d\n", mesh->neighbors[2]);
-	fprintf(mesh->fdbg,"  Left                : %d\n", mesh->neighbors[3]);
-	fprintf(mesh->fdbg,"  Right               : %d\n", mesh->neighbors[5]);
-	fprintf(mesh->fdbg,"  Corner left-top     : %d\n", mesh->neighbors[6]);
-	fprintf(mesh->fdbg,"  top                 : %d\n", mesh->neighbors[7]);
-	fprintf(mesh->fdbg,"  Corner right-top    : %d\n", mesh->neighbors[8]);
+	if (mesh->fdbg) {
+		fprintf(mesh->fdbg," Locally owned region\n");
+		fprintf(mesh->fdbg,"  x ranges from %d to %d (len = %d) \n", mesh->x_start, mesh->x_end, x);
+		fprintf(mesh->fdbg,"  y ranges from %d to %d (len = %d) \n", mesh->y_start, mesh->y_end, y);
+		fprintf(mesh->fdbg,"Neighbors processors:   \n");
+		fprintf(mesh->fdbg,"  Corner left-bottom  : %d\n", mesh->neighbors[0]);
+		fprintf(mesh->fdbg,"  Bottom              : %d\n", mesh->neighbors[1]);
+		fprintf(mesh->fdbg,"  Corner right-bottom : %d\n", mesh->neighbors[2]);
+		fprintf(mesh->fdbg,"  Left                : %d\n", mesh->neighbors[3]);
+		fprintf(mesh->fdbg,"  Right               : %d\n", mesh->neighbors[5]);
+		fprintf(mesh->fdbg,"  Corner left-top     : %d\n", mesh->neighbors[6]);
+		fprintf(mesh->fdbg,"  top                 : %d\n", mesh->neighbors[7]);
+		fprintf(mesh->fdbg,"  Corner right-top    : %d\n", mesh->neighbors[8]);
+	}
 #endif
 
 	free(lx);
@@ -155,8 +159,8 @@ void hexa_processors_interval(hexa_tree_t* mesh)
 void hexa_finalize(hexa_tree_t* mesh)
 {
 #ifdef HEXA_DEBUG_
-	fclose(mesh->fdbg);
+	if (mesh->fdbg) fclose(mesh->fdbg);
 #endif
-	fclose(mesh->profile);
+	if (mesh->profile) fclose(mesh->profile);
 	MPI_Finalize();
 }

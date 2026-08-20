@@ -8,3 +8,4 @@ trimesh
 triangle
 requests
 tqdm
+dataclasses; python_version < "3.7"

@@ -1,60 +1,70 @@
 ## -*- Makefile -*-
-##
-## User: camata
-## Time: Jul 6, 2015 2:23:03 PM
-## Makefile created by Oracle Solaris Studio.
-##
-## This file is generated automatically.
-##
+## HexMesh Makefile for Linux Clusters (HPC)
 
-###############################################################################
-# File management.  This is where the source, header, and object files are
-# defined
+# Compilers & MPI Wrappers
+CXX       ?= mpicxx
+CXX_STD   ?= -std=c++17
+OPT_FLAGS ?= -O2 -g
 
-#
-# source files
-srcfiles 	:= $(wildcard src/*.cpp) main.cpp
+# Directories for external dependencies (override via CLI or environment)
+# Example: make -f Make.Linux GTS_DIR=/opt/local SC_DIR=/opt/local HDF5_DIR=/opt/hdf5
+GTS_DIR      ?= $(HOME)/local
+SC_DIR       ?= $(HOME)/local
+MESQUITE_DIR ?= $(HOME)/local
+HDF5_DIR     ?= $(if $(HDF5_ROOT),$(HDF5_ROOT),/usr)
+CGAL_DIR     ?= /usr
+BOOST_DIR    ?= /usr
 
-#
-# object files
-objects		:= $(patsubst %.cpp, %.o, $(srcfiles))
-#################################################################################
+# GLib-2.0 configuration (detect via pkg-config with standard fallback)
+GLIB_CFLAGS  ?= $(shell pkg-config --cflags glib-2.0 2>/dev/null || echo "-I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/lib/x86_64-linux-gnu/glib-2.0/include")
+GLIB_LIBS    ?= $(shell pkg-config --libs glib-2.0 2>/dev/null || echo "-lglib-2.0")
 
-GTS_DIR :=/Users/LAC/Codes/local/gts/gts_lib
-SC_DIR :=/Users/LAC/Codes/local/libsc-master/local
-MESQUITE_DIR := /Users/LAC/Codes/local
-HDF5_DIR := /opt/local
- 
-GLIB_INCLUDE = -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include
- 
-CXX       = mpicxx -lstdc++ -g
-LDFLAGS   = -L$(GTS_DIR)/lib -lgts -L$(SC_DIR)/lib -L$(HDF5_DIR)/lib -lsc -lm -lglib-2.0 -lhdf5_cpp -lhdf5 -L$(MESQUITE_DIR)/lib -lmesquite
-CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -I./include -I$(HDF5_DIR)/include -I$(MESQUITE_DIR)/include
- 
-## Target: all
+# Source and object files
+srcfiles  := $(wildcard src/*.cpp) main.cpp
+objects   := $(patsubst %.cpp, %.o, $(srcfiles))
+
+# Include directories
+INCLUDES  := -I./include \
+             -I$(GTS_DIR)/include \
+             -I$(SC_DIR)/include \
+             -I$(MESQUITE_DIR)/include \
+             -I$(HDF5_DIR)/include \
+             -I$(CGAL_DIR)/include \
+             -I$(BOOST_DIR)/include \
+             $(GLIB_CFLAGS)
+
+# Linker library paths and flags
+LIBS      := -L$(GTS_DIR)/lib -lgts \
+             -L$(SC_DIR)/lib -lsc \
+             -L$(MESQUITE_DIR)/lib -lmesquite \
+             -L$(HDF5_DIR)/lib -lhdf5_cpp -lhdf5 \
+             $(GLIB_LIBS) \
+             -lmpfr -lgmp -lboost_filesystem \
+             -lm -lstdc++
+
+CXX_FLAGS := $(CXX_STD) $(OPT_FLAGS) $(INCLUDES)
+LDFLAGS   := $(LIBS)
+
+## Targets
 all: hexmesh
 
-
 hexmesh: $(objects)
-	$(CXX) $(objects) -o hexmesh $(LDFLAGS)
+	$(CXX) $(CXX_FLAGS) $(objects) -o hexmesh $(LDFLAGS)
 
-
-
-#
-# How to compile C++
-#
-%.o : %.cpp
-	@echo "Compiling C++ "$<"..."
+%.o: %.cpp
+	@echo "Compiling C++ $<..."
 	$(CXX) $(CXX_FLAGS) -c $< -o $@
 
+# Target for memory debugging with AddressSanitizer
+sanitize: OPT_FLAGS = -O1 -g -fsanitize=address,leak -fno-omit-frame-pointer
+sanitize: LDFLAGS += -fsanitize=address,leak
+sanitize: clean hexmesh
 
+# Target optimized for performance profiling (VTune, LIKWID, perf)
+profile: OPT_FLAGS = -O3 -g -fno-omit-frame-pointer
+profile: clean hexmesh
 
-#### Clean target deletes all generated files ####
-clean: 
-	rm $(objects)
+clean:
+	rm -f $(objects) hexmesh
 
-
-# Enable dependency checking
-.KEEP_STATE:
-.KEEP_STATE_FILE:.make.state.GNU-amd64-Linux
-
+.PHONY: all clean sanitize profile

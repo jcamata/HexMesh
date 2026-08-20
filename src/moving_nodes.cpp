@@ -1896,41 +1896,39 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 	printf("    Identifying the movable nodes...\n");
 	IdentifyMovableNodes(mesh);
 
-	if(deb){
-		char fdname[80];
-		sprintf(fdname,"free_node_%04d.txt", mesh->mpi_rank);
-		FILE* fnode = fopen(fdname,"w");
-		for(int ino = 0; ino < mesh->nodes.elem_count; ino ++){
-			octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
-			if(node->fixed==0){
-				int nnode = 3*node->id;
-				fprintf(fnode,"%f %f %f\n",coords[nnode+0],coords[nnode+1],coords[nnode+2]);
-			}
-		}
-		fclose(fnode);
-	}
+	// if(deb){
+	// 	char fdname[80];
+	// 	sprintf(fdname,"free_node_%04d.txt", mesh->mpi_rank);
+	// 	FILE* fnode = fopen(fdname,"w");
+	// 	for(int ino = 0; ino < mesh->nodes.elem_count; ino ++){
+	// 		octant_node_t* node = (octant_node_t*) sc_array_index (&mesh->nodes, ino);
+	// 		if(node->fixed==0){
+	// 			int nnode = 3*node->id;
+	// 			fprintf(fnode,"%f %f %f\n",coords[nnode+0],coords[nnode+1],coords[nnode+2]);
+	// 		}
+	// 	}
+	// 	fclose(fnode);
+	// }
 
-	if(deb){
-		char fdname[80];
-		sprintf(fdname,"debug_edges_%04d.txt", mesh->mpi_rank);
-		FILE* dedges = fopen(fdname,"w");
-		for(int ioc = 0; ioc < mesh->oct.elem_count; ioc ++){
-			octree_t* oct = (octree_t*) sc_array_index (&mesh->oct, ioc);
-			for(int iel = 0; iel < 8; iel++){
-				if(oct->id[iel] !=-1){
-					octant_t* elem = (octant_t*) sc_array_index (&mesh->nodes, oct->id[iel]);
-					//printf("%s\n", oct->edge[0] ? "true" : "false")
-					fprintf(dedges,"El %d\n", oct->id[iel]);
-					for(int iedge = 0; iedge < 12;iedge++){
-						fprintf(dedges,"%s ", elem->edge[iedge].ref ? "T" : "F");
-					}
-					fprintf(dedges,"\n");
-				}
-			}
-
-		}
-		fclose(dedges);
-	}
+	// if(deb){
+	// 	char fdname[80];
+	// 	sprintf(fdname,"debug_edges_%04d.txt", mesh->mpi_rank);
+	// 	FILE* dedges = fopen(fdname,"w");
+	// 	for(int ioc = 0; ioc < mesh->oct.elem_count; ioc ++){
+	// 		octree_t* oct = (octree_t*) sc_array_index (&mesh->oct, ioc);
+	// 		for(int iel = 0; iel < 8; iel++){
+	// 			if(oct->id[iel] !=-1){
+	// 				octant_t* elem = (octant_t*) sc_array_index (&mesh->nodes, oct->id[iel]);
+	// 				fprintf(dedges,"El %d\n", oct->id[iel]);
+	// 				for(int iedge = 0; iedge < 12;iedge++){
+	// 					fprintf(dedges,"%s ", elem->edge[iedge].ref ? "T" : "F");
+	// 				}
+	// 				fprintf(dedges,"\n");
+	// 			}
+	// 		}
+	// 	}
+	// 	fclose(dedges);
+	// }
 
 	printf("    Make the projection of the nodes into the surface...\n");
 	nodes_b_mat.clear();

@@ -421,13 +421,13 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 	}
 
 	// -- pre-pillow diagnostics -----------------------------------------------
-	if (deb) {
-		char fn[80];
-		sprintf(fn, "premesh_conformity_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-		RunTopologyCheck(mesh, fn, "pre-pillow");
-		sprintf(fn, "node_consistency_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-		printf("     Node consistency: %d mismatch(es)\n", RunNodeConsistencyCheck(mesh, fn));
-	}
+	// if (deb) {
+	// 	char fn[80];
+	// 	sprintf(fn, "premesh_conformity_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	// 	RunTopologyCheck(mesh, fn, "pre-pillow");
+	// 	sprintf(fn, "node_consistency_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	// 	printf("     Node consistency: %d mismatch(es)\n", RunNodeConsistencyCheck(mesh, fn));
+	// }
 
 	// -- STEP 1+2: interface faces, inward displacements, pinch resolution ----
 	struct FaceRef { int iel, iface; };
@@ -1181,23 +1181,23 @@ void Pillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> 
 	}
 
 	// -- debug summary --------------------------------------------------------
-	if (deb) {
-		char ff[80];
-		sprintf(ff, "pillow_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-		FILE *pf = fopen(ff, "w");
-		fprintf(pf, "Global face-based pillowing\n");
-		fprintf(pf, "Interface faces: %d\n", (int)ifaces.size());
-		fprintf(pf, "Pillow nodes:    %d\n", (int)pillow_map.size());
-		fprintf(pf, "Pillow elements: %d\n", (int)pillow_elems.size());
-		fclose(pf);
-	}
+	// if (deb) {
+	// 	char ff[80];
+	// 	sprintf(ff, "pillow_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	// 	FILE *pf = fopen(ff, "w");
+	// 	fprintf(pf, "Global face-based pillowing\n");
+	// 	fprintf(pf, "Interface faces: %d\n", (int)ifaces.size());
+	// 	fprintf(pf, "Pillow nodes:    %d\n", (int)pillow_map.size());
+	// 	fprintf(pf, "Pillow elements: %d\n", (int)pillow_elems.size());
+	// 	fclose(pf);
+	// }
 
 	// -- post-pillow conformity check (authoritative) -------------------------
-	if (deb) {
-		char fn[80];
-		sprintf(fn, "pillow_conformity_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
-		RunTopologyCheck(mesh, fn, "post-pillow");
-	}
+	// if (deb) {
+	// 	char fn[80];
+	// 	sprintf(fn, "pillow_conformity_%04d_%04d.txt", mesh->mpi_size, mesh->mpi_rank);
+	// 	RunTopologyCheck(mesh, fn, "post-pillow");
+	// }
 
 	// -- finalise: replace mesh->nodes with hash_nodes content ----------------
 	sc_array_reset(&mesh->nodes);
@@ -1833,21 +1833,21 @@ void PillowingInterface(hexa_tree_t *mesh, std::vector<double> &coords, std::vec
 	int elem_old = mesh->elements.elem_count;
 	int nodes_old = mesh->nodes.elem_count;
 	bool clamped = true;
-	fprintf(mesh->profile, "Time inside PillowingInterface\n");
+	// fprintf(mesh->profile, "Time inside PillowingInterface\n");
 
 	// redo the mapping in the nodes
 	auto start = std::chrono::steady_clock::now();
 	printf("     Redo Node Mapping\n");
 	RedoNodeMapping(mesh);
 	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
-	fprintf(mesh->profile, "    Redo the mapping in the nodes %lld millisecond(s).\n", elapsed.count());
+	// fprintf(mesh->profile, "    Redo the mapping in the nodes %lld millisecond(s).\n", elapsed.count());
 	// std::cout << "Redo the mapping in the nodes "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	// Make the pillow
 	start = std::chrono::steady_clock::now();
 	printf("     Pillow Layer\n");
 	Pillowing(mesh, coords,nodes_b_mat);
-	fprintf(mesh->profile, "    Time in PillowLayer %lld millisecond(s).\n", elapsed.count());
+	// fprintf(mesh->profile, "    Time in PillowLayer %lld millisecond(s).\n", elapsed.count());
 	// std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 
 	// update the vectors
@@ -1873,7 +1873,7 @@ void PillowingInterface(hexa_tree_t *mesh, std::vector<double> &coords, std::vec
 	start = std::chrono::steady_clock::now();
 	printf("     Surface Identification\n");
 	SurfaceIdentification(mesh, coords);
-	fprintf(mesh->profile, "    Time in SurfaceIdentification %lld millisecond(s).\n", elapsed.count());
+	// fprintf(mesh->profile, "    Time in SurfaceIdentification %lld millisecond(s).\n", elapsed.count());
 	// std::cout << "Time SurfaceIdentification "<< elapsed.count() <<" millisecond(s)."<< std::endl;
 	// NOTE: the interface clamp (z <= sea surface) now runs at the end of
 	// Pillowing(), after the pillow layer is built and before its validity
