@@ -306,10 +306,12 @@ int main(int argc, char **argv) {
   }
 
   start = std::chrono::steady_clock::now();
-  printf(" Writing output files \n\n");
-  hexa_mesh_write_vtk(&mesh, "mesh", &coords, &invtag, &foldtag, &dtcrit_elem);
-  // hexa_mesh_write_msh(&mesh, "mesh", &coords);
-  hexa_mesh_write_h5(&mesh, "mesh", coords, &dtcrit_elem);
+  std::string out_prefix = mesh.input.output_prefix.empty() ? "mesh" : mesh.input.output_prefix;
+  printf(" Writing output files (%s.pvtu, %s.h5, %s.xmf)\n\n",
+         out_prefix.c_str(), out_prefix.c_str(), out_prefix.c_str());
+  hexa_mesh_write_vtk(&mesh, out_prefix.c_str(), &coords, &invtag, &foldtag, &dtcrit_elem);
+  // hexa_mesh_write_msh(&mesh, out_prefix.c_str(), &coords);
+  hexa_mesh_write_h5(&mesh, out_prefix.c_str(), coords, &dtcrit_elem);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
   fprintf(mesh.profile, "Time in Writing output files %lld millisecond(s).\n",
@@ -317,7 +319,8 @@ int main(int argc, char **argv) {
   std::cout << "Time in Writing output files " << elapsed.count()
             << " millisecond(s)." << std::endl;
 
-  hexa_mesh_write_vtk(&mesh, "test", NULL, &invtag, &foldtag);
+  std::string test_prefix = out_prefix + "_lattice";
+  hexa_mesh_write_vtk(&mesh, test_prefix.c_str(), NULL, &invtag, &foldtag);
   start = std::chrono::steady_clock::now();
 
   printf(" Cleaning variables \n\n");

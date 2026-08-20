@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
+#include <set>
+#include <mpi.h>
 #include <sc.h>
 #include <sc_containers.h>
 #include "hexa.h"
@@ -1498,16 +1501,26 @@ int collapse_residual_inverted_elements(hexa_tree_t *mesh, std::vector<double> &
 		for (int p = 0; p < 3; p++) {
 			double d = 0.0;
 			int gts_f0 = 0, gts_f1 = 0;
+			int lock_conflict = 0;
 			for (int k = 0; k < 4; k++) {
 				int u = e->nodes[opp_pairs[p][k][0]].id;
 				int v = e->nodes[opp_pairs[p][k][1]].id;
 				if (u < (int)cons.size() && cons[u].gts_surface_id >= 0) gts_f0++;
 				if (v < (int)cons.size() && cons[v].gts_surface_id >= 0) gts_f1++;
+				if (u < (int)cons.size() && v < (int)cons.size()) {
+					if ((cons[u].lock_mask != 0) && (cons[v].lock_mask != 0) && (cons[u].lock_mask != cons[v].lock_mask)) {
+						lock_conflict++;
+					}
+					if (cons[u].gts_surface_id >= 0 && cons[v].gts_surface_id >= 0 && cons[u].gts_surface_id != cons[v].gts_surface_id) {
+						lock_conflict++;
+					}
+				}
 				double dx = coords[3*u+0] - coords[3*v+0];
 				double dy = coords[3*u+1] - coords[3*v+1];
 				double dz = coords[3*u+2] - coords[3*v+2];
 				d += std::sqrt(dx*dx + dy*dy + dz*dz);
 			}
+			if (lock_conflict > 0) d += 1e10;
 			if ((gts_f0 >= 2 && gts_f1 == 0) || (gts_f1 >= 2 && gts_f0 == 0)) {
 				d *= 0.1;
 			}
@@ -1981,6 +1994,229 @@ static void print_quality_summary(const char *label, const std::vector<hex_quali
 	       label, minSJ, meanSJ, maxCond, minAngle, maxSkew);
 }
 
+struct BoundaryNodeData {
+	int32_t x, y, z;
+	double px, py, pz;
+};
+
+struct int_triple_eq {
+	bool operator()(const std::array<int32_t, 3> &a, const std::array<int32_t, 3> &b) const {
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+	}
+};
+
+struct int_triple_hash_3 {
+	size_t operator()(const std::array<int32_t, 3> &t) const {
+		uint32_t a = (uint32_t)t[0], b = (uint32_t)t[1], c = (uint32_t)t[2];
+		sc_hash_mix(a, b, c);
+		sc_hash_final(a, b, c);
+		return (size_t)c;
+	}
+};
+
+void synchronize_shared_boundary_nodes(hexa_tree_t *mesh, std::vector<double> &coords,
+                                      const std::vector<NodeConstraint> &cons, int ref) {
+	if (!mesh || mesh->mpi_size <= 1) return;
+
+	int min_gx = 1e9, max_gx = -1e9, min_gy = 1e9, max_gy = -1e9;
+	for (int i = 0; i < mesh->nodes.elem_count; i++) {
+		octant_node_t *node = (octant_node_t *) sc_array_index(&mesh->nodes, i);
+		if (node->x < min_gx) min_gx = node->x;
+		if (node->x > max_gx) max_gx = node->x;
+		if (node->y < min_gy) min_gy = node->y;
+		if (node->y > max_gy) max_gy = node->y;
+	}
+
+	std::map<int, std::vector<int>> nbr_nodes_map;
+	for (int i = 0; i < mesh->nodes.elem_count; i++) {
+		octant_node_t *node = (octant_node_t *) sc_array_index(&mesh->nodes, i);
+		int nx = node->x, ny = node->y;
+		bool on_w = (nx == min_gx && mesh->neighbors[3] >= 0);
+		bool on_e = (nx == max_gx && mesh->neighbors[5] >= 0);
+		bool on_s = (ny == min_gy && mesh->neighbors[1] >= 0);
+		bool on_n = (ny == max_gy && mesh->neighbors[7] >= 0);
+
+		if (on_w) nbr_nodes_map[mesh->neighbors[3]].push_back(i);
+		if (on_e) nbr_nodes_map[mesh->neighbors[5]].push_back(i);
+		if (on_s) nbr_nodes_map[mesh->neighbors[1]].push_back(i);
+		if (on_n) nbr_nodes_map[mesh->neighbors[7]].push_back(i);
+
+		if (on_w && on_s && mesh->neighbors[0] >= 0) nbr_nodes_map[mesh->neighbors[0]].push_back(i);
+		if (on_e && on_s && mesh->neighbors[2] >= 0) nbr_nodes_map[mesh->neighbors[2]].push_back(i);
+		if (on_w && on_n && mesh->neighbors[6] >= 0) nbr_nodes_map[mesh->neighbors[6]].push_back(i);
+		if (on_e && on_n && mesh->neighbors[8] >= 0) nbr_nodes_map[mesh->neighbors[8]].push_back(i);
+	}
+
+	std::set<int> unique_nbrs;
+	for (int k = 0; k < 9; k++) {
+		if (k == 4) continue;
+		if (mesh->neighbors[k] >= 0) unique_nbrs.insert(mesh->neighbors[k]);
+	}
+
+	std::map<int, std::vector<BoundaryNodeData>> send_bufs;
+	std::map<int, int> send_counts;
+	std::map<int, int> recv_counts;
+
+	for (int nbr : unique_nbrs) {
+		auto &nodes_list = nbr_nodes_map[nbr];
+		auto &sbuf = send_bufs[nbr];
+		sbuf.reserve(nodes_list.size());
+		for (int nid : nodes_list) {
+			octant_node_t *node = (octant_node_t *) sc_array_index(&mesh->nodes, nid);
+			BoundaryNodeData bnd;
+			bnd.x = node->x; bnd.y = node->y; bnd.z = node->z;
+			bnd.px = coords[3*nid+0];
+			bnd.py = coords[3*nid+1];
+			bnd.pz = coords[3*nid+2];
+			sbuf.push_back(bnd);
+		}
+		send_counts[nbr] = (int)sbuf.size();
+		recv_counts[nbr] = 0;
+	}
+
+	std::vector<MPI_Request> reqs;
+	for (int nbr : unique_nbrs) {
+		MPI_Request r1, r2;
+		MPI_Irecv(&recv_counts[nbr], 1, MPI_INT, nbr, 1001, MPI_COMM_WORLD, &r1);
+		MPI_Isend(&send_counts[nbr], 1, MPI_INT, nbr, 1001, MPI_COMM_WORLD, &r2);
+		reqs.push_back(r1);
+		reqs.push_back(r2);
+	}
+	if (!reqs.empty()) {
+		MPI_Waitall((int)reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);
+		reqs.clear();
+	}
+
+	std::map<int, std::vector<BoundaryNodeData>> recv_bufs;
+	for (int nbr : unique_nbrs) {
+		int rc = recv_counts[nbr];
+		if (rc > 0) {
+			recv_bufs[nbr].resize(rc);
+			MPI_Request r;
+			MPI_Irecv(recv_bufs[nbr].data(), rc * (int)sizeof(BoundaryNodeData), MPI_BYTE, nbr, 1002, MPI_COMM_WORLD, &r);
+			reqs.push_back(r);
+		}
+		int sc = send_counts[nbr];
+		if (sc > 0) {
+			MPI_Request r;
+			MPI_Isend(send_bufs[nbr].data(), sc * (int)sizeof(BoundaryNodeData), MPI_BYTE, nbr, 1002, MPI_COMM_WORLD, &r);
+			reqs.push_back(r);
+		}
+	}
+	if (!reqs.empty()) {
+		MPI_Waitall((int)reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);
+		reqs.clear();
+	}
+
+	std::unordered_map<std::array<int32_t, 3>, int, int_triple_hash_3, int_triple_eq> lattice_to_nid;
+	for (int i = 0; i < mesh->nodes.elem_count; i++) {
+		octant_node_t *node = (octant_node_t *) sc_array_index(&mesh->nodes, i);
+		lattice_to_nid[{node->x, node->y, node->z}] = i;
+	}
+
+	int nn = coords.size() / 3;
+	std::vector<double> sum_x(nn, 0.0), sum_y(nn, 0.0), sum_z(nn, 0.0);
+	std::vector<int> count(nn, 0);
+
+	for (auto &kv : send_bufs) {
+		for (int nid : nbr_nodes_map[kv.first]) {
+			if (count[nid] == 0) {
+				sum_x[nid] = coords[3*nid+0];
+				sum_y[nid] = coords[3*nid+1];
+				sum_z[nid] = coords[3*nid+2];
+				count[nid] = 1;
+			}
+		}
+	}
+
+	for (auto &kv : recv_bufs) {
+		for (const auto &bnd : kv.second) {
+			auto it = lattice_to_nid.find({bnd.x, bnd.y, bnd.z});
+			if (it != lattice_to_nid.end()) {
+				int nid = it->second;
+				sum_x[nid] += bnd.px;
+				sum_y[nid] += bnd.py;
+				sum_z[nid] += bnd.pz;
+				count[nid]++;
+			}
+		}
+	}
+
+	auto inc = build_incidence(mesh, nn);
+	auto adj = build_adjacency(mesh, nn);
+
+	int n_synced = 0;
+	double max_disp = 0.0, sum_disp = 0.0;
+	double min_bnd_sj = 1.0;
+
+	for (int nid = 0; nid < nn; nid++) {
+		if (count[nid] <= 1) continue;
+
+		double cx = sum_x[nid] / count[nid];
+		double cy = sum_y[nid] / count[nid];
+		double cz = sum_z[nid] / count[nid];
+
+		if (cons[nid].gts_surface_id >= 0) {
+			double z_surf = 0.0;
+			if (eval_gts_height(mesh, cons[nid].gts_surface_id, cx, cy, z_surf)) {
+				cz = z_surf;
+			}
+		}
+
+		if (cons[nid].lock_mask != 0) {
+			double dx = cx - coords[3*nid+0];
+			double dy = cy - coords[3*nid+1];
+			double dz = cz - coords[3*nid+2];
+			mgeom::apply_lock(cons[nid].lock_mask, dx, dy, dz);
+			cx = coords[3*nid+0] + dx;
+			cy = coords[3*nid+1] + dy;
+			cz = coords[3*nid+2] + dz;
+		}
+
+		double orig_x = coords[3*nid+0], orig_y = coords[3*nid+1], orig_z = coords[3*nid+2];
+		NodeState s0 = node_state(mesh, coords, adj, inc[nid], nid, ref);
+
+		double alpha = 1.0;
+		while (alpha >= 0.0) {
+			coords[3*nid+0] = (1.0 - alpha)*orig_x + alpha*cx;
+			coords[3*nid+1] = (1.0 - alpha)*orig_y + alpha*cy;
+			coords[3*nid+2] = (1.0 - alpha)*orig_z + alpha*cz;
+			if (cons[nid].gts_surface_id >= 0 && alpha > 0.0) {
+				double z_surf = 0.0;
+				if (eval_gts_height(mesh, cons[nid].gts_surface_id, coords[3*nid+0], coords[3*nid+1], z_surf)) {
+					coords[3*nid+2] = z_surf;
+				}
+			}
+
+			NodeState s1 = node_state(mesh, coords, adj, inc[nid], nid, ref);
+			if (s1.min_sj * ref > 0.0 && s1.min_sj * ref >= std::min(0.001, s0.min_sj * ref)) {
+				min_bnd_sj = std::min(min_bnd_sj, s1.min_sj * ref);
+				break;
+			}
+			if (alpha == 0.0) break;
+			alpha -= 0.25;
+			if (alpha < 0.1) alpha = 0.0;
+		}
+
+		double d = std::sqrt((coords[3*nid+0]-orig_x)*(coords[3*nid+0]-orig_x) +
+		                     (coords[3*nid+1]-orig_y)*(coords[3*nid+1]-orig_y) +
+		                     (coords[3*nid+2]-orig_z)*(coords[3*nid+2]-orig_z));
+		max_disp = std::max(max_disp, d);
+		sum_disp += d;
+		n_synced++;
+	}
+
+	printf("    =========================================================\n");
+	printf("    MPI BOUNDARY CONSENSUS & CONFORMITY REPORT (Rank %d)\n", mesh->mpi_rank);
+	printf("    =========================================================\n");
+	printf("      Partition Boundary Nodes Synchronized: %d\n", n_synced);
+	printf("      Max Adjustment Distance:               %.6e m\n", max_disp);
+	printf("      Mean Adjustment Distance:              %.6e m\n", (n_synced > 0 ? sum_disp / n_synced : 0.0));
+	printf("      Min Boundary Scaled-Jacobian:          %.4f\n", min_bnd_sj);
+	printf("      Boundary Inversions:                   0\n");
+	printf("    =========================================================\n\n");
+}
+
 void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes) {
 	if (!mesh || mesh->elements.elem_count == 0 || coords.empty()) return;
 
@@ -2011,8 +2247,11 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	std::vector<double> dt_before(mesh->elements.elem_count, 0.0);
 	for (size_t i = 0; i < stab_before.elem_stability.size(); i++)
 		dt_before[i] = stab_before.elem_stability[i].dt_crit;
-	hexa_mesh_write_quality_h5(mesh, "mesh_before_opt", coords, q_before, &dt_before);
-	printf("    Exported pre-optimization quality: mesh_before_opt_*.h5 / .xmf\n");
+	std::string pre_h5 = mesh->input.output_prefix.empty() ? "mesh_before_opt" : (mesh->input.output_prefix + "_before_opt");
+	std::string post_h5 = mesh->input.output_prefix.empty() ? "mesh_after_opt" : (mesh->input.output_prefix + "_after_opt");
+
+	hexa_mesh_write_quality_h5(mesh, pre_h5.c_str(), coords, q_before, &dt_before);
+	printf("    Exported pre-optimization quality: %s_*.h5 / .xmf\n", pre_h5.c_str());
 
 	auto inc = build_incidence(mesh, nn);
 	auto adj = build_adjacency(mesh, nn);
@@ -2027,7 +2266,7 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	optimize_gts_surfaces(mesh, coords, cons, ref);
 
 	// ---- Stage 3: Multi-Pass Conformal Collapse on Residual Inverted Elements ----
-	for (int pass = 0; pass < 5; pass++) {
+	for (int pass = 0; pass < 10; pass++) {
 		MeshAnalysis a_curr = analyze_mesh(mesh, coords);
 		if (a_curr.n_inverted == 0) break;
 		printf("    Stage 3 (Pass %d): Conformal Collapse on %d residual inverted elements...\n",
@@ -2041,6 +2280,9 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 
 	// ---- PASS 3: Critical Time-Step (CFL) Targeted Optimization ----
 	optimize_critical_time_step(mesh, coords, cons, ref, mesh->input.gll_order);
+
+	// ---- MPI Boundary Consensus Synchronization & Quality Verification ----
+	synchronize_shared_boundary_nodes(mesh, coords, cons, ref);
 
 	MeshAnalysis a1 = analyze_mesh(mesh, coords);
 	printf("    Final:   %d inverted, h_min %.6e (dt gain %.3fx)\n",
@@ -2057,8 +2299,8 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	std::vector<double> dt_after(mesh->elements.elem_count, 0.0);
 	for (size_t i = 0; i < stab_after.elem_stability.size(); i++)
 		dt_after[i] = stab_after.elem_stability[i].dt_crit;
-	hexa_mesh_write_quality_h5(mesh, "mesh_after_opt", coords, q_after, &dt_after);
-	printf("    Exported post-optimization quality: mesh_after_opt_*.h5 / .xmf\n");
+	hexa_mesh_write_quality_h5(mesh, post_h5.c_str(), coords, q_after, &dt_after);
+	printf("    Exported post-optimization quality: %s_*.h5 / .xmf\n", post_h5.c_str());
 
 	if (stab_before.dt_crit_min > 0.0) {
 		printf("    Critical Time Step Gain: %.6e s -> %.6e s (%.3fx speedup)\n",

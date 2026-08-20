@@ -44,6 +44,7 @@ struct Input {
     bool meshOpt;
     int gll_order = 4;
 	std::vector<double> zcut;
+    std::string output_prefix = "mesh";
 };
 typedef struct pmlmat
 {

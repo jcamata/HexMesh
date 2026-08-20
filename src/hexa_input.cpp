@@ -59,6 +59,22 @@ void parse_zcuts(const std::string &line, std::vector<double> &out) {
 Input readInputFile(const std::string &filePath)
 {
     Input input;
+
+    // Derive output prefix from input file path:
+    // e.g. "HexMesh_hawaii.input" -> "hawaii", "HexMesh.input" -> "HexMesh"
+    std::string fname = filePath;
+    size_t last_slash = fname.find_last_of("/\\");
+    if (last_slash != std::string::npos) fname = fname.substr(last_slash + 1);
+    size_t last_dot = fname.find_last_of('.');
+    if (last_dot != std::string::npos) fname = fname.substr(0, last_dot);
+    if (fname.rfind("HexMesh_", 0) == 0) {
+        input.output_prefix = fname.substr(8);
+    } else if (fname.rfind("hexmesh_", 0) == 0) {
+        input.output_prefix = fname.substr(8);
+    } else {
+        input.output_prefix = fname.empty() ? "mesh" : fname;
+    }
+
     std::ifstream file(filePath);
     std::string line;
 
