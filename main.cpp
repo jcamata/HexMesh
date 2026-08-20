@@ -12,6 +12,7 @@
 #include "hexa.h"
 #include "hilbert.h"
 #include "verify_mesh.h"
+#include "stability.h"
 #include <ctime>
 #include <sc.h>
 #include <sc_containers.h>
@@ -27,6 +28,7 @@
  */
 
 int main(int argc, char **argv) {
+  MPI_Init(&argc, &argv);
 
   hexa_tree_t mesh{};
 
@@ -36,10 +38,10 @@ int main(int argc, char **argv) {
   auto start = std::chrono::steady_clock::now();
 
   // read input file
-  inpreader(&mesh);
-  int l = mesh.input.ref;
+  const char *input_path = (argc > 1) ? argv[1] : nullptr;
+  inpreader(&mesh, input_path);
   // mpi init
-  hexa_init(l, argv, &mesh);
+  hexa_init(argc, argv, &mesh);
   // set the initial number of elements in x,y,z
   // hexa_tree_init(&mesh, l);
   hexa_tree_init(&mesh, mesh.input.ref);
@@ -152,6 +154,11 @@ int main(int argc, char **argv) {
   // final checks: orientation, then face planarity
   VerifyMeshInversion(&mesh, &coords);
   VerifyFacePlanarity(&mesh, coords);
+
+  if (!mesh.input.meshOpt) {
+    MeshStabilityAnalysis stab = analyze_mesh_stability(&mesh, coords, mesh.input.gll_order);
+    print_stability_report("FINAL MESH", stab, mesh.input.gll_order);
+  }
 
   { // ponytail: bug3 evidence -- dump all inverted element ids for A/B comparison, remove after
     const char *dbgpath = getenv("HEXMESH_INVDUMP");
@@ -289,11 +296,20 @@ int main(int argc, char **argv) {
 
   }
 
+  MeshStabilityAnalysis stab_final = analyze_mesh_stability(&mesh, coords, mesh.input.gll_order);
+  if (!mesh.input.meshOpt) {
+    print_stability_report("FINAL MESH", stab_final, mesh.input.gll_order);
+  }
+  std::vector<double> dtcrit_elem(mesh.elements.elem_count, 0.0);
+  for (size_t i = 0; i < stab_final.elem_stability.size(); i++) {
+    dtcrit_elem[i] = stab_final.elem_stability[i].dt_crit;
+  }
+
   start = std::chrono::steady_clock::now();
   printf(" Writing output files \n\n");
-  hexa_mesh_write_vtk(&mesh, "mesh", &coords, &invtag, &foldtag);
+  hexa_mesh_write_vtk(&mesh, "mesh", &coords, &invtag, &foldtag, &dtcrit_elem);
   // hexa_mesh_write_msh(&mesh, "mesh", &coords);
-  // hexa_mesh_write_h5(&mesh, "mesh", coords);
+  hexa_mesh_write_h5(&mesh, "mesh", coords, &dtcrit_elem);
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
   fprintf(mesh.profile, "Time in Writing output files %lld millisecond(s).\n",

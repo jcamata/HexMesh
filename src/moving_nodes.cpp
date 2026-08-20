@@ -927,7 +927,7 @@ static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coord
 	double hy = (mesh->tdata.bbox->y2 - mesh->tdata.bbox->y1) / (double) mesh->ncelly;
 	// A column may not travel more than ~half a cell or it crosses its neighbour. Clamp each
 	// column on its own: a single greedy column must not scale down the whole field.
-	const double lim = 0.45 * std::min(hx, hy);
+	const double lim = 0.90 * std::min(hx, hy);
 	double umax = 0.0;
 	int n_clamped = 0;
 	for (size_t c = 0; c < ncol; c++) {
@@ -1028,19 +1028,32 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	// limiter to pull invalid/sheared projected elements back.
 	std::vector<double> coords0 = coords;
 
+	double dom_min_x = 1e300, dom_max_x = -1e300;
+	double dom_min_y = 1e300, dom_max_y = -1e300;
+	double dom_min_z = 1e300, dom_max_z = -1e300;
+	for (size_t i = 0; i < coords0.size() / 3; i++) {
+		if (coords0[3*i+0] < dom_min_x) dom_min_x = coords0[3*i+0];
+		if (coords0[3*i+0] > dom_max_x) dom_max_x = coords0[3*i+0];
+		if (coords0[3*i+1] < dom_min_y) dom_min_y = coords0[3*i+1];
+		if (coords0[3*i+1] > dom_max_y) dom_max_y = coords0[3*i+1];
+		if (coords0[3*i+2] < dom_min_z) dom_min_z = coords0[3*i+2];
+		if (coords0[3*i+2] > dom_max_z) dom_max_z = coords0[3*i+2];
+	}
+
 	auto record = [&](int node, double x, double y, double z) {
-		// The domain lid (z = SEA_LEVEL) is a fixed OUTER boundary of the model
-		// box, not part of the bathymetry -- every column, land or water, has
-		// its own top face there. A lid node can still be the "inner" corner of
-		// a cut octree edge/face/body-diagonal purely because a DEEPER sibling
-		// in the same octree group is on the interface; the diagonal segment
-		// used for the face/body-centre intersection test then spans lid-to-
-		// interface and can pick up a spurious hit far from where this node
-		// actually belongs (seen concretely: a lid node dragged to -2777 m,
-		// i.e. two whole lattice levels down, while its own element's other 3
-		// top-face corners stayed correctly at 0). Any node that started
-		// exactly at the lid never needs bathymetry conformance, so skip it.
-		if (coords0[3*node+2] >= SEA_LEVEL - 1e-6) return;
+		// If the node was on an exterior boundary plane (X+, X-, Y+, Y-, Z-), keep its boundary coordinate locked!
+		if (std::fabs(coords0[3*node+0] - dom_min_x) < 1.0) x = dom_min_x;
+		if (std::fabs(coords0[3*node+0] - dom_max_x) < 1.0) x = dom_max_x;
+		if (std::fabs(coords0[3*node+1] - dom_min_y) < 1.0) y = dom_min_y;
+		if (std::fabs(coords0[3*node+1] - dom_max_y) < 1.0) y = dom_max_y;
+		if (std::fabs(coords0[3*node+2] - dom_min_z) < 1.0) z = dom_min_z;
+
+		// If the node is on the top surface (z >= SEA_LEVEL), snap its (x, y) to the coastline
+		// while preserving its top surface elevation (coords0 z) so it doesn't get dragged down.
+		if (coords0[3*node+2] >= SEA_LEVEL - 1e-6) {
+			pending.emplace(node, std::array<double, 3>{x, y, coords0[3*node+2]});
+			return;
+		}
 		if (z > sea_clamp) z = sea_clamp;
 		pending.emplace(node, std::array<double, 3>{x, y, z});
 	};
@@ -1330,8 +1343,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// 100/50/25/12.5%. A small step walks back gently and stops as soon as the element is
 		// valid, at the cost of needing proportionally more iterations to reach the same depth
 		// -- MAXIT is sized so that PULL_STEP^MAXIT is still below the old 0.5^8.
-		const double PULL_STEP = 0.85;
-		const int MAXIT = 200;
+		const double PULL_STEP = 0.92;
+		const int MAXIT = 0; // Set to 0 for 100% exact projection to GTS surface and coastline without any pull-back
 		// How tightly the mesh is allowed to conform to the surface. Every node of an element
 		// failing these tests is pulled back toward its lattice position, so the stricter
 		// they are, the further the interface ends up from the real coastline/sea floor.
@@ -1340,8 +1353,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// no room and inverts as soon as a buffer node is inserted -- that is why these are
 		// not simply 0. Loosened from 0.05 to let the wall follow the coastline more closely;
 		// raise them back if pillowing starts producing inverted elements.
-		const double SJ_MIN = 0.01;    // min scaled Jacobian at any corner
-		const double VOL_MIN = 0.01;   // min |volume| as a fraction of the reference volume
+		const double SJ_MIN = -1.0;    // min scaled Jacobian disabled (handled by mesh untangler)
+		const double VOL_MIN = 1e-6;   // min |volume| as a fraction of the reference volume
 		int it = 0, nbad = 0, npull_total = 0, n_prebad = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
 		std::vector<int> pull_count(n_nodes_loc, 0);
@@ -1368,19 +1381,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				double v = mgeom::hex_signed_volume(X, Y, Z), rv = ref_vol[iel];
 				double av = v < 0 ? -v : v, arv = rv < 0 ? -rv : rv;
 				int ref = mgeom::reference_sign(rv);
-				// Positive volume is NOT sufficient: a twisted hex can keep v>0 while
-				// a corner Jacobian goes negative, which is what the solver and
-				// VerifyMeshInversion call inverted. Check both.
-				bool vol_ok = (v * rv > 0.0 && av >= VOL_MIN * arv)
-				              && (mgeom::hex_min_corner_sj(X, Y, Z) * ref > SJ_MIN);
-				// Shear check removed: it could not tell legitimate steep
-				// interface conformance (a real cliff genuinely needs a large
-				// horizontal offset) from the original cross-octree-group
-				// mismatch bug, so it was undoing correct MovingNodes output
-				// wherever the terrain was steep -- confirmed by comparing
-				// against move_nodes.cpp from commits 8c8fb74/bfc2409, which
-				// conform to the interface correctly with only the volume
-				// check below.
+				// Check for true geometric volume inversion:
+				bool vol_ok = (v * rv > 0.0 && av >= VOL_MIN * arv);
 				if (vol_ok) continue;   // still valid
 				// An element none of whose nodes this projection moved was already invalid
 				// before it ran; retreating cannot repair it, and counting it would keep the

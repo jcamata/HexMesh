@@ -15,7 +15,7 @@ using namespace std;
 
 #include "hexa.h"
 
-void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords)
+void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords, const std::vector<double> *dtcrit)
 {
 
 	char filename[80];
@@ -161,6 +161,18 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	delete dataset1;
 	delete dataspace1;
 
+	// write DtCrit if provided
+	if (dtcrit != NULL && (int32_t)dtcrit->size() >= mesh->local_n_elements) {
+		dim[0] = mesh->local_n_elements;
+		dataspace1 = new DataSpace(1, dim);
+		RANK = 1;
+		dataset1 = new DataSet(file.createDataSet("Sem3D/DtCrit", PredType::IEEE_F64LE, *dataspace1));
+		DataSpace mspace_dt(RANK, dim);
+		dataset1->write(&(*dtcrit)[0], PredType::NATIVE_DOUBLE, mspace_dt, mspace_dt);
+		delete dataset1;
+		delete dataspace1;
+	}
+
 	// write the Centroids (one point per element) — diagnostic point cloud so
 	// degenerate / zero-volume elements (which do not render as cells in
 	// ParaView) are still visible as points: confirms the element EXISTS rather
@@ -221,6 +233,12 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Int\" Precision=\"8\">%s:/Sem3D/PillowType</DataItem>\n",mesh->local_n_elements,filename);
 	fprintf(fid,"</Attribute>\n");
 
+	if (dtcrit != NULL && (int32_t)dtcrit->size() >= mesh->local_n_elements) {
+		fprintf(fid,"<Attribute AttributeType=\"Scalar\" Center=\"Cell\" Dimensions=\"%d\" Name=\"DtCrit\">\n",mesh->local_n_elements);
+		fprintf(fid,"<DataItem Dimensions=\"%d\" Format=\"HDF\" NumberType=\"Float\" Precision=\"8\">%s:/Sem3D/DtCrit</DataItem>\n",mesh->local_n_elements,filename);
+		fprintf(fid,"</Attribute>\n");
+	}
+
 	fprintf(fid,"</Grid>\n");
 
 	// second grid: one point per element at its centroid (diagnostic point
@@ -245,49 +263,46 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 	fclose (fid);
 }
 
-void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char* root_name, const std::vector<double> &coords, const std::vector<hex_quality_t> &qualities)
-{
-	char filename[128];
-	sprintf(filename, "%s_%04d_%04d.h5", root_name, mesh->mpi_size, mesh->mpi_rank);
+void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char *root_name,
+                                const std::vector<double> &coords,
+                                const std::vector<hex_quality_t> &qualities,
+                                const std::vector<double> *dtcrit) {
+	if (!mesh || mesh->elements.elem_count == 0) return;
 
-	unsigned int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
-	int n_elem = mesh->local_n_elements;
-	int n_nodes = mesh->local_n_nodes;
+	int n_elem = mesh->elements.elem_count;
+	int n_nodes = coords.size() / 3;
+
+	char filename[128];
+	snprintf(filename, sizeof(filename), "%s_%04d_%04d.h5", root_name, mesh->mpi_size, mesh->mpi_rank);
+
+	H5File file(filename, H5F_ACC_TRUNC);
+
+	// Remap to VTK/h5 corner order
+	static const int assign_elem_nodes[8] = {4, 5, 6, 7, 0, 1, 2, 3};
 
 	std::vector<int> connect;
 	connect.reserve(n_elem * 8);
-	std::vector<int> mat;
+	std::vector<int> mat, pad, pillow_type;
 	mat.reserve(n_elem);
-	std::vector<int> pad;
 	pad.reserve(n_elem);
-	std::vector<int> pillow_type;
 	pillow_type.reserve(n_elem);
 
-	std::vector<double> v_scaledJac(n_elem);
-	std::vector<double> v_volume(n_elem);
-	std::vector<double> v_condNum(n_elem);
-	std::vector<double> v_edgeRatio(n_elem);
-	std::vector<double> v_skew(n_elem);
-	std::vector<double> v_shape(n_elem);
-	std::vector<double> v_oddy(n_elem);
-	std::vector<double> v_diagRatio(n_elem);
-	std::vector<double> v_taper(n_elem);
-	std::vector<double> v_stretch(n_elem);
-	std::vector<double> v_minAngle(n_elem);
+	std::vector<double> v_scaledJac(n_elem), v_volume(n_elem), v_condNum(n_elem);
+	std::vector<double> v_edgeRatio(n_elem), v_skew(n_elem), v_shape(n_elem);
+	std::vector<double> v_oddy(n_elem), v_diagRatio(n_elem), v_taper(n_elem);
+	std::vector<double> v_stretch(n_elem), v_minAngle(n_elem);
 
 	for (int i = 0; i < n_elem; i++) {
 		octant_t *h = (octant_t *) sc_array_index(&mesh->elements, i);
 		mat.push_back(h->n_mat);
 		pad.push_back(h->pad);
-		for (int j = 0; j < 8; j++) {
+		for (int j = 0; j < 8; j++)
 			connect.push_back(h->nodes[assign_elem_nodes[j]].id);
-		}
+
 		int pt;
-		if (h->n_mat == 0 && h->level == -1) {
-			pt = 3;
-		} else if (h->n_mat == 0) {
-			pt = 2;
-		} else {
+		if (h->n_mat == 0 && h->level == -1) pt = 3;
+		else if (h->n_mat == 0) pt = 2;
+		else {
 			bool on_interface = false;
 			for (int j = 0; j < 8; j++)
 				if (h->nodes[j].fixed == 1) { on_interface = true; break; }
@@ -296,23 +311,22 @@ void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char* root_name, const 
 		pillow_type.push_back(pt);
 
 		if (i < (int)qualities.size()) {
-			v_scaledJac[i] = qualities[i].scaledJacobian;
-			v_volume[i]    = qualities[i].volume;
-			v_condNum[i]   = qualities[i].conditionNumber;
-			v_edgeRatio[i] = qualities[i].edgeRatio;
-			v_skew[i]      = qualities[i].skew;
-			v_shape[i]     = qualities[i].shape;
-			v_oddy[i]      = qualities[i].oddy;
-			v_diagRatio[i] = qualities[i].diagonalRatio;
-			v_taper[i]     = qualities[i].taper;
-			v_stretch[i]   = qualities[i].stretch;
-			v_minAngle[i]  = qualities[i].minFaceAngle;
+			const auto &q = qualities[i];
+			v_scaledJac[i]  = q.scaledJacobian;
+			v_volume[i]     = q.volume;
+			v_condNum[i]    = q.conditionNumber;
+			v_edgeRatio[i]  = q.edgeRatio;
+			v_skew[i]       = q.skew;
+			v_shape[i]      = q.shape;
+			v_oddy[i]       = q.oddy;
+			v_diagRatio[i]  = q.diagonalRatio;
+			v_taper[i]      = q.taper;
+			v_stretch[i]    = q.stretch;
+			v_minAngle[i]   = q.minFaceAngle;
 		}
 	}
 
-	H5File file(filename, H5F_ACC_TRUNC);
-
-	// Nodes
+	// Nodes Dataset
 	hsize_t dims2D[2] = {(hsize_t)n_nodes, 3};
 	DataSpace dspace_nodes(2, dims2D);
 	DataSet dataset_nodes(file.createDataSet("Nodes", PredType::IEEE_F64LE, dspace_nodes));
@@ -357,6 +371,10 @@ void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char* root_name, const 
 	write_dbl_dataset("Sem3D/Taper", v_taper);
 	write_dbl_dataset("Sem3D/Stretch", v_stretch);
 	write_dbl_dataset("Sem3D/MinFaceAngle", v_minAngle);
+
+	if (dtcrit != NULL && (int32_t)dtcrit->size() >= n_elem) {
+		write_dbl_dataset("Sem3D/DtCrit", *dtcrit);
+	}
 
 	// Centroids
 	std::vector<double> centroids(3 * (size_t)n_elem);
@@ -414,6 +432,10 @@ void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char* root_name, const 
 	write_xmf_attr("Stretch", "/Sem3D/Stretch");
 	write_xmf_attr("MinFaceAngle", "/Sem3D/MinFaceAngle");
 
+	if (dtcrit != NULL && (int32_t)dtcrit->size() >= n_elem) {
+		write_xmf_attr("DtCrit", "/Sem3D/DtCrit");
+	}
+
 	fprintf(fid, "</Grid>\n");
 
 	// Diagnostic centroids point cloud
@@ -437,4 +459,3 @@ void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char* root_name, const 
 
 	fclose(fid);
 }
-

@@ -167,6 +167,10 @@ Input readInputFile(const std::string &filePath)
         {
             parse_zcuts(line.substr(line.find('=') + 1), input.zcut);
         }
+        else if (line.find("gll_order") == 0 || line.find("order") == 0) {
+            int ord = std::stoi(line.substr(line.find('=') + 1));
+            input.gll_order = std::max(1, std::min(ord, 20));
+        }
         else if (line.find("z") == 0) {
             input.z = std::stoi(line.substr(line.find('=') + 1));
         }
@@ -175,9 +179,9 @@ Input readInputFile(const std::string &filePath)
     return input;
 }
 
-int inpreader(hexa_tree_t *mesh)
+int inpreader(hexa_tree_t *mesh, const char *input_path)
 {
-    std::string filePath = "./HexMesh.input";
+    std::string filePath = (input_path && input_path[0] != '\0') ? input_path : "./HexMesh.input";
     Input input = readInputFile(filePath);
     mesh->input = input;
 
@@ -210,6 +214,7 @@ int inpreader(hexa_tree_t *mesh)
     std::cout << "PML Y: " << input.pmly << ", Layers Y: " << input.nlayersy << std::endl;
     std::cout << "PML Z: " << input.pmlz << ", Layers Z: " << input.nlayersz << std::endl;
     std::cout << "Mesh Optimization: " << (input.meshOpt ? "Enabled" : "Disabled") << std::endl;
+    std::cout << "Spectral Element GLL Order: " << input.gll_order << std::endl;
 
     // Verify material count matches declaration
     if (input.nmat != input.materials.size()) {

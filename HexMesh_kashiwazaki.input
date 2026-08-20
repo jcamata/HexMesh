@@ -1,0 +1,37 @@
+# Topography file
+topo = ./input/kashiwazaki_topography.gts
+
+# Bathymetry & Deep Interfaces
+interfaceNumber = 1
+inter = ./input/kashiwazaki_bathymetry.gts
+
+# Refinement level
+ref = 3
+
+# Depth of the model
+z = 100000
+zcuts = 10000; 30000; 40000 
+
+# Move nodes in smart octree
+movingNodes = 1
+
+# Material definition
+nmat = 3
+S 6300 2300 5000
+S 7000 3500 5500
+F 1500 0 1000
+
+# PML definition
+PML = 0
+pmlx = 15000
+nlayersx = 5
+pmly = 15000
+nlayersy = 5
+pmlz = 15000
+nlayersz = 5
+A = 10
+npow = 2
+
+# Mesh optimization
+meshOpt = 1
+CgalUse = 0

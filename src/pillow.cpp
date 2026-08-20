@@ -455,15 +455,35 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	// Averaged offset with a magnitude FLOOR: use the mean interior DIRECTION
 	// (congruent slab, no twist) but keep the mean interior DISTANCE as the
 	// length, so cancelling directions at ridges/valleys do not collapse the
-	// layer to zero thickness. Fallback to the reference face normal if the
-	// averaged direction itself vanishes.
-	auto avg_offset = [&](const std::array<double,5>& a, int sgn, int nx, int ny, int nz) -> std::array<double,3> {
+	// layer to zero thickness. Fallback to the non-opposing axis normal if the
+	// averaged direction vanishes or has opposing quad normals.
+	auto avg_offset = [&](const std::array<double,5>& a, uint8_t mask, int sgn, int nx, int ny, int nz) -> std::array<double,3> {
 		double c = a[3] > 0 ? a[3] : 1.0;
-		double dx=a[0]/c, dy=a[1]/c, dz=a[2]/c;
+		double dx = a[0]/c, dy = a[1]/c, dz = a[2]/c;
 		double mag = a[4]/c;                          // mean interior distance (~cell)
-		double dl = std::sqrt(dx*dx+dy*dy+dz*dz);
+		if (mag < 1.0) mag = 50.0;
+
+		// Zero out components along axes with true opposition (+ and - on same axis)
+		if ((mask & 3) == 3) dx = 0.0;
+		if ((mask & 12) == 12) dy = 0.0;
+		if ((mask & 48) == 48) dz = 0.0;
+
+		double dl = std::sqrt(dx*dx + dy*dy + dz*dz);
 		if (dl > 1e-6) { return { dx/dl*mag, dy/dl*mag, dz/dl*mag }; }
-		return { (double)sgn*nx*mag, (double)sgn*ny*mag, (double)sgn*nz*mag };
+
+		// Fallback to non-opposed axis normal
+		double fx = ((mask & 3) == 3) ? 0.0 : (double)sgn * nx;
+		double fy = ((mask & 12) == 12) ? 0.0 : (double)sgn * ny;
+		double fz = ((mask & 48) == 48) ? 0.0 : (double)sgn * nz;
+		double fl = std::sqrt(fx*fx + fy*fy + fz*fz);
+		if (fl > 1e-6) { return { fx/fl*mag, fy/fl*mag, fz/fl*mag }; }
+
+		// If all components were opposed or zero, extrude along the quad's specific normal
+		double qx = (double)sgn * nx, qy = (double)sgn * ny, qz = (double)sgn * nz;
+		double ql = std::sqrt(qx*qx + qy*qy + qz*qz);
+		if (ql > 1e-6) { return { qx/ql * (0.3*mag), qy/ql * (0.3*mag), qz/ql * (0.3*mag) }; }
+
+		return { 0.0, 0.0, (double)sgn * 0.3 * mag };
 	};
 
 	// Pass B: create one shared buffer node per interface node per material side it borders
@@ -484,8 +504,11 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 				if (idA >= 0) { n_v2++; }
 				else {
 					n_fallback++;
-					std::array<double,3> oA = avg_offset(acc[keyA], -1, nx, ny, nz);
-					idA = get_or_create_node(orig_nid, -nx, -ny, -nz, oA[0], oA[1], oA[2]);
+					std::array<double,3> oA = avg_offset(acc[keyA], side_mask[keyA], -1, nx, ny, nz);
+					int off_x = ((side_mask[keyA] & 3) == 3) ? 0 : -nx;
+					int off_y = ((side_mask[keyA] & 12) == 12) ? 0 : -ny;
+					int off_z = ((side_mask[keyA] & 48) == 48) ? 0 : -nz;
+					idA = get_or_create_node(orig_nid, off_x, off_y, off_z, oA[0], oA[1], oA[2]);
 				}
 				pillow_map[keyA] = idA;
 			}
@@ -495,8 +518,11 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 				if (idB >= 0) { n_v2++; }
 				else {
 					n_fallback++;
-					std::array<double,3> oB = avg_offset(acc[keyB], +1, nx, ny, nz);
-					idB = get_or_create_node(orig_nid, +nx, +ny, +nz, oB[0], oB[1], oB[2]);
+					std::array<double,3> oB = avg_offset(acc[keyB], side_mask[keyB], +1, nx, ny, nz);
+					int off_x = ((side_mask[keyB] & 3) == 3) ? 0 : +nx;
+					int off_y = ((side_mask[keyB] & 12) == 12) ? 0 : +ny;
+					int off_z = ((side_mask[keyB] & 48) == 48) ? 0 : +nz;
+					idB = get_or_create_node(orig_nid, off_x, off_y, off_z, oB[0], oB[1], oB[2]);
 				}
 				pillow_map[keyB] = idB;
 			}

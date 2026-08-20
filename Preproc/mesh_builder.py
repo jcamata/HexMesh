@@ -121,9 +121,10 @@ def _triangulate_2d(pts: np.ndarray, segments: list = None, use_cdt: bool = True
                 'segments': np.ascontiguousarray(cleaned_segs, dtype=np.int32)
             }
             res = tr.triangulate(data, 'pc')
+            out_pts = res['vertices'] if 'vertices' in res else cleaned_pts
             print(f"  CDT: Constrained Delaunay Triangulation performed with {len(cleaned_segs)} segments "
                   f"via 'triangle' package ({len(res['triangles'])} triangles).")
-            return cleaned_pts, res['triangles'].astype(np.int32), inv_map
+            return out_pts, res['triangles'].astype(np.int32), inv_map
         except Exception as e:
             print(f"  Warning: CDT via 'triangle' failed ({e}), falling back to scipy.spatial.Delaunay.")
 

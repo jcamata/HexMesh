@@ -237,7 +237,7 @@ void hexa_tree_cube(hexa_tree_t *mesh) {
 
   int ccount = 0;
   while ((nz + internal_step) <= mesh->ncellz) {
-    if ((nlayer + 1) == nelZ[ccount]) {
+    if (ccount < (int)nelZ.size() && (nlayer + 1) == nelZ[ccount]) {
       // if((nlayer+1)%30 == 0) {
       /*
       printf(" Entrei \n");
