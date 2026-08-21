@@ -6,7 +6,7 @@
 //#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Cartesian_converter.h>
-#include <CGAL/Intersections.h>
+#include <CGAL/intersections.h>
 
 #include <vector>
 #include <tuple>

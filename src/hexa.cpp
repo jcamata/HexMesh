@@ -4,7 +4,9 @@
 #include <math.h>
 
 
-#define MAX(a, b) (a > b ? a : b)
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 // Compute node id based on cartesian coordinates.
 inline int get_node_id(int nx, int ny, int i, int j, int k) {
