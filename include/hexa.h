@@ -20,7 +20,7 @@
 
 #include "hilbert.h"
 
-#define HEXA_DEBUG_
+// #define HEXA_DEBUG_
 
 struct Material {
     std::string type;
