@@ -2,17 +2,22 @@
 ## HexMesh Makefile for Linux Clusters (HPC)
 
 # Compilers & MPI Wrappers
+ifeq ($(origin CXX),default)
+CXX       := mpicxx
+else
 CXX       ?= mpicxx
+endif
 CXX_STD   ?= -std=c++17
 OPT_FLAGS ?= -O2 -g
 
 # Directories for external dependencies (override via CLI or environment)
 # Example: make -f Make.Linux GTS_DIR=/opt/local SC_DIR=/opt/local HDF5_DIR=/opt/hdf5
-GTS_DIR      ?= $(HOME)/local
-SC_DIR       ?= $(HOME)/local
-MESQUITE_DIR ?= $(HOME)/local
+LOCAL_DIR    ?= /home/ldeabreucorrea/localHexMesh
+GTS_DIR      ?= $(LOCAL_DIR)
+SC_DIR       ?= $(LOCAL_DIR)
+MESQUITE_DIR ?= $(LOCAL_DIR)
+CGAL_DIR     ?= $(LOCAL_DIR)
 HDF5_DIR     ?= $(if $(HDF5_ROOT),$(HDF5_ROOT),/usr)
-CGAL_DIR     ?= /usr
 BOOST_DIR    ?= /usr
 
 # GLib-2.0 configuration (detect via pkg-config with standard fallback)

@@ -10,10 +10,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <cstdint>
+#include <string>
+#include <vector>
 #include <sc.h>
 #include <sc_containers.h>
 #include <gts.h>
-#include <vector>
 
 #include "hilbert.h"
 
