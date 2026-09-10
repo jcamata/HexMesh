@@ -31,8 +31,9 @@ CGAL_LIB := -L/opt/local/lib  -Wl,-rpath,/opt/local/lib /opt/local/lib/libmpfr.d
 
 GLIB_INCLUDE = -I/opt/local/include/glib-2.0 -I/opt/local/lib/glib-2.0/include
 
-# CXX       = mpicxx -lstdc++ -g -std=c++17
-CXX       = mpicxx -g -std=c++17 -fsanitize=address
+CXX       = mpicxx -lstdc++ -O2 -std=c++17
+#CXX       = mpicxx -lstdc++ -g -std=c++17
+#CXX       = mpicxx -g -std=c++17 -fsanitize=address
 LDFLAGS   =-L$(GTS_DIR)/lib -lgts -L$(SC_DIR)/lib -L$(HDF5_DIR)/lib -lsc -lm -lglib-2.0 -lhdf5_cpp -lhdf5 -L$(MESQUITE_DIR)/lib -lmesquite $(CGAL_LIB)
 CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -I./include -I$(HDF5_DIR)/include -I$(MESQUITE_DIR)/include
 

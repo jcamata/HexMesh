@@ -127,6 +127,10 @@ Input readInputFile(const std::string &filePath)
         {
             input.movingNodes = std::stoi(line.substr(line.find('=') + 1));
         }
+        else if (line.find("writeH5") == 0)
+        {
+            input.writeH5 = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
         else if (line.find("CgalUse") == 0)
         {
             input.CgalUse = std::stoi(line.substr(line.find('=') + 1));

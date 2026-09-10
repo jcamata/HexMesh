@@ -26,6 +26,13 @@ MeshAnalysis analyze_mesh(hexa_tree_t *mesh, const std::vector<double> &coords);
 // Backwards-compatible entry: prints the report, returns inverted count.
 int VerifyMeshInversion(hexa_tree_t *mesh, const std::vector<double> *coords);
 
+// Inversion map: classifies every inverted element (parent-octree cut pattern,
+// lattice extent, node displacement, warp column state) and prints cross-tabs
+// plus per-class inversion rates; writes invmap_<tag>.csv in the cwd. Pass an
+// empty `prev` when there is no previous-stage snapshot to compare against.
+void DumpInversionMap(hexa_tree_t *mesh, const std::vector<double> &coords,
+                      const std::vector<double> &prev, const char *tag);
+
 // Face planarity: prints the warp report (max gap / mean edge over the 6 faces
 // of every element), returns how many elements exceed tol.
 int VerifyFacePlanarity(hexa_tree_t *mesh, const std::vector<double> &coords, double tol = 1e-3);

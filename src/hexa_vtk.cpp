@@ -213,7 +213,7 @@ int hexa_tree_write_vtk(hexa_tree_t* mesh,  const char *filename)
 
 }
 
-int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords, const std::vector<int> *invtag, const std::vector<int> *foldtag, const std::vector<double> *dtcrit)
+int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<double> *coords, const std::vector<int> *invtag, const std::vector<int> *foldtag, const std::vector<double> *dtcrit, const std::vector<double> *dtcfl, const std::vector<double> *jacratio)
 {
 
 	//update the vectors
@@ -393,6 +393,31 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
 		fprintf (vtufile, "\n");
 		fprintf (vtufile, "        </DataArray>\n");
 	}
+	// CFL classica ao lado do limite de Irons. Ver a nota em stability.cpp: uma
+	// mede distancias entre pontos GLL, a outra o operador. A razao entre as duas
+	// e' a distorcao que a malha esconde.
+	if (dtcfl != NULL && (int32_t) dtcfl->size() >= Ncells) {
+		fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"DtCFL\" format=\"%s\">\n", VTK_FLOAT_NAME, VTK_FORMAT_STRING);
+		for (il = 0, sk = 1; il < Ncells; ++il, ++sk) {
+			fprintf (vtufile, " %16.8e", (VTK_FLOAT_TYPE)(*dtcfl)[il]);
+			if (!(sk % 10) && il != (Ncells - 1))
+				fprintf (vtufile, "\n         ");
+		}
+		fprintf (vtufile, "\n");
+		fprintf (vtufile, "        </DataArray>\n");
+	}
+	// min(detJ)/max(detJ): degenerescencia relativa ao proprio tamanho do
+	// elemento. Exportada para filtragem por qualidade a jusante.
+	if (jacratio != NULL && (int32_t) jacratio->size() >= Ncells) {
+		fprintf (vtufile, "        <DataArray type=\"%s\" Name=\"JacRatio\" format=\"%s\">\n", VTK_FLOAT_NAME, VTK_FORMAT_STRING);
+		for (il = 0, sk = 1; il < Ncells; ++il, ++sk) {
+			fprintf (vtufile, " %16.8e", (VTK_FLOAT_TYPE)(*jacratio)[il]);
+			if (!(sk % 10) && il != (Ncells - 1))
+				fprintf (vtufile, "\n         ");
+		}
+		fprintf (vtufile, "\n");
+		fprintf (vtufile, "        </DataArray>\n");
+	}
 	fprintf (vtufile, "      </CellData>\n");
 	fprintf (vtufile, "      <PointData Scalars=\"NodePart\" >\n");
 	/* write connectivity data */
@@ -454,6 +479,10 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
 			fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"NeighborFold\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);
 		if (dtcrit != NULL)
 			fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"DtCrit\" format=\"%s\" />\n", VTK_FLOAT_NAME, VTK_FORMAT_STRING);
+		if (dtcfl != NULL)
+			fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"DtCFL\" format=\"%s\" />\n", VTK_FLOAT_NAME, VTK_FORMAT_STRING);
+		if (jacratio != NULL)
+			fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"JacRatio\" format=\"%s\" />\n", VTK_FLOAT_NAME, VTK_FORMAT_STRING);
 		fprintf (pvtufile, "      </PCellData>\n");
 		fprintf (pvtufile, "     <PPointData Scalars=\"NodePart\" >\n");
 		fprintf (pvtufile, "        <PDataArray type=\"%s\" Name=\"NodePart\" format=\"%s\" />\n", VTK_LOCIDX, VTK_FORMAT_STRING);

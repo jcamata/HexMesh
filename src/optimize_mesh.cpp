@@ -13,6 +13,7 @@
 #include "hexa.h"
 #include "verify_mesh.h"
 #include "mesh_geom.h"
+#include "optimize_mesh.h"
 #include "stability.h"
 
 /**
@@ -73,7 +74,45 @@ static const int    PHASE_A_SWEEPS     = 20;
 static const int    PHASE_B_ROUNDS     = 10;
 static const double PHASE_B_FRACTION   = 0.05;  // fraction of smallest elems attacked
 static const double ESCALATION_CAP     = 0.15;  // max interface move = 15% shortest edge
-static const bool   ESCALATION_ENABLED = true;  // interface relaxation to untangle stubborn interface elements
+// Off: measured on 4 cases it moved GTS surface nodes up to 3450 m off their surface and
+// removed exactly one inversion in total. The residual is tangled slivers, not nodes that
+// need more freedom, so this only costs surface fidelity. The fix is upstream, in the
+// projection limiter in moving_nodes.cpp.
+static const bool   ESCALATION_ENABLED = false;
+static const double UNTANGLE_CAP       = 1.0;   // max total displacement per relax_node call, in local edges
+static const double H_FLOOR_FRAC       = 0.05;  // a local edge below this fraction of the mesh scale is not trusted
+
+// ---- Mesh length scale ----------------------------------------------------
+// Every step size in this file is a multiple of either the node's own shortest
+// incident edge or of this. Absolute lengths in metres (the old 50 / 150 / 250 /
+// 350 / 500 literals) are a bug: they assume a ~500 m element. On belle_ile the
+// shortest edges are ~1 m and on HexMesh_plane.input the whole domain is under
+// 1 unit, so a "small" 50 m step teleported the node several elements away --
+// which is how the untangler produced the folds it was supposed to remove.
+// ponytail: one file-scope value, one writer (set_mesh_scale), single-threaded.
+static double g_h_ref = 1.0;
+
+// Local edge length, floored against a pathological (near-zero) local edge.
+static inline double h_floor(double he) {
+	double lo = H_FLOOR_FRAC * g_h_ref;
+	return (he > lo) ? he : lo;
+}
+
+// Median element characteristic size |vol|^(1/3). Independent of
+// shortest_incident_edge, which needs g_h_ref for its own fallback.
+static void set_mesh_scale(hexa_tree_t *mesh, const std::vector<double> &coords) {
+	std::vector<double> h;
+	h.reserve(mesh->elements.elem_count);
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		double X[8], Y[8], Z[8];
+		load_elem_xyz(mesh, coords, iel, X, Y, Z);
+		double v = std::fabs(mgeom::hex_signed_volume(X, Y, Z));
+		if (v > 0.0) h.push_back(std::cbrt(v));
+	}
+	if (h.empty()) { g_h_ref = 1.0; return; }
+	std::nth_element(h.begin(), h.begin() + h.size()/2, h.end());
+	g_h_ref = h[h.size()/2];
+}
 
 // ---- Topology helpers -----------------------------------------------------
 struct face_key {
@@ -94,12 +133,6 @@ static face_key make_face_key(int a, int b, int c, int d) {
 	std::sort(t, t+4);
 	return face_key{ {t[0],t[1],t[2],t[3]} };
 }
-
-// Node constraint structure supporting generic N GTS surfaces and 2D/1D boundary locks
-struct NodeConstraint {
-	uint8_t lock_mask;  // LOCK_X | LOCK_Y | LOCK_Z for boundary planes/lines/corners
-	int gts_surface_id; // -1 if not on GTS surface, 0..N-1 = gdata_vec index, 1000 = topography (tdata)
-};
 
 // eval_gts_height lives in intercept_surface.cpp (declared in hexa.h) so
 // GetMeshFromSurface can share it too.
@@ -150,6 +183,14 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 		if (z > dom_max_z) dom_max_z = z;
 	}
 
+	// Wall-plane tolerance. Must scale with the domain: a fixed 1.0 m is wider than the
+	// WHOLE domain on a unit-scale model (HexMesh_plane.input spans 0.96), where it locked
+	// every node in X and Y and left the untangler unable to move anything at all.
+	// min(1.0, 1e-3*L) keeps metre-scale models byte-identical to the old behaviour.
+	const double wall_x = std::min(1.0, 1e-3 * (dom_max_x - dom_min_x));
+	const double wall_y = std::min(1.0, 1e-3 * (dom_max_y - dom_min_y));
+	const double wall_z = std::min(1.0, 1e-3 * (dom_max_z - dom_min_z));
+
 	for (auto &kv : seen) {
 		if (shared.count(kv.first)) continue; // internal face, skip
 		int iel = kv.second.first, f = kv.second.second;
@@ -174,17 +215,17 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 
 			if (cx) {
 				double xval = coords[3*nid[0]+0];
-				if (std::fabs(xval - dom_min_x) < 1.0 || std::fabs(xval - dom_max_x) < 1.0)
+				if (std::fabs(xval - dom_min_x) < wall_x || std::fabs(xval - dom_max_x) < wall_x)
 					m |= mgeom::LOCK_X;
 			}
 			if (cy) {
 				double yval = coords[3*nid[0]+1];
-				if (std::fabs(yval - dom_min_y) < 1.0 || std::fabs(yval - dom_max_y) < 1.0)
+				if (std::fabs(yval - dom_min_y) < wall_y || std::fabs(yval - dom_max_y) < wall_y)
 					m |= mgeom::LOCK_Y;
 			}
 			if (cz) {
 				double zval = coords[3*nid[0]+2];
-				if (std::fabs(zval - dom_min_z) < 1.0)
+				if (std::fabs(zval - dom_min_z) < wall_z)
 					m |= mgeom::LOCK_Z;
 			}
 		}
@@ -199,15 +240,15 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 
 	// Also directly lock any node sitting on the global bounding planes (X-, X+, Y-, Y+, Z-)
 	for (int i = 0; i < nn; i++) {
-		if (std::fabs(coords[3*i+0] - dom_min_x) < 1.0 || std::fabs(coords[3*i+0] - dom_max_x) < 1.0) {
+		if (std::fabs(coords[3*i+0] - dom_min_x) < wall_x || std::fabs(coords[3*i+0] - dom_max_x) < wall_x) {
 			lock[i] |= mgeom::LOCK_X;
 			cons[i].lock_mask |= mgeom::LOCK_X;
 		}
-		if (std::fabs(coords[3*i+1] - dom_min_y) < 1.0 || std::fabs(coords[3*i+1] - dom_max_y) < 1.0) {
+		if (std::fabs(coords[3*i+1] - dom_min_y) < wall_y || std::fabs(coords[3*i+1] - dom_max_y) < wall_y) {
 			lock[i] |= mgeom::LOCK_Y;
 			cons[i].lock_mask |= mgeom::LOCK_Y;
 		}
-		if (std::fabs(coords[3*i+2] - dom_min_z) < 1.0) {
+		if (std::fabs(coords[3*i+2] - dom_min_z) < wall_z) {
 			lock[i] |= mgeom::LOCK_Z;
 			cons[i].lock_mask |= mgeom::LOCK_Z;
 		}
@@ -239,6 +280,78 @@ std::vector<NodeConstraint> classify_node_constraints(hexa_tree_t *mesh,
 	return cons;
 }
 
+// ---- Face adjacency & folding --------------------------------------------
+// (elem,face) -> neighbour packed as other*8 + other_face, or -1 for a boundary face.
+// ponytail: one global, one writer (build_face_neighbours), single-threaded -- same
+// reason as g_h_ref: node_state has ~20 call sites and does not need a new parameter.
+static std::vector<int> g_face_nbr;
+
+static void build_face_neighbours(hexa_tree_t *mesh) {
+	int ne = mesh->elements.elem_count;
+	g_face_nbr.assign((size_t)6*ne, -1);
+	std::unordered_map<face_key, int, face_key_hash> owner;
+	owner.reserve((size_t)ne*6);
+	for (int iel = 0; iel < ne; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		for (int f = 0; f < 6; f++) {
+			face_key k = make_face_key(e->nodes[FaceNodesMap[f][0]].id, e->nodes[FaceNodesMap[f][1]].id,
+			                           e->nodes[FaceNodesMap[f][2]].id, e->nodes[FaceNodesMap[f][3]].id);
+			auto it = owner.find(k);
+			if (it == owner.end()) { owner[k] = iel*8 + f; continue; }
+			int oe = it->second / 8, of = it->second % 8;
+			g_face_nbr[6*iel + f] = oe*8 + of;
+			g_face_nbr[6*oe  + of] = iel*8 + f;
+			owner.erase(it);
+		}
+	}
+}
+
+static inline void face_complement_centroid(hexa_tree_t *mesh, const std::vector<double> &coords,
+                                            int iel, int f, double c[3]) {
+	octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+	bool on_face[8] = {false};
+	for (int k = 0; k < 4; k++) on_face[FaceNodesMap[f][k]] = true;
+	c[0] = c[1] = c[2] = 0.0;
+	for (int k = 0; k < 8; k++) {
+		if (on_face[k]) continue;
+		int id = e->nodes[k].id;
+		for (int d = 0; d < 3; d++) c[d] += 0.25 * coords[3*id+d];
+	}
+}
+
+// How many of this element's faces it has folded through into the neighbour.
+static int elem_fold_count(hexa_tree_t *mesh, const std::vector<double> &coords, int iel) {
+	if (g_face_nbr.empty()) return 0;
+	octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+	int n = 0;
+	for (int f = 0; f < 6; f++) {
+		int packed = g_face_nbr[6*iel + f];
+		if (packed < 0) continue;
+		double q[4][3], ca[3], cb[3];
+		for (int k = 0; k < 4; k++) {
+			int id = e->nodes[FaceNodesMap[f][k]].id;
+			for (int d = 0; d < 3; d++) q[k][d] = coords[3*id+d];
+		}
+		face_complement_centroid(mesh, coords, iel, f, ca);
+		face_complement_centroid(mesh, coords, packed / 8, packed % 8, cb);
+		if (mgeom::faces_folded(q, ca, cb)) n++;
+	}
+	return n;
+}
+
+// Mesh-level badness, same lexicographic order as better_state: inversions then folds.
+struct MeshBad { int inv, fold; };
+static inline bool bad_worse(const MeshBad &b, const MeshBad &a) {
+	return (b.inv != a.inv) ? (b.inv > a.inv) : (b.fold > a.fold);
+}
+
+static int count_folded_elements(hexa_tree_t *mesh, const std::vector<double> &coords) {
+	int n = 0;
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
+		if (elem_fold_count(mesh, coords, iel) > 0) n++;
+	return n;
+}
+
 // node -> list of incident element ids
 static std::vector<std::vector<int>> build_incidence(hexa_tree_t *mesh, int n_nodes) {
 	std::vector<std::vector<int>> inc(n_nodes);
@@ -267,10 +380,10 @@ static double shortest_incident_edge(hexa_tree_t *mesh, const std::vector<double
 			if (a == b) continue;
 			double dx=coords[3*a]-coords[3*b], dy=coords[3*a+1]-coords[3*b+1], dz=coords[3*a+2]-coords[3*b+2];
 			double len = std::sqrt(dx*dx+dy*dy+dz*dz);
-			if (len > 1e-6 && len < h) h = len;
+			if (len > 1e-9 * g_h_ref && len < h) h = len;
 		}
 	}
-	return (h < 1e299) ? h : 1.0;
+	return (h < 1e299) ? h : g_h_ref;
 }
 
 static const double SEARCH_DIRS[26][3] = {
@@ -282,15 +395,18 @@ static const double SEARCH_DIRS[26][3] = {
 	{ 1, 1,-1}, {-1, 1,-1}, { 1,-1,-1}, {-1,-1,-1}
 };
 
-// Local state of a node's incident elements: how many are inverted, worst
-// scaled Jacobian, sum of negative Jacobians, z-disparity with horizontal
-// neighbors (x+, x-, y+, y-), xy-disparity with vertical column neighbors, and face warp.
+// Local state of a node's incident elements: how many are inverted, how many have
+// folded through a face into a neighbour, worst scaled Jacobian, sum of negative
+// Jacobians, and face warp.
+//
+// The old z_disparity / xy_disparity terms are gone: penalising a node for sitting at a
+// different height from its horizontal neighbours is a penalty on TOPOGRAPHY, and it
+// carried weight 0.50 against min_sj -- the optimizer was being paid to flatten relief.
 struct NodeState {
 	int n_inv;
+	int n_fold;              // face-folds among incident elements (3D interpenetration)
 	double min_sj;
 	double sum_neg_sj;
-	double z_disparity;      // Max |z - z_neighbor| among horizontal (x+, x-, y+, y-) neighbors
-	double xy_disparity;     // Max |(x,y) - (x,y)_neighbor| along vertical column neighbors
 	double max_face_warp;    // Max face non-planarity ratio among incident elements
 	double sum_sj;
 };
@@ -300,12 +416,11 @@ static NodeState node_state(hexa_tree_t *mesh, const std::vector<double> &coords
                             const std::vector<int> &inc, int node, int ref) {
 	NodeState s;
 	s.n_inv = 0;
+	s.n_fold = 0;
 	s.min_sj = 1e300;
 	s.sum_neg_sj = 0.0;
 	s.sum_sj = 0.0;
 	s.max_face_warp = 0.0;
-	s.z_disparity = 0.0;
-	s.xy_disparity = 0.0;
 
 	for (int iel : inc) {
 		double X[8], Y[8], Z[8];
@@ -322,66 +437,42 @@ static NodeState node_state(hexa_tree_t *mesh, const std::vector<double> &coords
 
 		double warp = mgeom::hex_max_face_warp(X, Y, Z);
 		if (warp > s.max_face_warp) s.max_face_warp = warp;
+
+		s.n_fold += elem_fold_count(mesh, coords, iel);
 	}
 
-	// Structured neighbor disparity check (x+, x-, y+, y-, z+, z-)
-	if (node >= 0 && node < mesh->nodes.elem_count && node < (int)adj.size()) {
-		octant_node_t *nd = (octant_node_t *) sc_array_index(&mesh->nodes, node);
-		int nz_node = nd->z;
-		int nx_node = nd->x;
-		int ny_node = nd->y;
-
-		double px = coords[3*node+0];
-		double py = coords[3*node+1];
-		double pz = coords[3*node+2];
-
-		for (int nb : adj[node]) {
-			if (nb < 0 || nb >= mesh->nodes.elem_count) continue;
-			octant_node_t *nd_nb = (octant_node_t *) sc_array_index(&mesh->nodes, nb);
-
-			// Horizontal neighbors in the same z layer (x+, x-, y+, y-)
-			if (nd_nb->z == nz_node) {
-				double dz = std::fabs(pz - coords[3*nb+2]);
-				if (dz > s.z_disparity) s.z_disparity = dz;
-			}
-
-			// Vertical column neighbors (same x, y column)
-			if (nd_nb->x == nx_node && nd_nb->y == ny_node) {
-				double dx = std::fabs(px - coords[3*nb+0]);
-				double dy = std::fabs(py - coords[3*nb+1]);
-				if (dx > s.xy_disparity) s.xy_disparity = dx;
-				if (dy > s.xy_disparity) s.xy_disparity = dy;
-			}
-		}
-	}
-
+	(void)adj;   // kept in the signature only to avoid touching ~20 call sites
 	return s;
 }
 
-// b is better than a iff it reduces inversion or improves quality while penalizing z-jumps
-static bool better_state(const NodeState &b, const NodeState &a, double h_ref = 500.0) {
-	double norm_h = (h_ref > 50.0) ? h_ref : 500.0;
-	if (b.n_inv != a.n_inv) {
-		return b.n_inv < a.n_inv;
-	}
+// Ordering is LEXICOGRAPHIC and the first key is the inversion count, alone.
+// An inverted element stops the wave-propagation solver from starting at all, so it is a
+// hard constraint: no amount of fold reduction may ever pay for re-introducing one.
+// Folds rank immediately below -- they are unusable geometry too, but a mesh carrying
+// them still runs, so they are only decided once the inversion counts tie.
+static bool better_state(const NodeState &b, const NodeState &a, double h_ref = 0.0) {
+	(void)h_ref;
+	if (b.n_inv != a.n_inv) return b.n_inv < a.n_inv;
+
 	if (b.n_inv > 0) {
+		// Still untangling. Drive the worst corner Jacobian up; folds are a tiebreak here
+		// and must not block a move that is making progress toward removing an inversion.
 		if (b.min_sj > a.min_sj + 1e-6) return true;
 		if (b.min_sj < a.min_sj - 1e-6) return false;
 		if (b.sum_neg_sj > a.sum_neg_sj + 1e-6) return true;
 		if (b.sum_neg_sj < a.sum_neg_sj - 1e-6) return false;
+		if (b.n_fold != a.n_fold) return b.n_fold < a.n_fold;
 		return b.sum_sj > a.sum_sj + 1e-6;
 	}
 
-	// Valid mesh phase: composite objective penalizing z-disparity, xy-shear, and face warp
-	double penalty_a = 0.50 * (a.z_disparity / norm_h) + 0.30 * (a.xy_disparity / norm_h) + 0.20 * a.max_face_warp;
-	double penalty_b = 0.50 * (b.z_disparity / norm_h) + 0.30 * (b.xy_disparity / norm_h) + 0.20 * b.max_face_warp;
+	// No inversions on either side: folds become the primary target.
+	if (b.n_fold != a.n_fold) return b.n_fold < a.n_fold;
 
-	double score_a = a.min_sj - penalty_a;
-	double score_b = b.min_sj - penalty_b;
-
+	// Valid mesh phase: worst corner Jacobian, with face warp as a mild shape penalty.
+	double score_a = a.min_sj - 0.20 * a.max_face_warp;
+	double score_b = b.min_sj - 0.20 * b.max_face_warp;
 	if (score_b > score_a + 1e-5) return true;
 	if (score_b < score_a - 1e-5) return false;
-
 	return b.sum_sj > a.sum_sj + 1e-12;
 }
 
@@ -389,7 +480,7 @@ static bool better_state(const NodeState &b, const NodeState &a, double h_ref = 
 static bool relax_gts_surface_node(hexa_tree_t *mesh, std::vector<double> &coords,
                                    const std::vector<std::vector<int>> &adj,
                                    const std::vector<int> &inc, int node, int ref,
-                                   const NodeConstraint &cons, double he = 500.0) {
+                                   const NodeConstraint &cons, double he = 0.0) {
 	if (inc.empty() || adj[node].empty() || cons.gts_surface_id < 0) return false;
 	double px = coords[3*node+0], py = coords[3*node+1], pz = coords[3*node+2];
 	NodeState s0 = node_state(mesh, coords, adj, inc, node, ref);
@@ -421,8 +512,9 @@ static bool relax_gts_surface_node(hexa_tree_t *mesh, std::vector<double> &coord
 	}
 
 	// 2. Try 16 tangential directions along the GTS surface with scale-relative steps
-	double h_surf = std::max(he, 50.0);
-	double SURF_STEPS[] = {0.8*h_surf, 0.5*h_surf, 0.25*h_surf, 0.1*h_surf, 0.05*h_surf, 0.01*h_surf, 50.0, 20.0, 5.0, 1.0};
+	double h_surf = h_floor(he);
+	double SURF_STEPS[] = {0.8*h_surf, 0.5*h_surf, 0.25*h_surf, 0.1*h_surf, 0.05*h_surf,
+	                       0.01*h_surf, 0.005*h_surf, 0.002*h_surf, 0.001*h_surf, 0.0005*h_surf};
 	for (int dir = 0; dir < 16; dir++) {
 		double theta = dir * (2.0 * M_PI / 16.0);
 		double vx = std::cos(theta), vy = std::sin(theta), vz = 0.0;
@@ -455,7 +547,7 @@ static bool relax_gts_surface_node(hexa_tree_t *mesh, std::vector<double> &coord
 static bool relax_volume_gradient(hexa_tree_t *mesh, std::vector<double> &coords,
                                    const std::vector<std::vector<int>> &adj,
                                    const std::vector<int> &inc, int node, int ref,
-                                   const NodeConstraint &cons, double he = 500.0) {
+                                   const NodeConstraint &cons, double he = 0.0) {
 	if (cons.gts_surface_id >= 0 || inc.empty()) return false;
 	double px = coords[3*node+0], py = coords[3*node+1], pz = coords[3*node+2];
 	NodeState s0 = node_state(mesh, coords, adj, inc, node, ref);
@@ -488,8 +580,9 @@ static bool relax_volume_gradient(hexa_tree_t *mesh, std::vector<double> &coords
 	gx /= glen; gy /= glen; gz /= glen;
 
 	bool moved = false;
-	double h_scale = std::max(he, 50.0);
-	double GRAD_STEPS[] = {1.0*h_scale, 0.6*h_scale, 0.3*h_scale, 0.15*h_scale, 0.05*h_scale, 0.01*h_scale, 50.0, 20.0, 5.0, 1.0};
+	double h_scale = h_floor(he);
+	double GRAD_STEPS[] = {1.0*h_scale, 0.6*h_scale, 0.3*h_scale, 0.15*h_scale, 0.05*h_scale,
+	                       0.01*h_scale, 0.005*h_scale, 0.002*h_scale, 0.001*h_scale, 0.0005*h_scale};
 	for (double sign : {1.0, -1.0}) {
 		for (double step : GRAD_STEPS) {
 			coords[3*node+0] = px + sign * gx * step;
@@ -511,7 +604,7 @@ static bool relax_volume_gradient(hexa_tree_t *mesh, std::vector<double> &coords
 static bool relax_pillow_node(hexa_tree_t *mesh, std::vector<double> &coords,
                               const std::vector<std::vector<int>> &adj,
                               const std::vector<int> &inc, int node, int ref,
-                              const std::vector<NodeConstraint> &cons, double he = 500.0) {
+                              const std::vector<NodeConstraint> &cons, double he = 0.0) {
 	if (cons[node].gts_surface_id >= 0) return false; // purely internal/pillow node
 	int n_surf = -1, n_oct = -1;
 	for (int nb : adj[node]) {
@@ -554,13 +647,19 @@ static bool relax_pillow_node(hexa_tree_t *mesh, std::vector<double> &coords,
 static bool relax_node(hexa_tree_t *mesh, std::vector<double> &coords,
                        const std::vector<std::vector<int>> &adj,
                        const std::vector<int> &inc, int node, int ref,
-                       uint8_t eff_mask, double step0, double cap, double he = 500.0) {
+                       uint8_t eff_mask, double step0, double cap, double he = 0.0) {
 	double sx = coords[3*node+0], sy = coords[3*node+1], sz = coords[3*node+2];
 	NodeState s0 = node_state(mesh, coords, adj, inc, node, ref);
 	bool moved = false;
 
-	double max_z_step = std::max(he, 350.0);
-	static const double STEPS[] = {250.0, 150.0, 100.0, 50.0, 25.0, 10.0, 5.0, 2.0, 1.0, 0.5, 0.1};
+	// step0 is the caller's budget (UNTANGLE_STEP0 local edges). It used to be
+	// accepted and then ignored in favour of a fixed metre ladder.
+	double h = h_floor(he);
+	if (step0 <= 0.0) step0 = UNTANGLE_STEP0 * h;
+	double max_z_step = 0.7 * h;
+	const double FRAC[] = {1.0, 0.6, 0.4, 0.2, 0.1, 0.04, 0.02, 0.008, 0.004, 0.002, 0.0004};
+	double STEPS[sizeof(FRAC)/sizeof(FRAC[0])];
+	for (size_t i = 0; i < sizeof(FRAC)/sizeof(FRAC[0]); i++) STEPS[i] = FRAC[i] * step0;
 
 	for (int d = 0; d < 26; d++) {
 		double vx = SEARCH_DIRS[d][0], vy = SEARCH_DIRS[d][1], vz = SEARCH_DIRS[d][2];
@@ -604,7 +703,7 @@ static bool relax_node(hexa_tree_t *mesh, std::vector<double> &coords,
 static bool probe_node_3d_box(hexa_tree_t *mesh, std::vector<double> &coords,
                               const std::vector<std::vector<int>> &adj,
                               const std::vector<int> &inc, int node, int ref,
-                              const NodeConstraint &cons, double he = 500.0) {
+                              const NodeConstraint &cons, double he = 0.0) {
 	if (cons.gts_surface_id >= 0 || inc.empty()) return false;
 	double px = coords[3*node+0], py = coords[3*node+1], pz = coords[3*node+2];
 	NodeState s0 = node_state(mesh, coords, adj, inc, node, ref);
@@ -612,7 +711,7 @@ static bool probe_node_3d_box(hexa_tree_t *mesh, std::vector<double> &coords,
 	double best_x = px, best_y = py, best_z = pz;
 	bool found = false;
 
-	double scale = std::max(he, 50.0);
+	double scale = h_floor(he);
 	static const double FX[] = {-0.6, -0.3, -0.1, 0.0, 0.1, 0.3, 0.6};
 	static const double FY[] = {-0.6, -0.3, -0.1, 0.0, 0.1, 0.3, 0.6};
 	static const double FZ[] = {-0.8, -0.5, -0.3, -0.1, 0.0, 0.1, 0.3, 0.5, 0.8};
@@ -686,14 +785,14 @@ static double eval_escobar_node_energy(hexa_tree_t *mesh, const std::vector<doub
 static bool relax_node_escobar_barrier(hexa_tree_t *mesh, std::vector<double> &coords,
                                        const std::vector<std::vector<int>> &adj,
                                        const std::vector<int> &inc, int node, int ref,
-                                       const NodeConstraint &cons, double he = 500.0) {
+                                       const NodeConstraint &cons, double he = 0.0) {
 	if (inc.empty()) return false;
 	if (cons.gts_surface_id >= 0 || cons.lock_mask == (mgeom::LOCK_X|mgeom::LOCK_Y|mgeom::LOCK_Z)) return false;
 
 	double px = coords[3*node+0], py = coords[3*node+1], pz = coords[3*node+2];
 	NodeState s0 = node_state(mesh, coords, adj, inc, node, ref);
 
-	double h_scale = std::max(he, 50.0);
+	double h_scale = h_floor(he);
 	double eps = 1e-3 * h_scale * h_scale * h_scale; // scale-invariant regularization parameter
 
 	double E0 = eval_escobar_node_energy(mesh, coords, inc, node, ref, eps);
@@ -781,16 +880,16 @@ static bool relax_vertical_column_midpoint(hexa_tree_t *mesh, std::vector<double
 		target_z = 0.5 * (coords[3*n_above+2] + coords[3*n_below+2]);
 	} else if (n_above >= 0) {
 		double he = shortest_incident_edge(mesh, coords, inc, node);
-		target_z = coords[3*n_above+2] - std::max(he, 50.0);
+		target_z = coords[3*n_above+2] - h_floor(he);
 	} else if (n_below >= 0) {
 		double he = shortest_incident_edge(mesh, coords, inc, node);
-		target_z = coords[3*n_below+2] + std::max(he, 50.0);
+		target_z = coords[3*n_below+2] + h_floor(he);
 	} else {
 		return false;
 	}
 
 	double dz = target_z - pz;
-	if (std::fabs(dz) < 1e-4) return false;
+	if (std::fabs(dz) < 1e-6 * g_h_ref) return false;
 
 	NodeState s0 = node_state(mesh, coords, adj, inc, node, ref);
 	bool moved = false;
@@ -798,7 +897,7 @@ static bool relax_vertical_column_midpoint(hexa_tree_t *mesh, std::vector<double
 	for (double alpha : {1.0, 0.75, 0.5, 0.25, 0.1, 0.05}) {
 		coords[3*node+2] = pz + alpha * dz;
 		NodeState s = node_state(mesh, coords, adj, inc, node, ref);
-		if (better_state(s, s0, 500.0)) {
+		if (better_state(s, s0)) {
 			s0 = s; moved = true; break;
 		}
 		coords[3*node+2] = pz;
@@ -861,8 +960,10 @@ static bool untangle_element_face_extrusion(hexa_tree_t *mesh, std::vector<doubl
 		double cdx = cBx - cAx, cdy = cBy - cAy, cdz = cBz - cAz;
 		if (cdx*nx + cdy*ny + cdz*nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
 
-		double he_e = std::max(shortest_incident_edge(mesh, coords, inc[faceA[0]], faceA[0]), 50.0);
-		double H_TESTS[] = {1.0 * he_e, 0.5 * he_e, 0.25 * he_e, 0.1 * he_e, 0.05 * he_e, 50.0, 150.0};
+		double he_e = h_floor(shortest_incident_edge(mesh, coords, inc[faceA[0]], faceA[0]));
+		// the old tail {50.0, 150.0} was two absolute metre extrusions; the fractional
+		// ladder already covers that range at any mesh scale.
+		double H_TESTS[] = {1.0 * he_e, 0.5 * he_e, 0.25 * he_e, 0.1 * he_e, 0.05 * he_e};
 
 		// Try adjusting movable nodes of faceA away from faceB
 		for (int k = 0; k < 4; k++) {
@@ -943,11 +1044,12 @@ static bool untangle_element_columns(hexa_tree_t *mesh, std::vector<double> &coo
 		int nb = bot[k], nt = top[k];
 		if (nb < 0 || nt < 0 || nb >= (int)coords.size()/3 || nt >= (int)coords.size()/3) continue;
 
+		double he_b = shortest_incident_edge(mesh, coords, inc[nb], nb);
+		double he_t = shortest_incident_edge(mesh, coords, inc[nt], nt);
+		double h_target = std::max(h_floor(he_b), h_floor(he_t));
+
 		// If bottom node is higher than top node (inverted column in Z):
-		if (coords[3*nb+2] >= coords[3*nt+2] - 1.0) {
-			double he_b = shortest_incident_edge(mesh, coords, inc[nb], nb);
-			double he_t = shortest_incident_edge(mesh, coords, inc[nt], nt);
-			double h_target = std::max({he_b, he_t, 50.0});
+		if (coords[3*nb+2] >= coords[3*nt+2] - 1e-3 * h_target) {
 
 			// Try moving bottom node below top node
 			if (cons[nb].gts_surface_id < 0 && !(cons[nb].lock_mask & mgeom::LOCK_Z)) {
@@ -1034,7 +1136,7 @@ static bool untangle_inverted_element_patch(hexa_tree_t *mesh, std::vector<doubl
 		movable[ino] = (cons[nid].gts_surface_id < 0 && cons[nid].lock_mask != (mgeom::LOCK_X|mgeom::LOCK_Y|mgeom::LOCK_Z));
 	}
 
-	double he_patch = std::max(shortest_incident_edge(mesh, coords, inc[n[0]], n[0]), 50.0);
+	double he_patch = h_floor(shortest_incident_edge(mesh, coords, inc[n[0]], n[0]));
 
 	// Generate target sets: Candidate 1 = Affine Parallelepiped, Candidate 2 = Bottom-to-Top Extrusion, Candidate 3 = Top-to-Bottom Extrusion
 	std::vector<std::vector<std::array<double,3>>> candidate_targets;
@@ -1161,7 +1263,7 @@ static std::vector<std::vector<int>> build_adjacency(hexa_tree_t *mesh, int n_no
 // the node's incident state improves (monotone).
 static bool relax_toward_centroid(hexa_tree_t *mesh, std::vector<double> &coords,
                                   const std::vector<std::vector<int>> &adj,
-                                  const std::vector<int> &inc, int node, int ref, uint8_t mask, double he = 100.0) {
+                                  const std::vector<int> &inc, int node, int ref, uint8_t mask, double he = 0.0) {
 	if (adj[node].empty()) return false;
 	double cx=0, cy=0, cz=0;
 	for (int nb : adj[node]) { cx+=coords[3*nb]; cy+=coords[3*nb+1]; cz+=coords[3*nb+2]; }
@@ -1227,7 +1329,7 @@ static bool reconstruct_hex_vertex(hexa_tree_t *mesh, std::vector<double> &coord
 			coords[3*target_node+2] = pz + beta * dz;
 
 			NodeState s = node_state(mesh, coords, adj, inc[target_node], target_node, ref);
-			if (better_state(s, s0, 500.0)) {
+			if (better_state(s, s0)) {
 				s0 = s; moved = true; break;
 			}
 			coords[3*target_node+0] = px; coords[3*target_node+1] = py; coords[3*target_node+2] = pz;
@@ -1240,21 +1342,47 @@ static bool reconstruct_hex_vertex(hexa_tree_t *mesh, std::vector<double> &coord
 int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
                         const std::vector<NodeConstraint> &cons,
                         const std::vector<uint8_t> &wall_lock, int ref) {
+	set_mesh_scale(mesh, coords);      // safe to call standalone
+	build_face_neighbours(mesh);
 	int nn = mesh->nodes.elem_count;
 	auto inc = build_incidence(mesh, nn);
 	auto adj = build_adjacency(mesh, nn);
-	int prev_count = -1;
+	int prev_count = -1, prev_inv = 0;
 	int stall_streak = 0;
 	const int STALL_PATIENCE_LIMIT = 200;
 
+	int fold0 = count_folded_elements(mesh, coords);
+	printf("    Untangler: start %d folded elements\n", fold0);
+
 	for (int iter = 0; iter < MAX_UNTANGLE_ITERS; iter++) {
 		MeshAnalysis a = analyze_mesh(mesh, coords);
-		if (a.n_inverted == 0) { printf("    Untangler: 0 inverted after %d iters\n", iter); return 0; }
-		if (iter % 10 == 0) printf("      untangle iter %d: %d inverted (stall %d)\n", iter, a.n_inverted, stall_streak);
+		int n_fold_now = count_folded_elements(mesh, coords);
+		if (a.n_inverted == 0 && n_fold_now == 0) {
+			printf("    Untangler: 0 inverted, 0 folded after %d iters\n", iter);
+			return 0;
+		}
+		if (iter % 10 == 0)
+			printf("      untangle iter %d: %d inverted, %d folded (stall %d)\n",
+			       iter, a.n_inverted, n_fold_now, stall_streak);
 
-		// A stalled iteration = the inverted COUNT did not drop.
-		if (prev_count >= 0 && a.n_inverted >= prev_count) stall_streak++; else stall_streak = 0;
-		prev_count = a.n_inverted;
+		// Sweep-level global barrier. Each relaxer accepts on its own node's incident
+		// elements only, so a move that helps this node can break the next one -- the
+		// sweep as a whole could end worse than it started, and did (folds went up while
+		// inversions went down). Snapshot, run the sweep, then keep it only if the GLOBAL
+		// broken count improved, backing off along the whole displacement field if not.
+		// ponytail: sweep-level barrier, not a true Jacobi solve. Upgrade to per-node
+		// frozen-coordinate proposals if intra-sweep thrashing still shows up.
+		std::vector<double> sweep_start = coords;
+		MeshBad bad_before{a.n_inverted, n_fold_now};
+
+		// A stalled iteration = neither the inversion count nor, at equal inversions, the
+		// fold count dropped.
+		bool improved = (prev_count < 0) ||
+		                (a.n_inverted < prev_inv) ||
+		                (a.n_inverted == prev_inv && n_fold_now < prev_count);
+		if (improved) stall_streak = 0; else stall_streak++;
+		prev_inv = a.n_inverted;
+		prev_count = n_fold_now;
 		bool stalled = (stall_streak > 0);
 
 		// nodes incident to any currently-inverted element
@@ -1283,69 +1411,119 @@ int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
 		}
 		bool any_moved = false;
 
-		// First pass: try simultaneous patch untangling, face normal extrusion, vertical column untangling & parallelepiped reconstruction
+		// Re-enabled in Fase C: the steps are now proportional to the local element
+		// (Fase B) and every acceptance test counts folds (better_state), so these can
+		// no longer trade an inversion for an overlap.
 		for (int iel : a.inverted_ids) {
-			if (untangle_inverted_element_patch(mesh, coords, adj, inc, iel, ref, cons)) {
-				any_moved = true;
-			}
-			if (untangle_element_face_extrusion(mesh, coords, adj, inc, iel, ref, cons)) {
-				any_moved = true;
-			}
-			if (untangle_element_columns(mesh, coords, adj, inc, iel, ref, cons)) {
-				any_moved = true;
-			}
-			if (reconstruct_hex_vertex(mesh, coords, adj, inc, iel, ref, cons)) {
-				any_moved = true;
-			}
+			if (untangle_inverted_element_patch(mesh, coords, adj, inc, iel, ref, cons)) any_moved = true;
+			if (untangle_element_face_extrusion(mesh, coords, adj, inc, iel, ref, cons)) any_moved = true;
+			if (untangle_element_columns(mesh, coords, adj, inc, iel, ref, cons)) any_moved = true;
+			if (reconstruct_hex_vertex(mesh, coords, adj, inc, iel, ref, cons)) any_moved = true;
 		}
 
 		for (int node : nodes) {
 			if (inc[node].empty()) continue;
 			double he = shortest_incident_edge(mesh, coords, inc[node], node);
 			if (cons[node].gts_surface_id >= 0) {
-				// Surface nodes ONLY relax tangentially on the given GTS surface (preserve surfaces)
-				if (relax_gts_surface_node(mesh, coords, adj, inc[node], node, ref, cons[node], he)) {
-					any_moved = true;
-				}
+				// Surface nodes relax ONLY tangentially along their own GTS surface.
+				if (relax_gts_surface_node(mesh, coords, adj, inc[node], node, ref, cons[node], he)) any_moved = true;
 			} else {
-				// 1. Try vertical column midpoint balancing
-				if (relax_vertical_column_midpoint(mesh, coords, adj, inc[node], node, ref, cons[node])) {
-					any_moved = true;
-				}
-				// 2. Try pillow layer ray relaxation
-				if (relax_pillow_node(mesh, coords, adj, inc[node], node, ref, cons, he)) {
-					any_moved = true;
-				}
-				// 3. Try direct volume gradient ascent
-				if (relax_volume_gradient(mesh, coords, adj, inc[node], node, ref, cons[node], he)) {
-					any_moved = true;
-				}
-				// 4. Volume nodes relax with z-disparity and column shear penalties
-				double step0 = UNTANGLE_STEP0 * std::max(he, 50.0);
-				if (relax_node(mesh, coords, adj, inc[node], node, ref, cons[node].lock_mask, step0, 0.0, he))
-					any_moved = true;
 				if (relax_toward_centroid(mesh, coords, adj, inc[node], node, ref, cons[node].lock_mask, he))
 					any_moved = true;
-				// 5. Try Escobar Regularized Barrier Inversion-Free Descent
-				if (relax_node_escobar_barrier(mesh, coords, adj, inc[node], node, ref, cons[node], he)) {
-					any_moved = true;
-				}
-				// 6. Exhaustive 3D box search when stalled
-				if (stalled && probe_node_3d_box(mesh, coords, adj, inc[node], node, ref, cons[node], he)) {
-					any_moved = true;
-				}
+				if (relax_vertical_column_midpoint(mesh, coords, adj, inc[node], node, ref, cons[node])) any_moved = true;
+				if (relax_pillow_node(mesh, coords, adj, inc[node], node, ref, cons, he)) any_moved = true;
+				if (relax_volume_gradient(mesh, coords, adj, inc[node], node, ref, cons[node], he)) any_moved = true;
+				double step0 = UNTANGLE_STEP0 * h_floor(he);
+				if (relax_node(mesh, coords, adj, inc[node], node, ref, cons[node].lock_mask,
+				               step0, UNTANGLE_CAP * h_floor(he), he)) any_moved = true;
+				if (relax_node_escobar_barrier(mesh, coords, adj, inc[node], node, ref, cons[node], he)) any_moved = true;
+				if (stalled && probe_node_3d_box(mesh, coords, adj, inc[node], node, ref, cons[node], he)) any_moved = true;
 			}
 		}
+		(void)stalled;
 
 		(void)any_moved;
+
+		// Accept the sweep only if it improved the global broken count; otherwise damp the
+		// whole displacement field and retest, and revert outright if nothing helps.
+		{
+			std::vector<double> sweep_end = coords;
+			MeshBad bad_after{analyze_mesh(mesh, coords).n_inverted, count_folded_elements(mesh, coords)};
+			if (bad_worse(bad_after, bad_before)) {
+				bool kept = false;
+				for (double frac : {0.5, 0.25}) {
+					for (size_t k = 0; k < coords.size(); k++)
+						coords[k] = sweep_start[k] + frac * (sweep_end[k] - sweep_start[k]);
+					MeshBad d{analyze_mesh(mesh, coords).n_inverted, count_folded_elements(mesh, coords)};
+					if (!bad_worse(d, bad_before)) { kept = true; break; }
+				}
+				if (!kept) coords = sweep_start;
+			}
+		}
 
 		if (stall_streak >= STALL_PATIENCE_LIMIT) {
 			printf("    Untangler: stalled with %d inverted after %d iters (%d stalled)\n", a.n_inverted, iter, stall_streak);
 			break;
 		}
 	}
+	// --- Escalation: unpin GTS surface nodes, as a last resort -----------------
+	// A residual inversion is usually not a mesh problem at all: it is a spike in the INPUT
+	// surface (the coastline sentinel fill shows up as a lone node hundreds of metres above
+	// its own face neighbours), and a node pinned to that surface can only slide tangentially
+	// along the same spike -- it can never come down, so no relaxer can fix the element.
+	// An inverted element stops the wave-propagation solver from starting at all, so trading
+	// surface conformity for validity is the right call. Bounded, though: at most
+	// ESCALATION_CAP of the local edge, and only for nodes of elements that are STILL
+	// inverted after everything else has run.
+	if (ESCALATION_ENABLED) {
+		std::vector<double> pre_esc = coords;
+		std::unordered_set<int> escalated;
+		for (int round = 0; round < 50; round++) {
+			MeshAnalysis ae = analyze_mesh(mesh, coords);
+			if (ae.n_inverted == 0) break;
+
+			std::unordered_set<int> surf_nodes;
+			for (int iel : ae.inverted_ids) {
+				octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+				for (int ino = 0; ino < 8; ino++) {
+					int nid = e->nodes[ino].id;
+					if (nid >= 0 && nid < nn && cons[nid].gts_surface_id >= 0) surf_nodes.insert(nid);
+				}
+			}
+			if (surf_nodes.empty()) break;
+
+			int moved = 0;
+			for (int node : surf_nodes) {
+				if (inc[node].empty()) continue;
+				double he = shortest_incident_edge(mesh, coords, inc[node], node);
+				double cap = ESCALATION_CAP * h_floor(he);
+				// wall locks are still honoured -- cons[node].lock_mask goes straight through
+				if (relax_node(mesh, coords, adj, inc[node], node, ref,
+				               cons[node].lock_mask, cap, cap, he)) {
+					escalated.insert(node);
+					moved++;
+				}
+			}
+			if (moved == 0) break;
+		}
+		if (!escalated.empty()) {
+			double max_dev = 0.0;
+			for (int node : escalated) {
+				double dx = coords[3*node+0]-pre_esc[3*node+0];
+				double dy = coords[3*node+1]-pre_esc[3*node+1];
+				double dz = coords[3*node+2]-pre_esc[3*node+2];
+				double d = std::sqrt(dx*dx+dy*dy+dz*dz);
+				if (d > max_dev) max_dev = d;
+			}
+			printf("    Untangler: escalation moved %zu GTS surface nodes off their surface "
+			       "(max %.3f m, cap %.0f%% of local edge)\n",
+			       escalated.size(), max_dev, 100.0*ESCALATION_CAP);
+		}
+	}
+
 	MeshAnalysis f = analyze_mesh(mesh, coords);
-	printf("    Untangler: final check: %d inverted elements remaining\n", f.n_inverted);
+	printf("    Untangler: final check: %d inverted, %d folded (folds %d -> %d)\n",
+	       f.n_inverted, count_folded_elements(mesh, coords), fold0, count_folded_elements(mesh, coords));
 	for (int iel : f.inverted_ids) {
 		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
 		printf("      INV ELEM %d: level=%d, nodes=[", iel, e->level);
@@ -1438,7 +1616,7 @@ int collapse_residual_inverted_elements(hexa_tree_t *mesh, std::vector<double> &
 					coords[3*node+1] = (1.0 - t)*sy + t*py;
 					coords[3*node+2] = (1.0 - t)*sz + t*pz;
 					NodeState cur_s = node_state(mesh, coords, adj, inc[node], node, ref);
-					if (better_state(cur_s, best_s, 50.0)) {
+					if (better_state(cur_s, best_s)) {
 						best_s = cur_s;
 						best_t = t;
 					}
@@ -1452,7 +1630,7 @@ int collapse_residual_inverted_elements(hexa_tree_t *mesh, std::vector<double> &
 					coords[3*node+1] = (1.0 - alpha)*sy + alpha*ref_y;
 					coords[3*node+2] = (1.0 - alpha)*sz + alpha*ref_z;
 					NodeState cur_s = node_state(mesh, coords, adj, inc[node], node, ref);
-					if (better_state(cur_s, best_s, 50.0)) {
+					if (better_state(cur_s, best_s)) {
 						best_s = cur_s;
 						best_alpha = alpha;
 						best_t = -1.0;
@@ -1708,7 +1886,7 @@ void optimize_mesh_quality_and_dt(hexa_tree_t *mesh, std::vector<double> &coords
 			sample_count++;
 		}
 	}
-	double h_nominal = (sample_count > 0) ? (total_h / sample_count) : 500.0;
+	double h_nominal = (sample_count > 0) ? (total_h / sample_count) : g_h_ref;
 	printf("    Estimated nominal element edge length: %.2f m\n", h_nominal);
 
 	// Collect all interior / volume nodes (not pinned to GTS surface)
@@ -1906,7 +2084,7 @@ void optimize_critical_time_step(hexa_tree_t *mesh, std::vector<double> &coords,
 			double d_cent_z = (cz * inv) - pz;
 
 			double he = shortest_incident_edge(mesh, coords, inc[node], node);
-			double step_base = std::max(he * 0.20, 1.0);
+			double step_base = 0.20 * h_floor(he);
 
 			struct DirCand { double dx, dy, dz; };
 			std::vector<DirCand> test_dirs;
@@ -2222,6 +2400,9 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 
 	hexQualitySelfTest();
 
+	set_mesh_scale(mesh, coords);
+	build_face_neighbours(mesh);
+
 	printf("\n =========================================================\n");
 	printf("   MULTI-STAGE GEOMETRY-CONSTRAINED MESH OPTIMIZATION\n");
 	printf(" =========================================================\n");
@@ -2250,38 +2431,42 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	std::string pre_h5 = mesh->input.output_prefix.empty() ? "mesh_before_opt" : (mesh->input.output_prefix + "_before_opt");
 	std::string post_h5 = mesh->input.output_prefix.empty() ? "mesh_after_opt" : (mesh->input.output_prefix + "_after_opt");
 
-	hexa_mesh_write_quality_h5(mesh, pre_h5.c_str(), coords, q_before, &dt_before);
-	printf("    Exported pre-optimization quality: %s_*.h5 / .xmf\n", pre_h5.c_str());
+	// h5 output temporarily off -- a full sweep of run_cases.sh fills the disk.
+	// Wanted output, not dead code: re-enable when running a case you want to inspect.
+	// hexa_mesh_write_quality_h5(mesh, pre_h5.c_str(), coords, q_before, &dt_before);
+	// printf("    Exported pre-optimization quality: %s_*.h5 / .xmf\n", pre_h5.c_str());
+	(void)pre_h5;
 
-	auto inc = build_incidence(mesh, nn);
-	auto adj = build_adjacency(mesh, nn);
-
-	// ---- Stage 1: Surface Regularization (Tangential smoothing on GTS) ----
-	optimize_gts_surfaces(mesh, coords, cons, ref);
-
-	// ---- Stage 2: Volume Untangling Phase ----
+	// ---- Stage 2: Volume Untangling Phase (Laplacian only) ----
 	int remaining = untangle_inversions(mesh, coords, cons, wall_lock, ref);
+	(void)remaining;
 
-	// ---- Stage 1 Repeat: Final Surface Polish ----
-	optimize_gts_surfaces(mesh, coords, cons, ref);
+	// ---- DISABLED: every other optimization stage ------------------------
+	// They are under investigation for introducing mesh defects.
+	//
+	// // Stage 1: Surface Regularization (tangential smoothing on GTS)
+	// optimize_gts_surfaces(mesh, coords, cons, ref);
+	//
+	// // Stage 1 repeat: final surface polish
+	// optimize_gts_surfaces(mesh, coords, cons, ref);
+	//
+	// // Stage 3: multi-pass conformal collapse on residual inverted elements
+	// //          (this one DELETES elements -- prime suspect for holes)
+	// for (int pass = 0; pass < 10; pass++) {
+	// 	MeshAnalysis a_curr = analyze_mesh(mesh, coords);
+	// 	if (a_curr.n_inverted == 0) break;
+	// 	collapse_residual_inverted_elements(mesh, coords, cons, ref);
+	// 	untangle_inversions(mesh, coords, cons, wall_lock, ref);
+	// }
+	//
+	// // Pass 2: global volumetric quality & time-step optimization
+	// optimize_mesh_quality_and_dt(mesh, coords, cons, ref);
+	//
+	// // Pass 3: critical time-step (CFL) targeted optimization
+	// optimize_critical_time_step(mesh, coords, cons, ref, mesh->input.gll_order);
+	// ---------------------------------------------------------------------
 
-	// ---- Stage 3: Multi-Pass Conformal Collapse on Residual Inverted Elements ----
-	for (int pass = 0; pass < 10; pass++) {
-		MeshAnalysis a_curr = analyze_mesh(mesh, coords);
-		if (a_curr.n_inverted == 0) break;
-		printf("    Stage 3 (Pass %d): Conformal Collapse on %d residual inverted elements...\n",
-		       pass + 1, a_curr.n_inverted);
-		collapse_residual_inverted_elements(mesh, coords, cons, ref);
-		untangle_inversions(mesh, coords, cons, wall_lock, ref);
-	}
-
-	// ---- PASS 2: Global Volumetric Quality & Time-Step Optimization ----
-	optimize_mesh_quality_and_dt(mesh, coords, cons, ref);
-
-	// ---- PASS 3: Critical Time-Step (CFL) Targeted Optimization ----
-	optimize_critical_time_step(mesh, coords, cons, ref, mesh->input.gll_order);
-
-	// ---- MPI Boundary Consensus Synchronization & Quality Verification ----
+	// ---- MPI Boundary Consensus Synchronization (kept: conformity, not optimization) ----
 	synchronize_shared_boundary_nodes(mesh, coords, cons, ref);
 
 	MeshAnalysis a1 = analyze_mesh(mesh, coords);
@@ -2299,8 +2484,10 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	std::vector<double> dt_after(mesh->elements.elem_count, 0.0);
 	for (size_t i = 0; i < stab_after.elem_stability.size(); i++)
 		dt_after[i] = stab_after.elem_stability[i].dt_crit;
-	hexa_mesh_write_quality_h5(mesh, post_h5.c_str(), coords, q_after, &dt_after);
-	printf("    Exported post-optimization quality: %s_*.h5 / .xmf\n", post_h5.c_str());
+	// h5 output temporarily off -- see the pre-optimization write above.
+	// hexa_mesh_write_quality_h5(mesh, post_h5.c_str(), coords, q_after, &dt_after);
+	// printf("    Exported post-optimization quality: %s_*.h5 / .xmf\n", post_h5.c_str());
+	(void)post_h5;
 
 	if (stab_before.dt_crit_min > 0.0) {
 		printf("    Critical Time Step Gain: %.6e s -> %.6e s (%.3fx speedup)\n",

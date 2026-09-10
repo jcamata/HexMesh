@@ -4,7 +4,9 @@
 #include <iostream>
 using namespace std;
 #include <set>
+#include <map>
 #include <algorithm>
+#include <cstring>
 #include <unordered_map>
 #include <unordered_set>
 #include <sc.h>
@@ -15,8 +17,12 @@ using namespace std;
 #include "hexa.h"
 #include "hilbert.h"
 #include "mesh_geom.h"
+#include "verify_mesh.h"
+#include "optimize_mesh.h"
 
 #include <ctime>
+#include <cstdlib>
+#include <climits>
 
 unsigned vertex_hash_id(const void *v, const void *u) {
 	const octant_vertex_t *q = (const octant_vertex_t*) v;
@@ -814,6 +820,11 @@ static bool GetOctreeBipartition(const octree_t *oct, int B[8])
 //   z       : re-sampled per column afterwards, because GetMeshFromSurface sampled it at the
 //             old (x, y).
 // ---------------------------------------------------------------------------
+static std::vector<char>   g_warp_col_state;   // 0 untouched, 1 diffused, 2 anchored, 3 clamped
+static std::vector<double> g_warp_col_disp;
+static std::vector<double> g_warp_col_ux, g_warp_col_uy;
+static double g_warp_hx = 0.0, g_warp_hy = 0.0;
+
 static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coords)
 {
 	if (!mesh->gdata.bbt || !mesh->tdata.bbt) return;
@@ -935,6 +946,19 @@ static void WarpLatticeToCoastline(hexa_tree_t *mesh, std::vector<double> &coord
 		if (m > umax) umax = m;
 		if (m > lim) { ux[c] *= lim/m; uy[c] *= lim/m; n_clamped++; }
 	}
+	// record per-column state for the inversion map (diagnostic only)
+	g_warp_col_state.assign(ncol, 0);
+	g_warp_col_disp.assign(ncol, 0.0);
+	g_warp_col_ux = ux; g_warp_col_uy = uy;
+	g_warp_hx = hx;     g_warp_hy = hy;
+	for (size_t c = 0; c < ncol; c++) {
+		double m = std::sqrt(ux[c]*ux[c] + uy[c]*uy[c]);
+		g_warp_col_disp[c] = m;
+		if (m > 1e-9) g_warp_col_state[c] = 1;          // diffused
+		if (an[c])    g_warp_col_state[c] = 2;          // anchored
+		if (m >= lim - 1e-9 && m > 1e-9) g_warp_col_state[c] = 3;  // clamped at the limit
+	}
+
 	// --- Phase 3: apply, then re-sample z -------------------------------------
 	double zmin = -mesh->input.z;
 	std::vector<double> zmax_col(ncol, 0.0);
@@ -1040,22 +1064,75 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		if (coords0[3*i+2] > dom_max_z) dom_max_z = coords0[3*i+2];
 	}
 
-	auto record = [&](int node, double x, double y, double z) {
+	// Boundary-plane snap tolerance. It only has to absorb float noise on a node that
+	// was built exactly on the wall plane, so it must scale with the domain -- a fixed
+	// 1.0 m is larger than the WHOLE domain on a unit-scale model (HexMesh_plane.input
+	// spans 0.96), where it made every node match both the min and the max test and the
+	// max won: the entire interface layer collapsed onto the (x_max, y_max) corner and
+	// the pillow layer built on it became 5832 zero-Jacobian pyramids.
+	// min(1.0, 1e-3*L) keeps metre-scale models byte-identical to the old behaviour
+	// (1e-3*L there is hundreds of metres) and is ~10% of an element edge otherwise.
+	const double snap_x = std::min(1.0, 1e-3 * (dom_max_x - dom_min_x));
+	const double snap_y = std::min(1.0, 1e-3 * (dom_max_y - dom_min_y));
+	const double snap_z = std::min(1.0, 1e-3 * (dom_max_z - dom_min_z));
+
+	// Two different nodes projected onto the exact same point is a collapse: the hexes
+	// between them lose a face and turn into prisms/pyramids, which is what renders as a
+	// hole downstream. The second claimant keeps its lattice position instead.
+	struct pt3_hash {
+		size_t operator()(const std::array<double,3> &p) const {
+			size_t h = 1469598103934665603ULL;
+			for (int i = 0; i < 3; i++) {
+				size_t b; double v = p[i]; std::memcpy(&b, &v, sizeof(b));
+				h ^= b; h *= 1099511628211ULL;
+			}
+			return h;
+		}
+	};
+	std::unordered_map<std::array<double,3>, int, pt3_hash> claimed_by;
+	int n_collapse_rejected = 0;
+	int n_collapse_backoff = 0;
+
+	// Boundary snaps and the sea-surface clamp, applied to any candidate position.
+	auto constrain = [&](int node, double &x, double &y, double &z) {
 		// If the node was on an exterior boundary plane (X+, X-, Y+, Y-, Z-), keep its boundary coordinate locked!
-		if (std::fabs(coords0[3*node+0] - dom_min_x) < 1.0) x = dom_min_x;
-		if (std::fabs(coords0[3*node+0] - dom_max_x) < 1.0) x = dom_max_x;
-		if (std::fabs(coords0[3*node+1] - dom_min_y) < 1.0) y = dom_min_y;
-		if (std::fabs(coords0[3*node+1] - dom_max_y) < 1.0) y = dom_max_y;
-		if (std::fabs(coords0[3*node+2] - dom_min_z) < 1.0) z = dom_min_z;
+		if (std::fabs(coords0[3*node+0] - dom_min_x) < snap_x) x = dom_min_x;
+		else if (std::fabs(coords0[3*node+0] - dom_max_x) < snap_x) x = dom_max_x;
+		if (std::fabs(coords0[3*node+1] - dom_min_y) < snap_y) y = dom_min_y;
+		else if (std::fabs(coords0[3*node+1] - dom_max_y) < snap_y) y = dom_max_y;
+		if (std::fabs(coords0[3*node+2] - dom_min_z) < snap_z) z = dom_min_z;
 
 		// If the node is on the top surface (z >= SEA_LEVEL), snap its (x, y) to the coastline
 		// while preserving its top surface elevation (coords0 z) so it doesn't get dragged down.
-		if (coords0[3*node+2] >= SEA_LEVEL - 1e-6) {
-			pending.emplace(node, std::array<double, 3>{x, y, coords0[3*node+2]});
-			return;
+		if (coords0[3*node+2] >= SEA_LEVEL - 1e-6) z = coords0[3*node+2];
+		else if (z > sea_clamp) z = sea_clamp;
+	};
+
+	auto record = [&](int node, double x, double y, double z) {
+		// Two different nodes projected onto the same point collapse the hexes between
+		// them, so the point is claimed first-come. The loser used to be ABANDONED on the
+		// lattice -- not moved, and (because this returned before pending.emplace) not even
+		// entered into nodes_b_mat, so nothing downstream knew the interface had a hole
+		// there. Measured: 29 nodes on hyeres, 18 on kashiwazaki, 2 on mauna_loa_small.
+		// Instead, back the loser off along its OWN placement segment (lattice -> target)
+		// until it lands on a free point: still near the surface, still a genuine interface
+		// node, and distinct by a real distance rather than by an epsilon.
+		static const double BACKOFF[] = {1.0, 0.9, 0.75, 0.5, 0.25};
+		const double ox = coords0[3*node+0], oy = coords0[3*node+1], oz = coords0[3*node+2];
+		for (size_t k = 0; k < sizeof(BACKOFF)/sizeof(BACKOFF[0]); k++) {
+			const double a = BACKOFF[k];
+			double cx = ox + a*(x-ox), cy = oy + a*(y-oy), cz = oz + a*(z-oz);
+			constrain(node, cx, cy, cz);
+			std::array<double, 3> target{cx, cy, cz};
+			auto claim = claimed_by.emplace(target, node);
+			if (claim.second || claim.first->second == node) {
+				pending.emplace(node, target);
+				if (k) n_collapse_backoff++;
+				return;
+			}
 		}
-		if (z > sea_clamp) z = sea_clamp;
-		pending.emplace(node, std::array<double, 3>{x, y, z});
+		// Every backoff was taken too: leave it on the lattice, as before.
+		n_collapse_rejected++;
 	};
 
 	auto flush = [&]() {
@@ -1068,6 +1145,14 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				nodes_b_mat.push_back(n);
 		}
 		pending.clear();
+	};
+	auto report_collapses = [&]() {
+		if (n_collapse_backoff)
+			printf("    Projection: %d nodes backed off along their own segment to avoid "
+			       "collapsing onto an already-projected node\n", n_collapse_backoff);
+		if (n_collapse_rejected)
+			printf("    Projection: %d node moves rejected (no free point on the segment, "
+			       "left on the lattice)\n", n_collapse_rejected);
 	};
 
 	// --- Projection validity limiter: setup ----------------------------------
@@ -1093,9 +1178,29 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		elem_xyz(e, X, Y, Z);
 		return mgeom::hex_signed_volume(X, Y, Z);
 	};
+	// Shortest edge of an element, in the same H5_ORD node order elem_xyz emits.
+	auto shortest_edge = [](const double X[8], const double Y[8], const double Z[8]) -> double {
+		static const int E[12][2] = {
+			{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}
+		};
+		double lo = 1e300;
+		for (int k = 0; k < 12; k++) {
+			int a = E[k][0], b = E[k][1];
+			double dx = X[a]-X[b], dy = Y[a]-Y[b], dz = Z[a]-Z[b];
+			double l = std::sqrt(dx*dx + dy*dy + dz*dz);
+			if (l < lo) lo = l;
+		}
+		return lo;
+	};
 	std::vector<double> ref_vol(mesh->elements.elem_count);
-	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
-		ref_vol[iel] = hexvol((octant_t*) sc_array_index(&mesh->elements, iel));
+	std::vector<double> ref_edge(mesh->elements.elem_count);
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+		double X[8], Y[8], Z[8];
+		elem_xyz(e, X, Y, Z);
+		ref_vol[iel]  = mgeom::hex_signed_volume(X, Y, Z);
+		ref_edge[iel] = shortest_edge(X, Y, Z);
+	}
 
 	// Pass 1: find surface intersection on each cut octree edge and snap the two
 	// adjacent inner nodes to that intersection point.
@@ -1324,6 +1429,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	}
 	flush();
 
+	report_collapses();
+
 	RegularizeSkippedOctreeNodes(mesh, coords, nodes_b_mat);
 
 	// --- Projection validity limiter: repair ---------------------------------
@@ -1344,7 +1451,13 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// valid, at the cost of needing proportionally more iterations to reach the same depth
 		// -- MAXIT is sized so that PULL_STEP^MAXIT is still below the old 0.5^8.
 		const double PULL_STEP = 0.92;
-		const int MAXIT = 0; // Set to 0 for 100% exact projection to GTS surface and coastline without any pull-back
+		// Re-enabled. At 0 the projection was exact everywhere, including where the surface
+		// crushed an octree cell into a sliver -- a 55 m edge inside a 3 km element at the
+		// coastline. Those slivers tangle with their neighbour and no amount of node
+		// smoothing downstream can untangle them; they were the entire residual inverted
+		// count the untangler could not clear. 0.92^40 = 0.036, so a node can retreat to
+		// 3.6% of the displacement the surface asked for before the loop gives up.
+		const int MAXIT = 40;
 		// How tightly the mesh is allowed to conform to the surface. Every node of an element
 		// failing these tests is pulled back toward its lattice position, so the stricter
 		// they are, the further the interface ends up from the real coastline/sea floor.
@@ -1353,8 +1466,42 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// no room and inverts as soon as a buffer node is inserted -- that is why these are
 		// not simply 0. Loosened from 0.05 to let the wall follow the coastline more closely;
 		// raise them back if pillowing starts producing inverted elements.
-		const double SJ_MIN = -1.0;    // min scaled Jacobian disabled (handled by mesh untangler)
+		// Min corner scaled Jacobian. The volume and edge tests below are blind to a CONCAVE
+		// CORNER: a hex keeps a healthy positive volume, and every edge its full length, with
+		// 1-3 of its 8 corner Jacobians negative. That is not a corner case -- measured on
+		// Argostoli_ref4, all 236 elements the final VerifyMeshInversion flagged were of
+		// exactly that shape (vol > 0, worst minSJ -1.6e-4), so with this test disabled the
+		// limiter reported "0 invalid" while handing 236 invalid elements downstream. The
+		// limiter and VerifyMeshInversion now use the same definition of valid.
+		// 0.0 (validity, no margin) removes all 236 for 0.6 pp of surviving displacement and
+		// an unchanged h_min; 0.05 costs 6 pp, 0.20 costs 15 pp. Raise it only if pillowing
+		// starts inverting elements again -- it wants a margin, this only guarantees validity.
+		// Overridable with PROJ_SJ_MIN for A/B runs (-1.0 restores the old, blind behaviour).
+		double SJ_MIN = 0.0;
+		if (const char *ev = getenv("PROJ_SJ_MIN")) SJ_MIN = atof(ev);
 		const double VOL_MIN = 1e-6;   // min |volume| as a fraction of the reference volume
+		// The volume test alone is too weak: a sliver keeps a healthy positive volume while
+		// one of its edges collapses (the tangled kefalonia pair had vol +9.6e7 with a 55 m
+		// edge against a 3.1 km one). Cap how much of its shortest edge the projection may
+		// take from an element. This is the fidelity knob: LOWER lets the mesh hug the
+		// coastline more closely and risks slivers, HIGHER keeps elements healthy and leaves
+		// the interface further from the GTS. Only elements that violate it are pulled back,
+		// and only until they recover.
+		// With the corner-Jacobian test above back on, this no longer has to stand in for
+		// shape validity -- it only guards against slivers (an element keeping a valid shape
+		// while one edge is crushed). Overridable with PROJ_EDGE_MIN_FRAC for A/B runs.
+		double EDGE_MIN_FRAC = 0.25;
+		if (const char *ev = getenv("PROJ_EDGE_MIN_FRAC")) EDGE_MIN_FRAC = atof(ev);
+		// Stall detector. The retreat is only monotone if ALL nodes of an element retreat
+		// together; a partial retreat can invert a neighbour that was fine, so the failing
+		// SET can rotate instead of shrinking and the loop burns every iteration without
+		// converging. Measured on belle_ile: 40 sweeps, 8711 pull-backs, yet no node
+		// retreated more than 7 times -- and the extra sweeps only spent fidelity (74%
+		// surviving displacement against 78-80% on every case that converged). Stop once
+		// the best count has not improved for STALL_LIMIT sweeps and let the octree
+		// untangler finish the job with the displacement still intact.
+		const int STALL_LIMIT = 5;
+		int best_bad = INT_MAX, stall = 0;
 		int it = 0, nbad = 0, npull_total = 0, n_prebad = 0;
 		std::vector<char> pull(n_nodes_loc, 0);
 		std::vector<int> pull_count(n_nodes_loc, 0);
@@ -1380,10 +1527,16 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 				elem_xyz(e, X, Y, Z);
 				double v = mgeom::hex_signed_volume(X, Y, Z), rv = ref_vol[iel];
 				double av = v < 0 ? -v : v, arv = rv < 0 ? -rv : rv;
-				int ref = mgeom::reference_sign(rv);
 				// Check for true geometric volume inversion:
 				bool vol_ok = (v * rv > 0.0 && av >= VOL_MIN * arv);
-				if (vol_ok) continue;   // still valid
+				// ... and for an edge the projection has crushed.
+				bool edge_ok = (shortest_edge(X, Y, Z) >= EDGE_MIN_FRAC * ref_edge[iel]);
+				bool sj_ok = true;
+				if (SJ_MIN > -1.0) {
+					double sgn = (rv >= 0.0) ? 1.0 : -1.0;
+					sj_ok = (mgeom::hex_min_corner_sj(X, Y, Z) * sgn >= SJ_MIN);
+				}
+				if (vol_ok && edge_ok && sj_ok) continue;   // still healthy
 				// An element none of whose nodes this projection moved was already invalid
 				// before it ran; retreating cannot repair it, and counting it would keep the
 				// loop spinning to MAXIT. Leave it to the untangler.
@@ -1395,6 +1548,12 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 					if (moved[e->nodes[i].id]) pull[e->nodes[i].id] = 1;
 			}
 			if (nbad == 0) break;
+			if (nbad < best_bad) { best_bad = nbad; stall = 0; }
+			else if (++stall >= STALL_LIMIT) {
+				printf("    Projection limiter: stalled at %d invalid after %d iters, "
+				       "handing the rest to the untangler\n", nbad, it + 1);
+				break;
+			}
 			for (int n = 0; n < n_nodes_loc; n++) if (pull[n]) {
 				for (int k = 0; k < 3; k++)
 					coords[3*n+k] = PULL_STEP * coords[3*n+k] + (1.0 - PULL_STEP) * coords0[3*n+k];
@@ -1883,6 +2042,323 @@ void DoOctree(hexa_tree_t* mesh){
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Inversion map (diagnostic). For every inverted element, record WHAT KIND of
+// element it is -- parent-octree cut pattern, position in the octree, node
+// colors, how far THIS stage moved its nodes, warp column state -- then print
+// cross-tabs and dump one CSV row per element so two runs can be diffed.
+// Written for the lattice-warp on/off A/B; pure measurement, changes nothing.
+// ---------------------------------------------------------------------------
+
+static int count_neg_corners(const double X[8], const double Y[8], const double Z[8], int ref)
+{
+	int n = 0;
+	for (int k = 0; k < 8; k++) {
+		int i0=k, i1=mgeom::CORNER_NB[k][0], i2=mgeom::CORNER_NB[k][1], i3=mgeom::CORNER_NB[k][2];
+		double ax=X[i1]-X[i0], ay=Y[i1]-Y[i0], az=Z[i1]-Z[i0];
+		double bx=X[i2]-X[i0], by=Y[i2]-Y[i0], bz=Z[i2]-Z[i0];
+		double cx=X[i3]-X[i0], cy=Y[i3]-Y[i0], cz=Z[i3]-Z[i0];
+		double det = ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx);
+		if (det * ref <= 0.0) n++;
+	}
+	return n;
+}
+
+void DumpInversionMap(hexa_tree_t *mesh, const std::vector<double> &coords,
+                             const std::vector<double> &prev, const char *tag)
+{
+	const int ne = (int) mesh->elements.elem_count;
+	if (ne == 0) return;
+	const bool have_prev = (prev.size() == coords.size());
+
+	// --- element -> parent octree ------------------------------------------
+	std::vector<signed char> oct_pos(ne, -1), oct_cut(ne, 0), oct_nedge(ne, -1), oct_nface(ne, -1);
+	for (int ioc = 0; ioc < (int) mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		int nce = 0, ncf = 0;
+		for (int k = 0; k < 12; k++) if (oct->edge[k]) nce++;
+		for (int k = 0; k < 6;  k++) if (oct->face[k]) ncf++;
+		for (int p = 0; p < 8; p++) {
+			int id = (int) oct->id[p];
+			if (id < 0 || id >= ne) continue;
+			oct_pos[id]   = (signed char) p;
+			oct_cut[id]   = oct->cut ? 1 : 0;
+			oct_nedge[id] = (signed char) nce;
+			oct_nface[id] = (signed char) ncf;
+		}
+	}
+
+	// --- reference sign (same rule as analyze_mesh) -------------------------
+	std::vector<double> vols(ne), sjs(ne);
+	double vol_sum = 0.0;
+	for (int iel = 0; iel < ne; iel++) {
+		double X[8],Y[8],Z[8];
+		load_elem_xyz(mesh, coords, iel, X, Y, Z);
+		vols[iel] = mgeom::hex_signed_volume(X,Y,Z);
+		sjs[iel]  = mgeom::hex_min_corner_sj(X,Y,Z);
+		vol_sum  += vols[iel];
+	}
+	const int ref = mgeom::reference_sign(vol_sum);
+
+	char fname[256];
+	snprintf(fname, sizeof(fname), "invmap_%s.csv", tag);
+	FILE *f = fopen(fname, "w");
+	if (f) fprintf(f, "elem,nneg,minsj,vol,cut,octpos,noctedge,noctface,intercepted,"
+	                  "nfree,ncolor1,ncolor2,nmoved,maxdisp,maxdxy,maxdz,"
+	                  "zlayer,dzlat,level,dxlat,dylat,warpstate,warpdisp,relu,relu_over_h,cx,cy,cz\n");
+
+	// --- histograms ---------------------------------------------------------
+	int h_nneg[9]      = {0};
+	int h_octpos[9]    = {0};        // 8 = not in any complete octree
+	int h_noctedge[14] = {0};        // 13 = no octree
+	int h_cut[3]       = {0};        // not-in-octree / uncut octree / cut octree
+	int h_inter[2]     = {0};
+	int h_nfree[9]     = {0};
+	int h_nmoved[9]    = {0};
+	int h_warp[5]      = {0};        // 4 = unknown column
+	int h_zlayer[64]   = {0};
+	int h_colormix[3]  = {0};        // 0 = uniform color, 1 = mixed, 2 = unset(-1) present
+	int n_inv = 0;
+	int zlayer_max = 0;
+	for (int i = 0; i < (int) mesh->nodes.elem_count; i++) {
+		octant_node_t *n = (octant_node_t*) sc_array_index(&mesh->nodes, i);
+		if (n->z > zlayer_max) zlayer_max = n->z;
+	}
+	const int nx = mesh->ncellx + 1;
+
+	// (dxlat, dylat, dzlat, cut) population, so the map reports RATES not just counts
+	std::map<std::string, std::pair<int,int> > pop;   // class -> (total, inverted)
+
+	for (int iel = 0; iel < ne; iel++) {
+		{
+			octant_t *e0 = (octant_t*) sc_array_index(&mesh->elements, iel);
+			int ax=1<<30, bx=-(1<<30), ay=1<<30, by=-(1<<30), az=1<<30, bz=-(1<<30);
+			for (int k = 0; k < 8; k++) {
+				octant_node_t *nd = &e0->nodes[k];
+				if (nd->x < ax) ax = nd->x; if (nd->x > bx) bx = nd->x;
+				if (nd->y < ay) ay = nd->y; if (nd->y > by) by = nd->y;
+				if (nd->z < az) az = nd->z; if (nd->z > bz) bz = nd->z;
+			}
+			char key[64];
+			snprintf(key, sizeof(key), "dx%d dy%d dz%d %s", bx-ax, by-ay, bz-az,
+			         oct_pos[iel] < 0 ? "noOct" : (oct_cut[iel] ? "CUT  " : "uncut"));
+			std::pair<int,int> &pv = pop[key];
+			pv.first++;
+			if (mgeom::is_inverted(vols[iel], sjs[iel], ref)) pv.second++;
+		}
+		if (!mgeom::is_inverted(vols[iel], sjs[iel], ref)) continue;
+		n_inv++;
+		octant_t *e = (octant_t*) sc_array_index(&mesh->elements, iel);
+
+		double X[8],Y[8],Z[8];
+		load_elem_xyz(mesh, coords, iel, X, Y, Z);
+		int nneg = count_neg_corners(X, Y, Z, ref);
+
+		int nfree = 0, nc1 = 0, nc2 = 0, ncunset = 0, nmoved = 0, zl = 0;
+		double maxdisp = 0.0, maxdxy = 0.0, maxdz = 0.0;
+		double cx = 0.0, cy = 0.0, cz = 0.0;
+		int wstate = 4; double wdisp = 0.0;
+		int lxmin=1<<30, lxmax=-(1<<30), lymin=1<<30, lymax=-(1<<30), lzmin=1<<30, lzmax=-(1<<30);
+		double cux[8], cuy[8]; int ncu = 0;
+		for (int k = 0; k < 8; k++) {
+			octant_node_t *nd = &e->nodes[k];
+			int id = nd->id;
+			if (nd->fixed == 0) nfree++;
+			if (nd->color == 1) nc1++; else if (nd->color == 2) nc2++; else ncunset++;
+			if (nd->z > zl) zl = nd->z;
+			cx += coords[3*id+0]/8.0; cy += coords[3*id+1]/8.0; cz += coords[3*id+2]/8.0;
+			if (have_prev) {
+				double dx = coords[3*id+0]-prev[3*id+0];
+				double dy = coords[3*id+1]-prev[3*id+1];
+				double dz = coords[3*id+2]-prev[3*id+2];
+				double d = std::sqrt(dx*dx+dy*dy+dz*dz);
+				if (d > 1e-9) nmoved++;
+				if (d > maxdisp) maxdisp = d;
+				double dxy = std::sqrt(dx*dx+dy*dy);
+				if (dxy > maxdxy) maxdxy = dxy;
+				if (std::fabs(dz) > maxdz) maxdz = std::fabs(dz);
+			}
+			if (nd->x < lxmin) lxmin = nd->x; if (nd->x > lxmax) lxmax = nd->x;
+			if (nd->y < lymin) lymin = nd->y; if (nd->y > lymax) lymax = nd->y;
+			if (nd->z < lzmin) lzmin = nd->z; if (nd->z > lzmax) lzmax = nd->z;
+			if (!g_warp_col_state.empty() && nd->x >= 0 && nd->y >= 0) {
+				size_t c = (size_t) nd->y * nx + nd->x;
+				if (c < g_warp_col_state.size()) {
+					if (wstate == 4 || g_warp_col_state[c] > wstate) wstate = g_warp_col_state[c];
+					if (g_warp_col_disp[c] > wdisp) wdisp = g_warp_col_disp[c];
+					cux[ncu] = g_warp_col_ux[c]; cuy[ncu] = g_warp_col_uy[c]; ncu++;
+				}
+			}
+		}
+		// widest disagreement between the 8 corner columns: what actually shears the hex
+		double relu = 0.0;
+		for (int a = 0; a < ncu; a++) for (int b = a+1; b < ncu; b++) {
+			double dx = cux[a]-cux[b], dy = cuy[a]-cuy[b];
+			double d = std::sqrt(dx*dx+dy*dy);
+			if (d > relu) relu = d;
+		}
+		double hcell = std::sqrt((double)(lxmax-lxmin)*(lxmax-lxmin)*g_warp_hx*g_warp_hx
+		                       + (double)(lymax-lymin)*(lymax-lymin)*g_warp_hy*g_warp_hy);
+		double relu_over_h = (hcell > 1e-9) ? relu/hcell : 0.0;
+		int inter = (e->pad == -1) ? 1 : 0;
+
+		h_nneg[nneg]++;
+		h_octpos[oct_pos[iel] < 0 ? 8 : oct_pos[iel]]++;
+		h_noctedge[oct_nedge[iel] < 0 ? 13 : oct_nedge[iel]]++;
+		h_cut[oct_pos[iel] < 0 ? 0 : (oct_cut[iel] ? 2 : 1)]++;
+		h_inter[inter]++;
+		h_nfree[nfree]++;
+		h_nmoved[nmoved]++;
+		h_warp[wstate > 4 ? 4 : wstate]++;
+		if (zl < 64) h_zlayer[zl]++;
+		h_colormix[ncunset ? 2 : ((nc1 && nc2) ? 1 : 0)]++;
+
+		if (f) fprintf(f, "%d,%d,%.6e,%.6e,%d,%d,%d,%d,%d,%d,%d,%d,%d,%.4f,%.4f,%.4f,%d,%d,%d,%d,%d,%d,%.4f,%.4f,%.4f,%.2f,%.2f,%.2f\n",
+		               iel, nneg, sjs[iel]*ref, vols[iel]*ref,
+		               (int) (oct_pos[iel] < 0 ? -1 : oct_cut[iel]), (int) oct_pos[iel],
+		               (int) oct_nedge[iel], (int) oct_nface[iel], inter,
+		               nfree, nc1, nc2, nmoved, maxdisp, maxdxy, maxdz,
+		               zl, lzmax-lzmin, (int) e->level, lxmax-lxmin, lymax-lymin,
+		               wstate, wdisp, relu, relu_over_h, cx, cy, cz);
+	}
+	if (f) fclose(f);
+
+	printf(" =========================================================\n");
+	printf("   INVERSION MAP [%s]  (ref sign %+d, %d inverted of %d)\n", tag, ref, n_inv, ne);
+	printf(" =========================================================\n");
+	{
+		static const int E[12][2] = {
+			{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}
+		};
+		int b20 = 0, b50 = 0, b100 = 0;
+		for (int iel = 0; iel < ne; iel++) {
+			double X[8],Y[8],Z[8];
+			load_elem_xyz(mesh, coords, iel, X, Y, Z);
+			double lo = 1e300;
+			for (int k = 0; k < 12; k++) {
+				int a = E[k][0], c = E[k][1];
+				double dx=X[a]-X[c], dy=Y[a]-Y[c], dz=Z[a]-Z[c];
+				double l = std::sqrt(dx*dx+dy*dy+dz*dz);
+				if (l < lo) lo = l;
+			}
+			if (lo < 20.0)  b20++;
+			if (lo < 50.0)  b50++;
+			if (lo < 100.0) b100++;
+		}
+		printf("    thin elements (shortest edge): <20 m: %d  <50 m: %d  <100 m: %d\n", b20, b50, b100);
+	}
+	if (n_inv == 0) { printf("    nothing inverted\n =========================================================\n\n"); return; }
+	printf("    negative corners (of 8):   ");
+	for (int k = 1; k <= 8; k++) if (h_nneg[k]) printf("%d/8:%d  ", k, h_nneg[k]);
+	printf("\n    parent octree:             none:%d  uncut:%d  CUT:%d\n", h_cut[0], h_cut[1], h_cut[2]);
+	printf("    position in octree:        ");
+	for (int k = 0; k < 8; k++) if (h_octpos[k]) printf("p%d:%d  ", k, h_octpos[k]);
+	if (h_octpos[8]) printf("none:%d", h_octpos[8]);
+	printf("\n    cut edges of the octree:   ");
+	for (int k = 0; k <= 12; k++) if (h_noctedge[k]) printf("%d:%d  ", k, h_noctedge[k]);
+	if (h_noctedge[13]) printf("noOct:%d", h_noctedge[13]);
+	printf("\n    intercepted (pad==-1):     yes:%d  no:%d\n", h_inter[1], h_inter[0]);
+	printf("    corner colors:             uniform:%d  mixed(1&2):%d  unset:%d\n",
+	       h_colormix[0], h_colormix[1], h_colormix[2]);
+	printf("    free nodes (fixed==0):     ");
+	for (int k = 0; k <= 8; k++) if (h_nfree[k]) printf("%d:%d  ", k, h_nfree[k]);
+	printf("\n    nodes moved by this stage: ");
+	for (int k = 0; k <= 8; k++) if (h_nmoved[k]) printf("%d:%d  ", k, h_nmoved[k]);
+	printf("\n    warp column state:         untouched:%d  diffused:%d  anchored:%d  clamped:%d  n/a:%d\n",
+	       h_warp[0], h_warp[1], h_warp[2], h_warp[3], h_warp[4]);
+	printf("    z layer (0 = top/surface): ");
+	for (int k = 0; k < 64; k++) if (h_zlayer[k]) printf("%d:%d  ", k, h_zlayer[k]);
+	printf("\n    (zlayer_max = %d)   CSV: %s\n", zlayer_max, fname);
+	printf("    population by lattice extent x octree class (inverted / total, rate):\n");
+	for (std::map<std::string, std::pair<int,int> >::const_iterator it = pop.begin(); it != pop.end(); ++it)
+		if (it->second.second)
+			printf("      %-22s %6d / %8d   %7.3f %%\n", it->first.c_str(),
+			       it->second.second, it->second.first,
+			       100.0 * it->second.second / it->second.first);
+	printf("    (classes with 0 inverted omitted; full population:)\n");
+	for (std::map<std::string, std::pair<int,int> >::const_iterator it = pop.begin(); it != pop.end(); ++it)
+		printf("      %-22s %8d\n", it->first.c_str(), it->second.first);
+	printf(" =========================================================\n\n");
+}
+
+// ---------------------------------------------------------------------------
+// Octree-interior untangling.
+//
+// ProjectFreeNodes' pull-back can only slide a node back along the single line
+// from its lattice position to the projected point. A PARTIAL retreat on one
+// node can invert a neighbour that was fine, so the loop oscillates instead of
+// converging -- measured on belle_ile: 3 elements still bad after all 40
+// sweeps, 8711 pull-backs, yet no node retreated more than 7 times, i.e. the
+// failing set kept changing rather than being ground down.
+//
+// The 3x3x3 node grid of an octree is 8 corners plus 19 interior nodes (12 edge
+// midpoints, 6 face centres, 1 body centre), and those 19 are exactly what the
+// projection moves -- elem->nodes[iel] at octree position iel is the octant's
+// OUTER corner, the other 7 are interior. Pinning the corners and freeing the
+// interior gives every hex 7 movable nodes of 8, with the lattice configuration
+// guaranteed to lie inside that set, so a monotone relaxer cannot get stuck the
+// way the 1-D pull-back does. Interface nodes keep their gts_surface_id, so the
+// untangler slides them ALONG the surface: validity at no fidelity cost.
+//
+// The corners stay pinned on purpose: a corner is shared by up to 8 blocks,
+// most of them not cut at all, so moving one spreads deformation into regions
+// that were already fine.
+// ---------------------------------------------------------------------------
+static void UntangleOctreeInterior(hexa_tree_t *mesh, std::vector<double> &coords,
+                                   std::vector<int> &nodes_b_mat)
+{
+	const int nn = (int)(coords.size() / 3);
+	if (nn == 0 || mesh->oct.elem_count == 0) return;
+
+	MeshAnalysis a0 = analyze_mesh(mesh, coords);
+	if (a0.n_inverted == 0) {
+		printf("    Octree untangler: nothing inverted after projection, skipped\n");
+		return;
+	}
+
+	// Corner vs interior, straight from the octree layout.
+	std::vector<char> is_corner(nn, 0), is_interior(nn, 0);
+	for (int ioc = 0; ioc < (int) mesh->oct.elem_count; ioc++) {
+		octree_t *oct = (octree_t*) sc_array_index(&mesh->oct, ioc);
+		if (!IsCompleteOctree(oct)) continue;
+		for (int iel = 0; iel < 8; iel++) {
+			octant_t *e = (octant_t*) sc_array_index(&mesh->elements, oct->id[iel]);
+			for (int ino = 0; ino < 8; ino++) {
+				int id = e->nodes[ino].id;
+				if (id < 0 || id >= nn) continue;
+				if (ino == iel) is_corner[id] = 1; else is_interior[id] = 1;
+			}
+		}
+	}
+
+	std::vector<uint8_t> wall_lock;
+	std::vector<NodeConstraint> cons =
+		classify_node_constraints(mesh, coords, nodes_b_mat, &wall_lock);
+
+	// Everything that is not an octree interior node is frozen. Interior nodes keep
+	// whatever wall lock classify_node_constraints gave them -- a node on a domain
+	// wall must not be pushed off it.
+	const uint8_t FULL = mgeom::LOCK_X | mgeom::LOCK_Y | mgeom::LOCK_Z;
+	int n_free = 0, n_free_surf = 0;
+	for (int i = 0; i < nn; i++) {
+		if (is_interior[i] && !is_corner[i]) {
+			n_free++;
+			if (cons[i].gts_surface_id >= 0) n_free_surf++;
+		} else {
+			cons[i].lock_mask = FULL;
+		}
+	}
+
+	printf("    Octree untangler: %d inverted in, %d free interior nodes of %d "
+	       "(%d of them on a GTS surface)\n", a0.n_inverted, n_free, nn, n_free_surf);
+
+	int remaining = untangle_inversions(mesh, coords, cons, wall_lock, a0.reference_sign);
+
+	MeshAnalysis a1 = analyze_mesh(mesh, coords);
+	printf("    Octree untangler: %d inverted out (untangler reported %d), "
+	       "h_min %.6e -> %.6e\n", a1.n_inverted, remaining, a0.h_min, a1.h_min);
+}
+
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat) {
 
 	bool deb = false;
@@ -1932,8 +2408,34 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 
 	printf("    Make the projection of the nodes into the surface...\n");
 	nodes_b_mat.clear();
-	WarpLatticeToCoastline(mesh, coords);
+	// LATTICE_WARP=1 enables WarpLatticeToCoastline (off by default) so the same
+	// binary can be run as the warp-on / warp-off A/B.
+	const bool use_warp = (getenv("LATTICE_WARP") != NULL && atoi(getenv("LATTICE_WARP")) != 0);
+	printf("    MovingNodes: lattice warp %s\n", use_warp ? "ON" : "OFF");
+
+	std::vector<double> coords_in = coords;
+	printf("    MovingNodes inversion check: before lattice warp\n");
+	VerifyMeshInversion(mesh, &coords);
+	DumpInversionMap(mesh, coords, coords_in, use_warp ? "warpON_0pre" : "warpOFF_0pre");
+
+	if (use_warp) WarpLatticeToCoastline(mesh, coords);
+	printf("    MovingNodes inversion check: after lattice warp\n");
+	VerifyMeshInversion(mesh, &coords);
+	DumpInversionMap(mesh, coords, coords_in, use_warp ? "warpON_1warp" : "warpOFF_1warp");
+
+	std::vector<double> coords_prewarp = coords;
 	ProjectFreeNodes(mesh,coords,nodes_b_mat);
+	printf("    MovingNodes inversion check: after surface projection\n");
+	VerifyMeshInversion(mesh, &coords);
+	DumpInversionMap(mesh, coords, coords_prewarp, use_warp ? "warpON_2proj" : "warpOFF_2proj");
+
+	// OCT_UNTANGLE=0 skips it, for A/B against the projection-only mesh.
+	if (!(getenv("OCT_UNTANGLE") && atoi(getenv("OCT_UNTANGLE")) == 0)) {
+		UntangleOctreeInterior(mesh, coords, nodes_b_mat);
+		printf("    MovingNodes inversion check: after octree untangling\n");
+		VerifyMeshInversion(mesh, &coords);
+	}
+	DumpInversionMap(mesh, coords, coords_in,      use_warp ? "warpON_3total" : "warpOFF_3total");
 
 	if(deb){
 		int8_t* flag_nodes = (int8_t*) malloc(sizeof (int8_t) * mesh->local_n_nodes);

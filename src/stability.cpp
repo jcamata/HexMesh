@@ -81,6 +81,28 @@ void compute_gll_nodes_and_weights(int order, std::vector<double> &nodes, std::v
 	}
 }
 
+// D[a*n+b] = l'_b(x_a): derivada do polinomio de Lagrange do no b avaliada no no a.
+// E' o operador de derivacao 1D da base espectral; o produto tensorial dele nas tres
+// direcoes da' o gradiente sem montar matriz nenhuma.
+static void gll_derivative_matrix(const std::vector<double> &x, std::vector<double> &D) {
+	const int n = (int)x.size();
+	D.assign((size_t)n * n, 0.0);
+	for (int a = 0; a < n; a++) {
+		for (int b = 0; b < n; b++) {
+			if (a == b) {
+				double sm = 0.0;
+				for (int m = 0; m < n; m++) if (m != a) sm += 1.0 / (x[a] - x[m]);
+				D[(size_t)a * n + b] = sm;
+			} else {
+				double num = 1.0, den = 1.0;
+				for (int m = 0; m < n; m++) if (m != b && m != a) num *= (x[a] - x[m]);
+				for (int m = 0; m < n; m++) if (m != b) den *= (x[b] - x[m]);
+				D[(size_t)a * n + b] = num / den;
+			}
+		}
+	}
+}
+
 // Compute element stability for a single 8-node hex using GLL order N
 ElementStability compute_hex_gll_stability(int elem_id, int mat_id, const Material &mat,
                                            const double X[8], const double Y[8], const double Z[8],
@@ -93,6 +115,9 @@ ElementStability compute_hex_gll_stability(int elem_id, int mat_id, const Materi
 	res.dt_crit = 0.0;
 	res.lambda_max = 0.0;
 	res.omega_max = 0.0;
+	res.dt_cfl = 0.0;
+	res.min_h_gll = 0.0;
+	res.jac_ratio = 0.0;
 	res.valid = false;
 
 	double vp = mat.vp > 0.0 ? mat.vp : 6000.0;
@@ -105,7 +130,12 @@ ElementStability compute_hex_gll_stability(int elem_id, int mat_id, const Materi
 			n1d, std::vector<std::array<double, 3>>(n1d)));
 
 	double min_det_J = 1e300;
+	double max_det_J = -1e300;
 	double min_h_gll = 1e300;
+	// Metrica por ponto GLL, guardada para o limite de Irons. Ate' 2026-09 o
+	// jacobiano era calculado e deitado fora, e dt_crit vinha da CFL classica.
+	const size_t npt = (size_t)n1d * n1d * n1d;
+	std::vector<double> detv(npt, 0.0), Jinv_all(9 * npt, 0.0);
 
 	for (int i = 0; i < n1d; i++) {
 		double xi = gll_nodes[i];
@@ -141,14 +171,51 @@ ElementStability compute_hex_gll_stability(int elem_id, int mat_id, const Materi
 				            + dxdzeta * (dydxi * dzdeta - dydeta * dzdxi);
 
 				if (detJ < min_det_J) min_det_J = detJ;
+				if (detJ > max_det_J) max_det_J = detJ;
+
+				const size_t p = ((size_t)i * n1d + j) * n1d + k;
+				detv[p] = detJ;
+				if (detJ > 1e-12) {
+					const double id = 1.0 / detJ;
+					double *Ji = &Jinv_all[9 * p];
+					Ji[0] =  (dydeta * dzdzeta - dydzeta * dzdeta) * id;
+					Ji[1] = -(dxdeta * dzdzeta - dxdzeta * dzdeta) * id;
+					Ji[2] =  (dxdeta * dydzeta - dxdzeta * dydeta) * id;
+					Ji[3] = -(dydxi * dzdzeta - dydzeta * dzdxi) * id;
+					Ji[4] =  (dxdxi * dzdzeta - dxdzeta * dzdxi) * id;
+					Ji[5] = -(dxdxi * dydzeta - dxdzeta * dydxi) * id;
+					Ji[6] =  (dydxi * dzdeta - dydeta * dzdxi) * id;
+					Ji[7] = -(dxdxi * dzdeta - dxdeta * dzdxi) * id;
+					Ji[8] =  (dxdxi * dydeta - dxdeta * dydxi) * id;
+				}
 			}
 		}
 	}
 
-	if (min_det_J <= 1e-12) {
-		// Inverted or degenerate element
+	// Criterio de degenerescencia RELATIVO, nao absoluto.
+	//
+	// Ate' 2026-09 isto era `min_det_J <= 1e-12`. Mas detJ escala com o volume do
+	// elemento: num hexaedro de 200 m vale ~1e6, portanto um limiar fixo de 1e-12
+	// so' apanha jacobianos exatamente nulos e deixa passar elementos quase
+	// degenerados. Com a CFL classica isso nunca se via -- ela devolve um valor
+	// sensato para qualquer geometria porque so' mede distancias. Com o limite de
+	// Irons aparecem dt de 1e-20 e contrastes de 1e17 nesta malha.
+	//
+	// O limiar aqui e' apenas uma GUARDA NUMERICA: abaixo dele o jacobiano nao
+	// e' invertivel em dupla precisao e nao ha' operador que calcular. NAO e' um
+	// filtro de qualidade -- o gerador nao decide o que e' um elemento bom.
+	// Quem consome a malha filtra a jusante pelo campo JacRatio, que vai
+	// exportado; medido no domo (ref=3), a razao tem mediana 0.92 e P1 = 5e-2,
+	// e descartar abaixo de 1e-2 custa 0.2% dos elementos, abaixo de 0.1 custa
+	// 2.2%. Essa escolha e' de quem usa, nao de quem gera.
+	const double JAC_REL_TOL = 1e-14;
+	if (min_det_J <= 0.0 || max_det_J <= 0.0 ||
+	    min_det_J <= JAC_REL_TOL * max_det_J) {
+		// Invertido ou degenerado em relacao ao proprio tamanho
+		res.jac_ratio = (max_det_J > 0.0) ? (min_det_J / max_det_J) : 0.0;
 		return res;
 	}
+	res.jac_ratio = min_det_J / max_det_J;
 
 	// Compute minimum GLL grid spacing along coordinate lines inside the element
 	for (int i = 0; i < n1d; i++) {
@@ -183,11 +250,114 @@ ElementStability compute_hex_gll_stability(int elem_id, int mat_id, const Materi
 
 	// Spectral Element CFL time step formula: dt_crit = C_CFL * h_min_GLL / Vp
 	// Standard SEM CFL limit for 3D elasticity with GLL integration
-	const double C_CFL = 0.60 / std::sqrt(3.0); // ~0.34641
+	// ---- tempo de transito, exportado ao lado do limite de Irons -------
+	// h_min/vp: a menor distancia entre pontos GLL adjacentes dividida pela
+	// velocidade. E' a grandeza CRUA, SEM constante CFL -- quem consome escolhe
+	// a sua (0.6/sqrt(3), 0.5, o que for), e a razao DtCFL/DtCrit fica a medir
+	// so' a diferenca entre geometria e operador, sem uma convencao no meio.
+	//
+	// E' cega ao cisalhamento: mede distancias, nao o operador. Num hexaedro
+	// regular acompanha o limite de Irons a menos de um fator constante; num
+	// hexaedro deformado por pillowing diverge por ordens de grandeza.
 	res.valid = true;
-	res.dt_crit = C_CFL * min_h_gll / vp;
-	res.omega_max = 2.0 / res.dt_crit;
-	res.lambda_max = res.omega_max * res.omega_max;
+	res.min_h_gll = min_h_gll;
+	res.dt_cfl = min_h_gll / vp;
+
+	// ---- limite de Irons: lambda_max(M_e^-1 K_e) por iteracao de potencia ---
+	// Operador acustico local, aplicado matrix-free por produto tensorial:
+	//   g_d = D_d u                              (gradiente de referencia)
+	//   f_i = sum_k G_ik g_k,  G = w*detJ*c^2*Jinv*Jinv^T
+	//   K u = sum_d D_d^T f_d
+	// A massa concentrada e' M = w*detJ*rho; rho cancela em M^-1 K. Itera-se na
+	// forma simetrizada M^-1/2 K M^-1/2, cuja norma e' o proprio lambda_max.
+	{
+		std::vector<double> Dm;
+		gll_derivative_matrix(gll_nodes, Dm);
+		const double c2 = vp * vp;
+		std::vector<double> G(6 * npt, 0.0), sq(npt, 0.0);
+		for (size_t p = 0; p < npt; p++) {
+			const int ii = (int)(p / ((size_t)n1d * n1d));
+			const int jj = (int)((p / n1d) % n1d);
+			const int kk = (int)(p % n1d);
+			const double w = gll_weights[ii] * gll_weights[jj] * gll_weights[kk];
+			const double wd = w * detv[p];
+			if (wd <= 0.0) return res;          // ja' filtrado por min_det_J, defensivo
+			sq[p] = 1.0 / std::sqrt(wd);
+			const double *Ji = &Jinv_all[9 * p];
+			// G = wd * c2 * Jinv^T * Jinv  (simetrica: 00,01,02,11,12,22)
+			//
+			// A ordem importa e nao e' obvia. Com J[i][j] = dx_i/dxi_j, tem-se
+			// grad_xi u = J^T grad_x u, logo grad_x u = J^-T grad_xi u e
+			//   (grad_x u).(grad_x v) = grad_xi u^T (Jinv^T Jinv) grad_xi v.
+			// Escrever Jinv*Jinv^T em vez disto da' o mesmo resultado em
+			// hexaedros alinhados (onde J e' quase diagonal) e erra ate' 2x nos
+			// deformados -- verificado contra eig() densa de K_e 125x125.
+			double M3[3][3];
+			for (int a2 = 0; a2 < 3; a2++)
+				for (int b2 = 0; b2 < 3; b2++) {
+					double t = 0.0;
+					for (int k2 = 0; k2 < 3; k2++) t += Ji[3 * k2 + a2] * Ji[3 * k2 + b2];
+					M3[a2][b2] = t * wd * c2;
+				}
+			G[0 * npt + p] = M3[0][0]; G[1 * npt + p] = M3[0][1]; G[2 * npt + p] = M3[0][2];
+			G[3 * npt + p] = M3[1][1]; G[4 * npt + p] = M3[1][2]; G[5 * npt + p] = M3[2][2];
+		}
+
+		std::vector<double> v(npt), y(npt), t1(npt), g0(npt), g1(npt), g2(npt);
+		for (size_t p = 0; p < npt; p++) v[p] = std::sin(1.0 + 0.7 * (double)p); // deterministico
+		double nv = 0.0; for (double a2 : v) nv += a2 * a2;
+		nv = std::sqrt(nv); for (double &a2 : v) a2 /= nv;
+
+		double lam = 0.0;
+		const int MAXIT = 200;
+		for (int it = 0; it < MAXIT; it++) {
+			for (size_t p = 0; p < npt; p++) t1[p] = sq[p] * v[p];
+			// gradientes de referencia
+			for (int i2 = 0; i2 < n1d; i2++)
+			for (int j2 = 0; j2 < n1d; j2++)
+			for (int k2 = 0; k2 < n1d; k2++) {
+				const size_t p = ((size_t)i2 * n1d + j2) * n1d + k2;
+				double a0 = 0.0, a1 = 0.0, a2 = 0.0;
+				for (int x = 0; x < n1d; x++) {
+					a0 += Dm[(size_t)i2 * n1d + x] * t1[((size_t)x * n1d + j2) * n1d + k2];
+					a1 += Dm[(size_t)j2 * n1d + x] * t1[((size_t)i2 * n1d + x) * n1d + k2];
+					a2 += Dm[(size_t)k2 * n1d + x] * t1[((size_t)i2 * n1d + j2) * n1d + x];
+				}
+				g0[p] = a0; g1[p] = a1; g2[p] = a2;
+			}
+			// f = G g
+			for (size_t p = 0; p < npt; p++) {
+				const double x0 = g0[p], x1 = g1[p], x2 = g2[p];
+				const double f0 = G[0 * npt + p] * x0 + G[1 * npt + p] * x1 + G[2 * npt + p] * x2;
+				const double f1 = G[1 * npt + p] * x0 + G[3 * npt + p] * x1 + G[4 * npt + p] * x2;
+				const double f2 = G[2 * npt + p] * x0 + G[4 * npt + p] * x1 + G[5 * npt + p] * x2;
+				g0[p] = f0; g1[p] = f1; g2[p] = f2;
+			}
+			// K u = sum_d D_d^T f_d
+			for (int i2 = 0; i2 < n1d; i2++)
+			for (int j2 = 0; j2 < n1d; j2++)
+			for (int k2 = 0; k2 < n1d; k2++) {
+				const size_t p = ((size_t)i2 * n1d + j2) * n1d + k2;
+				double a0 = 0.0;
+				for (int x = 0; x < n1d; x++) {
+					a0 += Dm[(size_t)x * n1d + i2] * g0[((size_t)x * n1d + j2) * n1d + k2];
+					a0 += Dm[(size_t)x * n1d + j2] * g1[((size_t)i2 * n1d + x) * n1d + k2];
+					a0 += Dm[(size_t)x * n1d + k2] * g2[((size_t)i2 * n1d + j2) * n1d + x];
+				}
+				y[p] = sq[p] * a0;
+			}
+			double ny = 0.0; for (double a2 : y) ny += a2 * a2;
+			ny = std::sqrt(ny);
+			if (ny <= 0.0) return res;
+			for (size_t p = 0; p < npt; p++) v[p] = y[p] / ny;
+			if (it > 20 && std::abs(ny - lam) <= 1e-10 * ny) { lam = ny; break; }
+			lam = ny;
+		}
+		if (!(lam > 0.0) || !std::isfinite(lam)) return res;
+		res.lambda_max = lam;
+		res.omega_max = std::sqrt(lam);
+		res.dt_crit = 2.0 / res.omega_max;
+	}
 
 	return res;
 }

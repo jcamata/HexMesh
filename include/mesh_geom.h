@@ -104,6 +104,28 @@ inline double hex_max_face_warp(const double X[8], const double Y[8], const doub
 	return worst;
 }
 
+// Two hexes sharing a quad face must extend to OPPOSITE sides of it. Project each
+// element's own OTHER 4 corners' centroid onto the shared face's normal: a healthy
+// pair lands on opposite sides, the SAME side means one has folded back through the
+// face into the other's volume. This is real 3D interpenetration and the corner
+// Jacobian does NOT see it -- both elements can be locally valid and non-inverted
+// while overlapping. q = the 4 shared corners in either element's traversal order,
+// ca / cb = the two elements' complement centroids.
+inline bool faces_folded(const double q[4][3], const double ca[3], const double cb[3]) {
+	double fc[3], d02[3], d13[3];
+	for (int d = 0; d < 3; d++) {
+		fc[d]  = 0.25 * (q[0][d] + q[1][d] + q[2][d] + q[3][d]);
+		d02[d] = q[2][d] - q[0][d];
+		d13[d] = q[3][d] - q[1][d];
+	}
+	double n[3] = { d02[1]*d13[2]-d02[2]*d13[1],
+	                d02[2]*d13[0]-d02[0]*d13[2],
+	                d02[0]*d13[1]-d02[1]*d13[0] };
+	double da = 0.0, db = 0.0;
+	for (int d = 0; d < 3; d++) { da += (ca[d]-fc[d])*n[d]; db += (cb[d]-fc[d])*n[d]; }
+	return da * db > 0.0;
+}
+
 inline int reference_sign(double signed_vol_sum) {
 	return (signed_vol_sum >= 0.0) ? 1 : -1;
 }

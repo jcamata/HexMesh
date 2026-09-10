@@ -12,6 +12,7 @@
 #include "hexa.h"
 #include "hilbert.h"
 #include "verify_mesh.h"
+#include "mesh_geom.h"
 #include "stability.h"
 #include <ctime>
 #include <sc.h>
@@ -135,6 +136,7 @@ int main(int argc, char **argv) {
     //         elapsed.count());
     std::cout << "Time in PillowingInterface " << elapsed.count()
               << " millisecond(s)." << std::endl;
+    DumpInversionMap(&mesh, coords, std::vector<double>(), "postpillow");
   }
 
   if (mesh.input.meshOpt) {
@@ -241,18 +243,12 @@ int main(int argc, char **argv) {
           if (invtag[iel] == 2 && invtag[other] == 0) invtag[other] = 1;
           if (invtag[other] == 2 && invtag[iel] == 0) invtag[iel] = 1;
 
-          // Face centroid + normal from THIS element's own traversal of the shared face
-          // (arbitrary but consistent choice -- the fold test only needs the plane, and a
-          // plane doesn't care which side supplied it).
-          double fc[3] = {0,0,0};
+          // Shared-face corners in THIS element's own traversal order (arbitrary but
+          // consistent -- the fold test only needs the plane, and a plane doesn't care
+          // which side supplied it).
+          double q[4][3];
           for (int k = 0; k < 4; k++)
-            for (int d = 0; d < 3; d++) fc[d] += coords[3*key[k]+d] / 4.0;
-          double d02[3], d13[3];
-          for (int d = 0; d < 3; d++) {
-            d02[d] = coords[3*key[2]+d] - coords[3*key[0]+d];
-            d13[d] = coords[3*key[3]+d] - coords[3*key[1]+d];
-          }
-          double nrm[3] = { d02[1]*d13[2]-d02[2]*d13[1], d02[2]*d13[0]-d02[0]*d13[2], d02[0]*d13[1]-d02[1]*d13[0] };
+            for (int d = 0; d < 3; d++) q[k][d] = coords[3*key[k]+d];
 
           auto complement_centroid = [&](octant_t *elem, int face) -> std::array<double,3> {
             bool on_face[8] = {false};
@@ -271,12 +267,7 @@ int main(int argc, char **argv) {
           octant_t *eo = (octant_t *)sc_array_index(&mesh.elements, other);
           auto cA = complement_centroid(e, f);
           auto cB = complement_centroid(eo, it->second.second);
-          double distA = 0, distB = 0;
-          for (int d = 0; d < 3; d++) {
-            distA += (cA[d]-fc[d]) * nrm[d];
-            distB += (cB[d]-fc[d]) * nrm[d];
-          }
-          if (distA * distB > 0) { // same sign -> same side -> folded
+          if (mgeom::faces_folded(q, cA.data(), cB.data())) {
             foldtag[iel] = 1;
             foldtag[other] = 1;
           }
@@ -300,18 +291,34 @@ int main(int argc, char **argv) {
   if (!mesh.input.meshOpt) {
     print_stability_report("FINAL MESH", stab_final, mesh.input.gll_order);
   }
+  // Duas quantidades, exportadas lado a lado: dt_crit e' o limite de Irons
+  // (2/sqrt(lambda_max), iteracao de potencia sobre M_e^-1 K_e) e dt_cfl e' a CFL
+  // classica (C*h_min/vp). Em malha regular diferem ~1.4x; em hexaedros
+  // deformados a CFL classica sobrestima o passo por ordens de grandeza, porque
+  // mede distancias e nao o operador. Exportar as duas torna a diferenca
+  // mensuravel na malha em vez de suposta.
   std::vector<double> dtcrit_elem(mesh.elements.elem_count, 0.0);
+  std::vector<double> dtcfl_elem(mesh.elements.elem_count, 0.0);
+  std::vector<double> jacratio_elem(mesh.elements.elem_count, 0.0);
   for (size_t i = 0; i < stab_final.elem_stability.size(); i++) {
-    dtcrit_elem[i] = stab_final.elem_stability[i].dt_crit;
+    dtcrit_elem[i]   = stab_final.elem_stability[i].dt_crit;
+    dtcfl_elem[i]    = stab_final.elem_stability[i].dt_cfl;
+    jacratio_elem[i] = stab_final.elem_stability[i].jac_ratio;
   }
 
   start = std::chrono::steady_clock::now();
   std::string out_prefix = mesh.input.output_prefix.empty() ? "mesh" : mesh.input.output_prefix;
-  printf(" Writing output files (%s.pvtu, %s.h5, %s.xmf)\n\n",
-         out_prefix.c_str(), out_prefix.c_str(), out_prefix.c_str());
-  hexa_mesh_write_vtk(&mesh, out_prefix.c_str(), &coords, &invtag, &foldtag, &dtcrit_elem);
+  printf(" Writing output files (%s.pvtu)\n\n", out_prefix.c_str());
+  hexa_mesh_write_vtk(&mesh, out_prefix.c_str(), &coords, &invtag, &foldtag, &dtcrit_elem, &dtcfl_elem, &jacratio_elem);
   // hexa_mesh_write_msh(&mesh, out_prefix.c_str(), &coords);
-  hexa_mesh_write_h5(&mesh, out_prefix.c_str(), coords, &dtcrit_elem);
+  // Saida HDF5: desligada por omissao (um sweep completo do run_cases.sh enche o
+  // disco), ligada por caso com "writeH5 = 1" no .input. E' o formato que o
+  // MeshClass do FEM le' diretamente, ao contrario do VTU.
+  if (mesh.input.writeH5) {
+    printf(" Writing HDF5 output (%s_%04d_%04d.h5)\n", out_prefix.c_str(),
+           mesh.mpi_size, mesh.mpi_rank);
+    hexa_mesh_write_h5(&mesh, out_prefix.c_str(), coords, &dtcrit_elem, &invtag, &foldtag, &dtcfl_elem, &jacratio_elem);
+  }
   elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
   // fprintf(mesh.profile, "Time in Writing output files %lld millisecond(s).\n",

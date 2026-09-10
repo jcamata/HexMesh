@@ -8,9 +8,21 @@
 struct ElementStability {
 	int elem_id;
 	int mat_id;
-	double dt_crit;      // Critical time step: 2 / sqrt(lambda_max)
-	double lambda_max;   // Highest generalized eigenvalue
+	double dt_crit;      // Critical time step: 2 / sqrt(lambda_max), limite de Irons
+	double lambda_max;   // Highest generalized eigenvalue of M_e^-1 K_e
 	double omega_max;    // Maximum natural frequency sqrt(lambda_max)
+	double dt_cfl;       // Tempo de transito CRU min_h_gll/vp, SEM constante CFL.
+	                     // Quem consome escolhe a sua constante; assim a razao
+	                     // dt_cfl/dt_crit mede so' a diferenca entre geometria e
+	                     // operador, sem uma convencao no meio.
+	                     // NAO e' o limite de Irons: mede a menor distancia entre
+	                     // pontos GLL adjacentes, logo e' cega ao cisalhamento.
+	double min_h_gll;    // menor distancia entre pontos GLL adjacentes
+	double jac_ratio;    // min(detJ)/max(detJ) nos pontos GLL do elemento.
+	                     // Medida relativa de degenerescencia: 1 = hexaedro
+	                     // perfeitamente regular, 0 = jacobiano colapsa nalgum
+	                     // ponto. Exportada para que a filtragem por qualidade
+	                     // possa ser feita a jusante sem re-correr o gerador.
 	bool valid;          // True if element is geometrically valid and positive-definite
 };
 

@@ -15,7 +15,9 @@ using namespace std;
 
 #include "hexa.h"
 
-void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords, const std::vector<double> *dtcrit)
+void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<double> coords, const std::vector<double> *dtcrit,
+                        const std::vector<int> *invtag, const std::vector<int> *foldtag,
+                        const std::vector<double> *dtcfl, const std::vector<double> *jacratio)
 {
 
 	char filename[80];
@@ -171,6 +173,45 @@ void hexa_mesh_write_h5(hexa_tree_t *mesh, const char* root_name, std::vector<do
 		dataset1->write(&(*dtcrit)[0], PredType::NATIVE_DOUBLE, mspace_dt, mspace_dt);
 		delete dataset1;
 		delete dataspace1;
+	}
+
+	// CFL classica ao lado do limite de Irons, para a diferenca ser mensuravel.
+	if (dtcfl != NULL && (int32_t)dtcfl->size() >= mesh->local_n_elements) {
+		dim[0] = mesh->local_n_elements;
+		DataSpace *dsp = new DataSpace(1, dim);
+		DataSet *dst = new DataSet(file.createDataSet("Sem3D/DtCFL", PredType::IEEE_F64LE, *dsp));
+		DataSpace msp(1, dim);
+		dst->write(&(*dtcfl)[0], PredType::NATIVE_DOUBLE, msp, msp);
+		delete dst;
+		delete dsp;
+	}
+
+	if (jacratio != NULL && (int32_t)jacratio->size() >= mesh->local_n_elements) {
+		dim[0] = mesh->local_n_elements;
+		DataSpace *dsp = new DataSpace(1, dim);
+		DataSet *dst = new DataSet(file.createDataSet("Sem3D/JacRatio", PredType::IEEE_F64LE, *dsp));
+		DataSpace msp(1, dim);
+		dst->write(&(*jacratio)[0], PredType::NATIVE_DOUBLE, msp, msp);
+		delete dst;
+		delete dsp;
+	}
+
+	// InvertedTag e NeighborFold. Sem eles quem le' o .h5 nao consegue descartar
+	// os elementos com jacobiano negativo, e uma malha com hexaedros invertidos
+	// nao falha alto: produz um operador errado em silencio.
+	{
+		const std::vector<int> *tags[2] = { invtag, foldtag };
+		const char *nomes[2] = { "Sem3D/InvertedTag", "Sem3D/NeighborFold" };
+		for (int it = 0; it < 2; ++it) {
+			if (tags[it] == NULL || (int32_t)tags[it]->size() < mesh->local_n_elements) continue;
+			dim[0] = mesh->local_n_elements;
+			DataSpace *dsp = new DataSpace(1, dim);
+			DataSet *dst = new DataSet(file.createDataSet(nomes[it], PredType::STD_I32LE, *dsp));
+			DataSpace msp(1, dim);
+			dst->write(&(*tags[it])[0], PredType::NATIVE_INT, msp, msp);
+			delete dst;
+			delete dsp;
+		}
 	}
 
 	// write the Centroids (one point per element) — diagnostic point cloud so

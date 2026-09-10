@@ -10,6 +10,8 @@
 #include <sc.h>
 #include <sc_containers.h>
 #include "hexa.h"
+#include "mesh_geom.h"
+#include "verify_mesh.h"
 
 /*
  * Double-Layer Pillowing for Spectral Hexahedral Elements (Conforming Mesh for Continuous Galerkin).
@@ -95,6 +97,13 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	// how far from the interface node toward its real full-step neighbour. 0.5 = exact midpoint;
 	// user requested testing 0.45 (slightly toward the interface) after a visual check.
 	const double V2_FRACTION = 0.45;
+
+	// Step 7 pull-back: smallest fraction of the originally-placed buffer offset we accept
+	// before giving up on a buffer node. NOT a numerical floor -- a visual one: below ~0.4 the
+	// pillow sheet at the coastline reads as a crack/hole in the rendered mesh (user rejected
+	// the 0.05 floor for exactly that). An inverted fat element is repairable downstream and
+	// visible as geometry; a collapsed valid one is neither.
+	const double ALPHA_MIN = 0.4;
 
 	// 1. Scale integer lattice coordinates of all nodes and elements by N=2
 	for (int ino = 0; ino < mesh->nodes.elem_count; ino++) {
@@ -617,6 +626,107 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			pelemB->nodes[li].fixed = n_li->fixed; pelemB->nodes[li].color = n_li->color;
 		}
 		n_created_pillow++;
+	}
+
+
+	// 7. Validity-driven pull-back of buffer nodes (conforming by construction: only positions
+	// move, never connectivity). A buffer node whose incident hexes came out inverted is slid
+	// back along its own placement segment toward its interface node until every incident hex is
+	// valid, or ALPHA_MIN is reached. This is the local equivalent of "collapsing" the bad
+	// element -- the layer thins where it does not fit instead of the mesh losing an element.
+	if (getenv("NO_PULLBACK") == NULL) {
+		double vol_sum = 0.0;
+		double X[8], Y[8], Z[8];
+		for (size_t ie = 0; ie < mesh->elements.elem_count; ie++) {
+			load_elem_xyz(mesh, coords, (int)ie, X, Y, Z);
+			vol_sum += mgeom::hex_signed_volume(X, Y, Z);
+		}
+		int ref = mgeom::reference_sign(vol_sum);
+
+		// buffer node -> incident elements
+		std::unordered_map<int, std::vector<int>> incid;
+		for (size_t ie = 0; ie < mesh->elements.elem_count; ie++) {
+			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, ie);
+			for (int k = 0; k < 8; k++) {
+				int id = e->nodes[k].id;
+				if (id >= (int)initial_node_count) incid[id].push_back((int)ie);
+			}
+		}
+
+		auto n_bad = [&](const std::vector<int> &els, double &worst) -> int {
+			int bad = 0; worst = 1e300;
+			for (int ie : els) {
+				load_elem_xyz(mesh, coords, ie, X, Y, Z);
+				double v = mgeom::hex_signed_volume(X, Y, Z);
+				double s = mgeom::hex_min_corner_sj(X, Y, Z);
+				if (mgeom::is_inverted(v, s, ref)) bad++;
+				if (s*ref < worst) worst = s*ref;
+			}
+			return bad;
+		};
+
+		static const double ALPHAS[] = {0.75, 0.6, 0.5, ALPHA_MIN};
+		int n_moved = 0;
+		double min_alpha = 1.0;
+
+		for (int round = 0; round < 3; round++) {
+			int moved_this_round = 0;
+			for (auto &kv : incid) {
+				int bid = kv.first;
+				auto ob = buffer_orig.find(bid);
+				if (ob == buffer_orig.end()) continue;
+				double w0;
+				int bad0 = n_bad(kv.second, w0);
+				if (bad0 == 0) continue;
+
+				int oid = ob->second;
+				double ox = coords[3*oid+0], oy = coords[3*oid+1], oz = coords[3*oid+2];
+				double bx = coords[3*bid+0], by = coords[3*bid+1], bz = coords[3*bid+2];
+				double scale = buffer_scale[bid];   // fraction of the ORIGINAL placement still applied
+				double best_a = 0.0;
+				int best_bad = bad0;
+
+				for (double a : ALPHAS) {
+					if (a >= scale) continue;         // never push a node back out
+					double f = a / scale;             // current position is already at `scale`
+					coords[3*bid+0] = ox + f*(bx-ox);
+					coords[3*bid+1] = oy + f*(by-oy);
+					coords[3*bid+2] = oz + f*(bz-oz);
+					// Strictly fewer inverted elements, or nothing: thinning the layer for a
+					// marginal Jacobian gain that fixes no element is how h_min gets crushed
+					// for free (the same trade the V2_FRACTION sweep already lost once).
+					// Strictly fewer inverted elements, or leave the layer alone: thinning for a
+					// marginal Jacobian gain that fixes nothing is what crushed h_min and put
+					// visible cracks in the coastline.
+					double w; int bad = n_bad(kv.second, w); (void)w;
+					if (bad < best_bad) { best_bad = bad; best_a = a; }
+					if (bad == 0) break;
+				}
+
+				if (best_a > 0.0) {
+					double f = best_a / scale;
+					coords[3*bid+0] = ox + f*(bx-ox);
+					coords[3*bid+1] = oy + f*(by-oy);
+					coords[3*bid+2] = oz + f*(bz-oz);
+					buffer_scale[bid] = best_a;
+					if (best_a < min_alpha) min_alpha = best_a;
+					moved_this_round++;
+				} else {
+					coords[3*bid+0] = bx; coords[3*bid+1] = by; coords[3*bid+2] = bz;
+				}
+			}
+			n_moved += moved_this_round;
+			if (moved_this_round == 0) break;
+		}
+
+		int still_bad = 0;
+		for (size_t ie = 0; ie < mesh->elements.elem_count; ie++) {
+			load_elem_xyz(mesh, coords, (int)ie, X, Y, Z);
+			if (mgeom::is_inverted(mgeom::hex_signed_volume(X, Y, Z),
+			                       mgeom::hex_min_corner_sj(X, Y, Z), ref)) still_bad++;
+		}
+		printf("    Pillow pull-back: %d buffer nodes thinned (min alpha %.2f), %d elements still inverted\n",
+		       n_moved, min_alpha, still_bad);
 	}
 
 	// Update local and total mesh counts

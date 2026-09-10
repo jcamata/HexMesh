@@ -46,6 +46,10 @@ struct Input {
     int nlayersx, nlayersy, nlayersz;
     bool meshOpt;
     int gll_order = 4;
+    // Saida HDF5. Desligada por omissao: um sweep completo do run_cases.sh
+    // enche o disco. Ligar com "writeH5 = 1" no .input para o caso que se quer
+    // inspecionar ou levar para outro codigo.
+    bool writeH5 = false;
 	std::vector<double> zcut;
     std::string output_prefix = "mesh";
 };
@@ -505,8 +509,10 @@ void hexQualitySelfTest();
 void analyze_full_mesh_quality(hexa_tree_t *mesh, const std::vector<double> &coords, std::vector<hex_quality_t> &qualities);
 void hexa_mesh_write_quality_h5(hexa_tree_t *mesh, const char *root_name, const std::vector<double> &coords, const std::vector<hex_quality_t> &qualities, const std::vector<double> *dtcrit = NULL);
 void hexa_mesh_write_msh(hexa_tree_t *mesh, const char *root_name, std::vector<double> *coords);
-void hexa_mesh_write_h5(hexa_tree_t *mesh, const char *root_name, std::vector<double> coords, const std::vector<double> *dtcrit = NULL);
-int hexa_mesh_write_vtk(hexa_tree_t *mesh, const char *filename, std::vector<double> *coords, const std::vector<int> *invtag = NULL, const std::vector<int> *foldtag = NULL, const std::vector<double> *dtcrit = NULL);
+void hexa_mesh_write_h5(hexa_tree_t *mesh, const char *root_name, std::vector<double> coords, const std::vector<double> *dtcrit = NULL,
+                        const std::vector<int> *invtag = NULL, const std::vector<int> *foldtag = NULL,
+                        const std::vector<double> *dtcfl = NULL, const std::vector<double> *jacratio = NULL);
+int hexa_mesh_write_vtk(hexa_tree_t *mesh, const char *filename, std::vector<double> *coords, const std::vector<int> *invtag = NULL, const std::vector<int> *foldtag = NULL, const std::vector<double> *dtcrit = NULL, const std::vector<double> *dtcfl = NULL, const std::vector<double> *jacratio = NULL);
 void hexa_debug_face_hanging(hexa_tree_t *mesh);
 unsigned processors_hash_fn(const void *v, const void *u);
 int processors_equal_fn(const void *v1, const void *v2, const void *u);
