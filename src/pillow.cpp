@@ -12,6 +12,7 @@
 #include "hexa.h"
 #include "mesh_geom.h"
 #include "verify_mesh.h"
+#include "pillow_untangle.h"
 
 /*
  * Double-Layer Pillowing for Spectral Hexahedral Elements (Conforming Mesh for Continuous Galerkin).
@@ -231,6 +232,109 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			nflip_total += (int)flip.size();
 		}
 		printf("    Material despeckle: %d one-cell spikes/notches flipped\n", nflip_total);
+
+		// 1c. Node-level pinch despeckle. The element rule above only catches a cell that
+		// disagrees with 4+ of its 6 face neighbours, and on real bathymetry it fires zero
+		// times. The configuration that actually leaves an EMPTY FEASIBLE CONE is thinner than
+		// that: a material reaching a node from two directions that are not face-connected
+		// around that node -- a step corner meeting diagonally, a one-cell notch at the
+		// coastline. Such a node's incident quads carry normals on both ends of an axis, so the
+		// single shared buffer node cannot sit inside every incident hex, at any thickness or
+		// direction. Measured after the extrusion field and the local repair: 20 of 20 residual
+		// inverted elements on Argostoli ref3 and on hyeres ref3 touch one of these nodes. It is
+		// the last family and it is topological -- the fix is to remove the pinch from the
+		// material field, one cell at a time, before the interface quads are built.
+		int npinch_total = 0;
+		// A cell is reassigned at most once: flipping the small component can create a pinch on
+		// the other side, and without this the same two cells swap material every round forever.
+		std::unordered_set<int> flipped_once;
+		for (int round = 0; round < 8; round++) {
+			// nodes sitting on a material interface
+			std::unordered_set<int> iface_nodes;
+			for (int iel = 0; iel < (int)mesh->elements.elem_count; iel++) {
+				octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
+				for (int f = 0; f < 6; f++) {
+					int j = nb[iel][f];
+					if (j < 0) continue;
+					octant_t *o = (octant_t *) sc_array_index(&mesh->elements, j);
+					if (o->n_mat == elem->n_mat) continue;
+					for (int n = 0; n < 4; n++) iface_nodes.insert(elem->nodes[FaceNodesMap[f][n]].id);
+				}
+			}
+			// every cell incident to those nodes (not just the interface-adjacent ones: a cell
+			// deeper in the material is what connects two apparent components)
+			std::unordered_map<int, std::vector<int>> n2e;
+			for (int iel = 0; iel < (int)mesh->elements.elem_count; iel++) {
+				octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
+				for (int k = 0; k < 8; k++) {
+					int nid = elem->nodes[k].id;
+					if (iface_nodes.count(nid)) n2e[nid].push_back(iel);
+				}
+			}
+			std::unordered_set<int> flip;      // cells to reassign this round
+			for (auto &kv : n2e) {
+				const std::vector<int> &cells = kv.second;
+				if (cells.size() < 3) continue;
+				std::unordered_map<int, std::vector<int>> by_mat;
+				for (int ie : cells) {
+					octant_t *e = (octant_t *) sc_array_index(&mesh->elements, ie);
+					by_mat[e->n_mat].push_back(ie);
+				}
+				if (by_mat.size() < 2) continue;
+				for (auto &mk : by_mat) {
+					const std::vector<int> &S = mk.second;
+					if (S.size() < 2) continue;          // a single cell cannot be pinched
+					// connected components of S under face adjacency, restricted to S
+					std::unordered_set<int> inS(S.begin(), S.end());
+					std::unordered_set<int> seen;
+					std::vector<std::vector<int>> comp;
+					for (int seed : S) {
+						if (seen.count(seed)) continue;
+						std::vector<int> stack(1, seed), cur;
+						seen.insert(seed);
+						while (!stack.empty()) {
+							int ie = stack.back(); stack.pop_back();
+							cur.push_back(ie);
+							for (int f = 0; f < 6; f++) {
+								int j = nb[ie][f];
+								if (j < 0 || !inS.count(j) || seen.count(j)) continue;
+								seen.insert(j); stack.push_back(j);
+							}
+						}
+						comp.push_back(cur);
+					}
+					if (comp.size() < 2) continue;       // face-connected around the node: fine
+					// pinch: keep the largest component, flip the others
+					size_t big = 0;
+					for (size_t i = 1; i < comp.size(); i++)
+						if (comp[i].size() > comp[big].size()) big = i;
+					for (size_t i = 0; i < comp.size(); i++)
+						if (i != big) for (int ie : comp[i])
+							if (!flipped_once.count(ie)) flip.insert(ie);
+				}
+			}
+			if (flip.empty()) break;
+			for (int iel : flip) {
+				octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
+				std::unordered_map<int,int> count;    // majority of the face neighbours, as above
+				for (int f = 0; f < 6; f++) {
+					int j = nb[iel][f];
+					if (j < 0) continue;
+					octant_t *o = (octant_t *) sc_array_index(&mesh->elements, j);
+					if (o->n_mat != elem->n_mat) count[o->n_mat]++;
+				}
+				int best_mat = elem->n_mat, best_count = -1;
+				for (auto &kv : count) {
+					if (kv.second > best_count || (kv.second == best_count && kv.first < best_mat)) {
+						best_count = kv.second; best_mat = kv.first;
+					}
+				}
+				elem->n_mat = best_mat;
+				flipped_once.insert(iel);
+			}
+			npinch_total += (int)flip.size();
+		}
+		printf("    Node-pinch despeckle: %d cells reassigned (empty-cone nodes)\n", npinch_total);
 	}
 
 	// 2. Closed Manifold Scan: Pair ALL faces across mesh->elements
@@ -455,11 +559,232 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			uint8_t m = kv.second;
 			if (((m & 3) == 3) || ((m & 12) == 12) || ((m & 48) == 48)) nopp++;
 		}
-		if (nopp > 0)
+		if (nopp > 0) {
 			printf("    WARNING: %d / %zu (node, material) sides have opposing quad normals "
 			       "(empty feasible cone) -- their pillow hexes cannot all be valid\n",
 			       nopp, side_mask.size());
+			// which nodes they are, so the residual inversions can be attributed to them
+			// (same role as the invmap_*.csv dumps): node id, material side, axis mask, position
+			FILE *fc = fopen("pillow_cone.csv", "w");
+			if (fc) {
+				fprintf(fc, "node,mat,mask,x,y,z\n");
+				for (auto &kv : side_mask) {
+					uint8_t m = kv.second;
+					if (!(((m & 3) == 3) || ((m & 12) == 12) || ((m & 48) == 48))) continue;
+					int nid = (int)(kv.first >> 32), mat = (int)(uint32_t)kv.first;
+					fprintf(fc, "%d,%d,%d,%.3f,%.3f,%.3f\n", nid, mat, (int)m,
+					        coords[3*nid+0], coords[3*nid+1], coords[3*nid+2]);
+				}
+				fclose(fc);
+			}
+		}
 	}
+
+	// --- Geometric extrusion field: direction and length of every buffer node ---------------
+	// Direction = average of the incident quads' GEOMETRIC normals, oriented into the material
+	// side, then Laplacian-smoothed over the interface graph; length = ETA times the smaller of
+	// the shortest incident quad edge and the distance to the host element's interior node, so
+	// the thickness follows the local element size instead of the distance to some lattice
+	// neighbour. Both limits are needed: the in-plane one keeps the layer from being wider than
+	// the quad, the interior one keeps it from punching through the host element, which is thin
+	// in z near the surface while the interface quad can be kilometres wide (hawaii, mauna_loa). Both reference implementations do exactly this
+	// (HexGen_Hex2Spline's Pillow(), Marechal's boundary layers, IMR 2016), and it targets the
+	// two signatures measured on the inverted elements of this mesh (tools/pillow_report.py):
+	// a pillow hex is never inverted while its four corner offsets agree within 60 degrees, and
+	// the inversion rate climbs with the thickness spread inside a single hex. The old
+	// lattice-based placement stays behind PILLOW_LEGACY=1 as an A/B control.
+	const bool legacy_placement = (getenv("PILLOW_LEGACY") != NULL);
+	double PILLOW_ETA = 0.45;                 // thickness as a fraction of the shortest quad edge
+	if (const char *ev = getenv("PILLOW_ETA")) PILLOW_ETA = atof(ev);
+	const int    DIR_SMOOTH_ITERS = 3;
+	const double DIR_SMOOTH_W     = 0.5;
+	const double LEN_FLOOR        = 0.4;   // floor for the host-room cap, as a fraction of the
+	                                       // size-based nominal thickness (visual, not numerical)
+
+	std::unordered_map<int64_t, std::array<double,3>> ext_dir;
+	std::unordered_map<int64_t, double> ext_len;
+	std::unordered_map<int64_t, std::vector<int64_t>> ext_nbr;
+	{
+		auto add_side = [&](int64_t key, const double d[3], double len, int64_t n1, int64_t n2) {
+			auto &e = ext_dir[key];
+			e[0] += d[0]; e[1] += d[1]; e[2] += d[2];
+			auto it = ext_len.find(key);
+			if (it == ext_len.end() || len < it->second) ext_len[key] = len;
+			std::vector<int64_t> &nb = ext_nbr[key];
+			nb.push_back(n1); nb.push_back(n2);
+		};
+		for (auto &q : interface_quads) {
+			const double *p[4];
+			for (int n = 0; n < 4; n++) p[n] = &coords[3*q.quad_nodes[n]];
+			double emin = 1e300;
+			for (int n = 0; n < 4; n++) {
+				const double *a = p[n], *b = p[(n+1)%4];
+				double e = std::sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) +
+				                     (a[2]-b[2])*(a[2]-b[2]));
+				if (e < emin) emin = e;
+			}
+			// normal from the diagonals: the robust choice on a warped (non-planar) quad
+			double d02[3], d13[3], ng[3];
+			for (int k = 0; k < 3; k++) { d02[k] = p[2][k]-p[0][k]; d13[k] = p[3][k]-p[1][k]; }
+			ng[0] = d02[1]*d13[2]-d02[2]*d13[1];
+			ng[1] = d02[2]*d13[0]-d02[0]*d13[2];
+			ng[2] = d02[0]*d13[1]-d02[1]*d13[0];
+			double nl = std::sqrt(ng[0]*ng[0]+ng[1]*ng[1]+ng[2]*ng[2]);
+			if (nl < 1e-12 || emin >= 1e299) continue;    // degenerate quad: contributes nothing
+			for (int k = 0; k < 3; k++) ng[k] /= nl;
+
+			octant_t *eA = (octant_t *) sc_array_index(&mesh->elements, q.elemA_id);
+			octant_t *eB = (octant_t *) sc_array_index(&mesh->elements, q.elemB_id);
+			int iA = eA->nodes[FaceNodesMap_inv[q.faceA][0]].id;
+			int iB = eB->nodes[FaceNodesMap_inv[q.faceB][0]].id;
+			double dotA = 0.0, dotB = 0.0;   // orient into each side with its own interior node
+			for (int k = 0; k < 3; k++) {
+				dotA += ng[k] * (coords[3*iA+k] - p[0][k]);
+				dotB += ng[k] * (coords[3*iB+k] - p[0][k]);
+			}
+			double dA[3], dB[3];
+			for (int k = 0; k < 3; k++) {
+				dA[k] = (dotA < 0.0 ? -ng[k] : ng[k]);
+				dB[k] = (dotB < 0.0 ? -ng[k] : ng[k]);
+			}
+			for (int n = 0; n < 4; n++) {
+				int nid = q.quad_nodes[n];
+				int nb1 = q.quad_nodes[(n+1)%4], nb3 = q.quad_nodes[(n+3)%4];
+				// how much room this corner actually has on each side: the edge from the
+				// interface node to the host element's own interior node
+				int inA = eA->nodes[FaceNodesMap_inv[q.faceA][n]].id;
+				int inB = eB->nodes[FaceNodesMap_inv[q.faceB][n]].id;
+				double hA = 0.0, hB = 0.0;
+				for (int k = 0; k < 3; k++) {
+					double a = coords[3*inA+k] - p[n][k], b = coords[3*inB+k] - p[n][k];
+					hA += a*a; hB += b*b;
+				}
+				hA = std::sqrt(hA); hB = std::sqrt(hB);
+				add_side(pillow_key(nid, q.matA), dA, PILLOW_ETA*std::min(emin, hA),
+				         pillow_key(nb1, q.matA), pillow_key(nb3, q.matA));
+				add_side(pillow_key(nid, q.matB), dB, PILLOW_ETA*std::min(emin, hB),
+				         pillow_key(nb1, q.matB), pillow_key(nb3, q.matB));
+			}
+		}
+		auto renorm = [](std::array<double,3> &v) -> bool {
+			double l = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+			if (l < 1e-12) return false;
+			v[0] /= l; v[1] /= l; v[2] /= l;
+			return true;
+		};
+		for (auto &kv : ext_dir) renorm(kv.second);
+		// Laplacian smoothing over the interface graph, per material side -- the step that
+		// removes the >60 deg disagreement between the four corners of a quad.
+		for (int it = 0; it < DIR_SMOOTH_ITERS; it++) {
+			std::unordered_map<int64_t, std::array<double,3>> next = ext_dir;
+			for (auto &kv : ext_dir) {
+				auto nb = ext_nbr.find(kv.first);
+				if (nb == ext_nbr.end() || nb->second.empty()) continue;
+				std::array<double,3> avg = {0.0, 0.0, 0.0};
+				int cnt = 0;
+				for (size_t j = 0; j < nb->second.size(); j++) {
+					auto it2 = ext_dir.find(nb->second[j]);
+					if (it2 == ext_dir.end()) continue;
+					avg[0] += it2->second[0]; avg[1] += it2->second[1]; avg[2] += it2->second[2];
+					cnt++;
+				}
+				if (cnt == 0) continue;
+				std::array<double,3> v;
+				for (int k = 0; k < 3; k++)
+					v[k] = (1.0-DIR_SMOOTH_W)*kv.second[k] + DIR_SMOOTH_W*avg[k]/(double)cnt;
+				if (renorm(v)) next[kv.first] = v;
+			}
+			ext_dir.swap(next);
+		}
+
+		std::unordered_map<int64_t, double> nominal = ext_len;   // size-based thickness, pre-cap
+
+		// Second pass, with the smoothed directions known: cap the length so the offset also
+		// keeps the HOST element valid. This is Marechal's "adjust the vector size until the
+		// mother hex stays valid" (IMR 2016, fig. 8), in closed form. Writing the offset in the
+		// basis of the host's three edges at that corner, d = c1 e1 + c2 e2 + c3 e3, the corner
+		// Jacobians of the host scale as (1 - L*sum(ci)) and (1 - L*ci), so L < ETA/max(...)
+		// keeps every one of them positive. Without this a smoothed interface normal on a steep
+		// flank points outside the host's own edge cone and slides the corner out of its cell:
+		// the layer comes out perfect and the host hexes turn inside out (hawaii, mauna_loa).
+		for (auto &q : interface_quads) {
+			octant_t *eh[2] = { (octant_t *) sc_array_index(&mesh->elements, q.elemA_id),
+			                    (octant_t *) sc_array_index(&mesh->elements, q.elemB_id) };
+			const int face[2] = { q.faceA, q.faceB };
+			for (int n = 0; n < 4; n++) {
+				int nid = q.quad_nodes[n];
+				const int64_t key[2] = { pillow_key(nid, q.matA), pillow_key(nid, q.matB) };
+				for (int sd = 0; sd < 2; sd++) {
+					auto itd = ext_dir.find(key[sd]);
+					auto itl = ext_len.find(key[sd]);
+					if (itd == ext_dir.end() || itl == ext_len.end()) continue;
+					int li = FaceNodesMap[face[sd]][n];          // corner in elem->nodes order
+					int k  = (li + 4) % 8;                       // same corner in CORNER_NB order
+					const double *p0 = &coords[3*eh[sd]->nodes[li].id];
+					double E[3][3];                              // columns = the three edges
+					for (int j = 0; j < 3; j++) {
+						int nb = eh[sd]->nodes[mgeom::H5_ORD[mgeom::CORNER_NB[k][j]]].id;
+						for (int r = 0; r < 3; r++) E[r][j] = coords[3*nb+r] - p0[r];
+					}
+					double det = E[0][0]*(E[1][1]*E[2][2]-E[1][2]*E[2][1])
+					           - E[0][1]*(E[1][0]*E[2][2]-E[1][2]*E[2][0])
+					           + E[0][2]*(E[1][0]*E[2][1]-E[1][1]*E[2][0]);
+					double en[3];                                // relative conditioning test:
+					for (int j = 0; j < 3; j++)                  // an ill-conditioned corner
+						en[j] = std::sqrt(E[0][j]*E[0][j] + E[1][j]*E[1][j] + E[2][j]*E[2][j]);
+					if (std::fabs(det) < 1e-9 * en[0]*en[1]*en[2]) continue;   // gives no usable bound
+					const std::array<double,3> &d = itd->second;
+					double c[3];                                 // Cramer: E c = d
+					for (int j = 0; j < 3; j++) {
+						double M[3][3];
+						for (int r = 0; r < 3; r++) for (int cc = 0; cc < 3; cc++)
+							M[r][cc] = (cc == j) ? d[r] : E[r][cc];
+						c[j] = (M[0][0]*(M[1][1]*M[2][2]-M[1][2]*M[2][1])
+						      - M[0][1]*(M[1][0]*M[2][2]-M[1][2]*M[2][0])
+						      + M[0][2]*(M[1][0]*M[2][1]-M[1][1]*M[2][0])) / det;
+					}
+					double worst = c[0] + c[1] + c[2];
+					for (int j = 0; j < 3; j++) if (c[j] > worst) worst = c[j];
+					if (worst <= 1e-12) continue;                // host only grows: no bound
+					// Never collapse the layer to a sliver to save a host element: below ~0.4 of
+					// the nominal thickness the pillow sheet reads as a crack in the rendered
+					// mesh (the ALPHA_MIN=0.05 episode). An inverted fat element is repairable
+					// downstream and visible; a collapsed valid one is neither.
+					double lim = std::max(PILLOW_ETA / worst, LEN_FLOOR * nominal[key[sd]]);
+					if (lim < itl->second) itl->second = lim;
+				}
+			}
+		}
+	}
+
+	// Buffer node from the extrusion field. The integer lattice target is the same one the old
+	// placement used -- topology bookkeeping and every downstream consumer of node->x/y/z depend
+	// on it -- only the physical position changes. Returns -1 (caller falls back) when this
+	// (node, side) has no usable field entry.
+	auto create_from_field = [&](int orig_nid, int64_t key, uint8_t mask,
+	                             int sgn, int nx, int ny, int nz) -> int {
+		int dx = ((mask & 3)  == 3)  ? 0 : (mask & 1)  ? 1 : (mask & 2)  ? -1 : 0;
+		int dy = ((mask & 12) == 12) ? 0 : (mask & 4)  ? 1 : (mask & 8)  ? -1 : 0;
+		int dz = ((mask & 48) == 48) ? 0 : (mask & 16) ? 1 : (mask & 32) ? -1 : 0;
+		if (dx == 0 && dy == 0 && dz == 0) { dx = sgn*nx; dy = sgn*ny; dz = sgn*nz; }
+
+		auto itd = ext_dir.find(key);
+		auto itl = ext_len.find(key);
+		if (itd == ext_dir.end() || itl == ext_len.end() || itl->second <= 0.0) return -1;
+		std::array<double,3> d = itd->second;
+		double dl = std::sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+		if (dl < 1e-12) return -1;
+
+		octant_node_t *on = (octant_node_t *) sc_array_index(&mesh->nodes, orig_nid);
+		int tx = std::clamp(on->x + dx, min_gx, max_gx);
+		int ty = std::clamp(on->y + dy, min_gy, max_gy);
+		int tz = std::clamp(on->z + dz, min_gz, max_gz);
+
+		double L = itl->second;
+		double ox = L*d[0]/dl, oy = L*d[1]/dl, oz = L*d[2]/dl;
+		double px = coords[3*orig_nid+0], py = coords[3*orig_nid+1], pz = coords[3*orig_nid+2];
+		return push_buffer_node(orig_nid, tx, ty, tz, px+ox, py+oy, pz+oz, ox, oy, oz);
+	};
 
 	// Averaged offset with a magnitude FLOOR: use the mean interior DIRECTION
 	// (congruent slab, no twist) but keep the mean interior DISTANCE as the
@@ -509,7 +834,8 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			int orig_nid = q.quad_nodes[n];
 			int64_t keyA = pillow_key(orig_nid, q.matA);
 			if (pillow_map.find(keyA) == pillow_map.end()) {
-				int idA = try_create_node_v2(orig_nid, side_mask[keyA]);
+				int idA = legacy_placement ? try_create_node_v2(orig_nid, side_mask[keyA])
+				                           : create_from_field(orig_nid, keyA, side_mask[keyA], -1, nx, ny, nz);
 				if (idA >= 0) { n_v2++; }
 				else {
 					n_fallback++;
@@ -523,7 +849,8 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			}
 			int64_t keyB = pillow_key(orig_nid, q.matB);
 			if (pillow_map.find(keyB) == pillow_map.end()) {
-				int idB = try_create_node_v2(orig_nid, side_mask[keyB]);
+				int idB = legacy_placement ? try_create_node_v2(orig_nid, side_mask[keyB])
+				                           : create_from_field(orig_nid, keyB, side_mask[keyB], +1, nx, ny, nz);
 				if (idB >= 0) { n_v2++; }
 				else {
 					n_fallback++;
@@ -537,8 +864,9 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			}
 		}
 	}
-	printf("    Buffer node placement: %d face/edge/vertex, %d fell back to averaged-direction\n",
-	       n_v2, n_fallback);
+	printf("    Buffer node placement: %d %s, %d fell back to averaged-direction\n",
+	       n_v2, legacy_placement ? "face/edge/vertex (legacy)" : "extrusion field",
+	       n_fallback);
 
 	// 5. Global Element Remapping for Conformity (NO HANGING NODES)
 	// Remap every original element to its (node, n_mat) buffer, whatever n_mat is.
@@ -653,20 +981,46 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			}
 		}
 
-		auto n_bad = [&](const std::vector<int> &els, double &worst) -> int {
-			int bad = 0; worst = 1e300;
+		// Worst corner Jacobian (sign-corrected) over a node's incident elements, and how many
+		// of them are inverted. This is the whole objective: raise the worst corner above zero.
+		auto score = [&](const std::vector<int> &els, int &bad) -> double {
+			double worst = 1e300;
+			bad = 0;
 			for (int ie : els) {
 				load_elem_xyz(mesh, coords, ie, X, Y, Z);
 				double v = mgeom::hex_signed_volume(X, Y, Z);
-				double s = mgeom::hex_min_corner_sj(X, Y, Z);
-				if (mgeom::is_inverted(v, s, ref)) bad++;
-				if (s*ref < worst) worst = s*ref;
+				double sj = mgeom::hex_min_corner_sj(X, Y, Z) * ref;
+				if (mgeom::is_inverted(v, mgeom::hex_min_corner_sj(X, Y, Z), ref)) bad++;
+				if (sj < worst) worst = sj;
 			}
-			return bad;
+			return worst;
 		};
 
-		static const double ALPHAS[] = {0.75, 0.6, 0.5, ALPHA_MIN};
-		int n_moved = 0;
+		// Feasible set of one buffer node: on the segment side of its interface node, thickness
+		// within [ALPHA_MIN, 1] of the placed one, direction within ANGLE_MAX of the extrusion
+		// direction. Any candidate is projected back into it, so every accepted position keeps
+		// the layer visible and shaped -- the constraint the unconstrained node smoothing in
+		// PillowingInterface.cpp lacked when it crumpled the coastline.
+		auto project = [&](const double p0[3], const double u0[3], double t_nom,
+		                   double a_min, double a_cos, double c[3]) {
+			double w[3] = { c[0]-p0[0], c[1]-p0[1], c[2]-p0[2] };
+			double l = std::sqrt(w[0]*w[0] + w[1]*w[1] + w[2]*w[2]);
+			if (l < 1e-12) { for (int k = 0; k < 3; k++) c[k] = p0[k] + a_min*t_nom*u0[k]; return; }
+			double wh[3] = { w[0]/l, w[1]/l, w[2]/l };
+			double cs = wh[0]*u0[0] + wh[1]*u0[1] + wh[2]*u0[2];
+			if (cs < a_cos) {                           // rotate back onto the cone boundary
+				double t[3] = { wh[0]-cs*u0[0], wh[1]-cs*u0[1], wh[2]-cs*u0[2] };
+				double tl = std::sqrt(t[0]*t[0] + t[1]*t[1] + t[2]*t[2]);
+				double sn = std::sqrt(std::max(0.0, 1.0 - a_cos*a_cos));
+				for (int k = 0; k < 3; k++)
+					wh[k] = a_cos*u0[k] + (tl > 1e-12 ? sn*t[k]/tl : 0.0);
+			}
+			if (l > t_nom)        l = t_nom;            // never thicker than placed
+			if (l < a_min*t_nom)  l = a_min*t_nom;      // never below this level's floor
+			for (int k = 0; k < 3; k++) c[k] = p0[k] + l*wh[k];
+		};
+
+		int n_moved = 0, n_fixed = 0, n_relaxed = 0;
 		double min_alpha = 1.0;
 
 		for (int round = 0; round < 3; round++) {
@@ -675,48 +1029,100 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 				int bid = kv.first;
 				auto ob = buffer_orig.find(bid);
 				if (ob == buffer_orig.end()) continue;
-				double w0;
-				int bad0 = n_bad(kv.second, w0);
+				int bad0; double s0 = score(kv.second, bad0);
 				if (bad0 == 0) continue;
 
 				int oid = ob->second;
-				double ox = coords[3*oid+0], oy = coords[3*oid+1], oz = coords[3*oid+2];
-				double bx = coords[3*bid+0], by = coords[3*bid+1], bz = coords[3*bid+2];
-				double scale = buffer_scale[bid];   // fraction of the ORIGINAL placement still applied
-				double best_a = 0.0;
-				int best_bad = bad0;
+				const double p0[3] = { coords[3*oid+0], coords[3*oid+1], coords[3*oid+2] };
+				double w0[3] = { coords[3*bid+0]-p0[0], coords[3*bid+1]-p0[1], coords[3*bid+2]-p0[2] };
+				double t_cur = std::sqrt(w0[0]*w0[0] + w0[1]*w0[1] + w0[2]*w0[2]);
+				if (t_cur < 1e-12) continue;
+				const double u0[3] = { w0[0]/t_cur, w0[1]/t_cur, w0[2]/t_cur };
+				// thickness as placed: the current one divided by whatever scale is already applied
+				double t_nom = t_cur / std::max(buffer_scale[bid], 1e-9);
 
-				for (double a : ALPHAS) {
-					if (a >= scale) continue;         // never push a node back out
-					double f = a / scale;             // current position is already at `scale`
-					coords[3*bid+0] = ox + f*(bx-ox);
-					coords[3*bid+1] = oy + f*(by-oy);
-					coords[3*bid+2] = oz + f*(bz-oz);
-					// Strictly fewer inverted elements, or nothing: thinning the layer for a
-					// marginal Jacobian gain that fixes no element is how h_min gets crushed
-					// for free (the same trade the V2_FRACTION sweep already lost once).
-					// Strictly fewer inverted elements, or leave the layer alone: thinning for a
-					// marginal Jacobian gain that fixes nothing is what crushed h_min and put
-					// visible cracks in the coastline.
-					double w; int bad = n_bad(kv.second, w); (void)w;
-					if (bad < best_bad) { best_bad = bad; best_a = a; }
-					if (bad == 0) break;
+				// Pattern search: 6 axis moves plus grow/shrink along the extrusion direction,
+				// step halved whenever no candidate improves. Purely local -- this node's
+				// position against this node's incident elements, nothing else is read or written.
+				const double dirs[8][3] = {
+					{ 1,0,0},{-1,0,0},{0, 1,0},{0,-1,0},{0,0, 1},{0,0,-1},
+					{ u0[0], u0[1], u0[2]}, {-u0[0],-u0[1],-u0[2]}
+				};
+				double best[3] = { coords[3*bid+0], coords[3*bid+1], coords[3*bid+2] };
+				double best_s = s0; int best_bad = bad0;
+				bool improved_any = false;
+
+				// Escalation ladder: search inside the visual constraints first (thickness >=
+				// ALPHA_MIN of the placed one, direction within 45 deg). Only for the nodes that
+				// would otherwise stay inverted, retry with a lower floor and a wider cone --
+				// and there accept a move ONLY if it strictly removes an inverted element, never
+				// for a Jacobian gain. A dozen thinner cells at isolated spots is a different
+				// thing from thinning the whole coastline, which is what ALPHA_MIN = 0.05 did.
+				const double LADDER[2][2] = { { ALPHA_MIN, 0.7071 },    // 0.40, 45 deg
+				                              { 0.25,      0.5    } };  // 0.25, 60 deg
+				for (int lvl = 0; lvl < 2 && best_bad > 0; lvl++) {
+					const double a_min = LADDER[lvl][0], a_cos = LADDER[lvl][1];
+					double step = 0.5 * t_cur;
+					for (int it = 0; it < 8 && best_bad > 0; it++) {
+						bool improved = false;
+						for (int d = 0; d < 8; d++) {
+							double c[3] = { best[0] + step*dirs[d][0],
+							                best[1] + step*dirs[d][1],
+							                best[2] + step*dirs[d][2] };
+							project(p0, u0, t_nom, a_min, a_cos, c);
+							for (int k = 0; k < 3; k++) coords[3*bid+k] = c[k];
+							int bad; double sc = score(kv.second, bad);
+							bool take = (lvl == 0) ? (bad < best_bad || (bad == best_bad && sc > best_s))
+							                       : (bad < best_bad);
+							if (take) {
+								best_bad = bad; best_s = sc;
+								for (int k = 0; k < 3; k++) best[k] = c[k];
+								improved = true; improved_any = true;
+								if (lvl > 0) n_relaxed++;
+							}
+						}
+						if (!improved) step *= 0.5;
+						if (step < 1e-3 * t_nom) break;
+					}
 				}
 
-				if (best_a > 0.0) {
-					double f = best_a / scale;
-					coords[3*bid+0] = ox + f*(bx-ox);
-					coords[3*bid+1] = oy + f*(by-oy);
-					coords[3*bid+2] = oz + f*(bz-oz);
-					buffer_scale[bid] = best_a;
-					if (best_a < min_alpha) min_alpha = best_a;
+				for (int k = 0; k < 3; k++) coords[3*bid+k] = best[k];
+				if (improved_any) {
+					double tb = std::sqrt((best[0]-p0[0])*(best[0]-p0[0]) +
+					                      (best[1]-p0[1])*(best[1]-p0[1]) +
+					                      (best[2]-p0[2])*(best[2]-p0[2]));
+					buffer_scale[bid] = tb / t_nom;
+					if (buffer_scale[bid] < min_alpha) min_alpha = buffer_scale[bid];
 					moved_this_round++;
-				} else {
-					coords[3*bid+0] = bx; coords[3*bid+1] = by; coords[3*bid+2] = bz;
+					if (best_bad == 0) n_fixed++;
 				}
 			}
 			n_moved += moved_this_round;
 			if (moved_this_round == 0) break;
+		}
+
+		// Coupled leftovers: a buffer node shared by two hexes that spoil each other cannot be
+		// fixed by moving it alone, whatever the stencil. Hand those clusters to the patch-local
+		// elliptic solve, which moves the whole cluster at once (see src/pillow_untangle.cpp).
+		if (getenv("NO_ELLIPTIC") == NULL) {
+			std::unordered_map<int, BufferAnchor> anchors;
+			for (auto &kv : buffer_orig) {
+				int bid = kv.first, oid = kv.second;
+				BufferAnchor a;
+				double w[3];
+				for (int k = 0; k < 3; k++) {
+					a.orig_xyz[k] = coords[3*oid+k];
+					w[k] = coords[3*bid+k] - a.orig_xyz[k];
+				}
+				double l = std::sqrt(w[0]*w[0] + w[1]*w[1] + w[2]*w[2]);
+				if (l < 1e-12) continue;
+				for (int k = 0; k < 3; k++) a.u[k] = w[k]/l;
+				a.t_nom = l / std::max(buffer_scale[bid], 1e-9);
+				anchors[bid] = a;
+			}
+			int npatch = 0;
+			int nfix = EllipticPatchUntangle(mesh, coords, ref, anchors, 0.25, 0.5, &npatch);
+			printf("    Elliptic patch untangle: %d patches, %d elements recovered\n", npatch, nfix);
 		}
 
 		int still_bad = 0;
@@ -725,8 +1131,9 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			if (mgeom::is_inverted(mgeom::hex_signed_volume(X, Y, Z),
 			                       mgeom::hex_min_corner_sj(X, Y, Z), ref)) still_bad++;
 		}
-		printf("    Pillow pull-back: %d buffer nodes thinned (min alpha %.2f), %d elements still inverted\n",
-		       n_moved, min_alpha, still_bad);
+		printf("    Pillow repair: %d buffer nodes moved (%d cleared all incidents, %d needed the "
+		       "relaxed level, min alpha %.2f), %d elements still inverted\n",
+		       n_moved, n_fixed, n_relaxed, min_alpha, still_bad);
 	}
 
 	// Update local and total mesh counts
