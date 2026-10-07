@@ -45,6 +45,22 @@ CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -I./include
 ## Target: all
 all: hexmesh
 
+src/pillow_rebuild.o: include/pillow_geometry.h include/mesh_geom.h include/hexa.h
+src/moving_nodes.o: include/pillow_geometry.h
+
+.PHONY: test-pillow test-refinement-templates
+test-pillow: tests/test_pillow
+	./tests/test_pillow
+
+test-refinement-templates: tests/test_refinement_templates
+	./tests/test_refinement_templates
+
+tests/test_refinement_templates: tests/test_refinement_templates.cpp src/refinement_templates.o include/refinement_templates.h
+	$(CXX) $(CXX_FLAGS) tests/test_refinement_templates.cpp src/refinement_templates.o -o $@
+
+tests/test_pillow: tests/test_pillow.cpp src/pillow_rebuild.o include/pillow_geometry.h
+	$(CXX) $(CXX_FLAGS) tests/test_pillow.cpp src/pillow_rebuild.o -o $@ $(LDFLAGS)
+
 
 hexmesh: $(objects)
 	$(CXX) $(objects) -o hexmesh $(LDFLAGS)
@@ -66,4 +82,3 @@ clean:
 # Enable dependency checking
 .KEEP_STATE:
 .KEEP_STATE_FILE:.make.state.GNU-amd64-Linux
-

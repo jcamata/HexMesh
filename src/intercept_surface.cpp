@@ -307,6 +307,70 @@ bool eval_gts_height(hexa_tree_t *mesh, int gts_surface_id, double x, double y, 
     return found;
 }
 
+// Evaluate surface elevation z_out for (x, y) on a given GTS surface id, selecting the
+// intersection closest to z_hint. Avoids jumping between different sheets or triangles
+// when a vertical ray intersects multiple triangles on complex bathymetry/terrain.
+bool eval_gts_height_near(hexa_tree_t *mesh, int gts_surface_id, double x, double y,
+                          double z_hint, double &z_out) {
+    GNode *bbt = NULL;
+    GtsBBox *bbox = NULL;
+    if (gts_surface_id >= 0 && gts_surface_id < (int)mesh->gdata_vec.size()) {
+        bbt = mesh->gdata_vec[gts_surface_id].bbt;
+        bbox = mesh->gdata_vec[gts_surface_id].bbox;
+    } else if (gts_surface_id == 0 && mesh->gdata.bbt) {
+        bbt = mesh->gdata.bbt;
+        bbox = mesh->gdata.bbox;
+    } else if (gts_surface_id == 1000 && mesh->tdata.bbt) {
+        bbt = mesh->tdata.bbt;
+        bbox = mesh->tdata.bbox;
+    }
+    if (!bbt || !bbox) return false;
+
+    // Search in expanding vertical windows around z_hint to find the local sheet
+    for (double span : { 100.0, 500.0, 2000.0, (bbox->z2 - bbox->z1 + 1000.0) }) {
+        double z1 = std::max(bbox->z1 - 500.0, z_hint - span);
+        double z2 = std::min(bbox->z2 + 500.0, z_hint + span);
+        if (z1 >= z2) continue;
+
+        GtsVertex *v1 = gts_vertex_new(gts_vertex_class(), x, y, z1);
+        GtsVertex *v2 = gts_vertex_new(gts_vertex_class(), x, y, z2);
+        GtsSegment *seg = gts_segment_new(gts_segment_class(), v1, v2);
+        GtsBBox *sb = gts_bbox_segment(gts_bbox_class(), seg);
+
+        GSList *list = gts_bb_tree_overlap(bbt, sb);
+        GtsPoint *best_pt = NULL;
+        double best_dz = 1e300;
+
+        for (GSList *l = list; l; l = l->next) {
+            GtsBBox *b = GTS_BBOX(l->data);
+            GtsPoint *q = mesh->input.CgalUse
+                ? SegmentTriangleIntersectionCgal(seg, GTS_TRIANGLE(b->bounded))
+                : SegmentTriangleIntersection(seg, GTS_TRIANGLE(b->bounded));
+            if (q) {
+                double dz = std::fabs(q->z - z_hint);
+                if (dz < best_dz) {
+                    if (best_pt) gts_object_destroy(GTS_OBJECT(best_pt));
+                    best_pt = q;
+                    best_dz = dz;
+                } else {
+                    gts_object_destroy(GTS_OBJECT(q));
+                }
+            }
+        }
+
+        if (list) g_slist_free(list);
+        if (sb) gts_object_destroy(GTS_OBJECT(sb));
+        if (seg) gts_object_destroy(GTS_OBJECT(seg));
+
+        if (best_pt != NULL) {
+            z_out = best_pt->z;
+            gts_object_destroy(GTS_OBJECT(best_pt));
+            return true;
+        }
+    }
+    return false;
+}
+
 // Change the node positions to fit the surface.
 void GetMeshFromSurface(hexa_tree_t *mesh, const char *surface_topo, vector<double> &coords)
 {

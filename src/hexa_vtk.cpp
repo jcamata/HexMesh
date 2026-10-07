@@ -9,8 +9,11 @@
 #include "hexa.h"
 
 
-#define VTK_FLOAT_NAME "Float32"
-#define VTK_FLOAT_TYPE float
+// Thin, validated pillow cells can invert when map coordinates are rounded to
+// float32. Preserve the mesh's double coordinates, including ASCII output.
+#define VTK_FLOAT_NAME "Float64"
+#define VTK_FLOAT_TYPE double
+#define VTK_DOUBLES 1
 #define VTK_LOCIDX     "Int32"
 
 #ifndef VTK_BINARY
@@ -506,5 +509,4 @@ int hexa_mesh_write_vtk(hexa_tree_t* mesh,  const char *filename, std::vector<do
 	return 0;
 
 }
-
 

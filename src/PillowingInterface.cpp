@@ -1305,33 +1305,13 @@ void SurfaceIdentification(hexa_tree_t *mesh, std::vector<double> &coords)
 	}
 
 	bool deb = false;
-	bool clamped = true;
-	// vertex hash
-	sc_hash_array_t *vertex_hash = (sc_hash_array_t *)sc_hash_array_new(sizeof(octant_vertex_t), vertex_hash_id, vertex_equal_id, &clamped);
-	// fazendo vertex hash & assign the color to the local nodes
+	// Assign boundary colors directly. The old, unused vertex hash stored only
+	// 16 incident cells per node; closed pillows can have 24 and overflowed it.
 	for (int iel = 0; iel < mesh->elements.elem_count; iel++)
 	{
-		size_t position;
 		octant_t *elem = (octant_t *)sc_array_index(&mesh->elements, iel);
 		for (int ino = 0; ino < 8; ino++)
 		{
-			// build the hash
-			octant_vertex_t key;
-			key.id = elem->nodes[ino].id;
-			octant_vertex_t *vert = (octant_vertex_t *)sc_hash_array_insert_unique(vertex_hash, &key, &position);
-			if (vert != NULL)
-			{
-				vert->id = elem->nodes[ino].id;
-				vert->list_elem = 1;
-				vert->elem[vert->list_elem - 1] = elem->id;
-			}
-			else
-			{
-				vert = (octant_vertex_t *)sc_array_index(&vertex_hash->a, position);
-				vert->elem[vert->list_elem] = elem->id;
-				vert->list_elem++;
-			}
-
 			// setting free the free nodes
 			if (elem->nodes[ino].fixed == 0)
 				elem->nodes[ino].color = 0;

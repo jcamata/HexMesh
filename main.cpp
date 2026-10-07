@@ -128,7 +128,12 @@ int main(int argc, char **argv) {
   } else {
     // do the pillow
     start = std::chrono::steady_clock::now();
-    ApplyDoublePillowing(&mesh, coords, nodes_b_mat);
+    try {
+      ApplyDoublePillowing(&mesh, coords, nodes_b_mat);
+    } catch (const std::exception &error) {
+      fprintf(stderr, "%s\n", error.what());
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start);
     // fprintf(mesh.profile,
@@ -156,11 +161,8 @@ int main(int argc, char **argv) {
   // final checks: orientation, then face planarity
   VerifyMeshInversion(&mesh, &coords);
   VerifyFacePlanarity(&mesh, coords);
-
-  if (!mesh.input.meshOpt) {
-    MeshStabilityAnalysis stab = analyze_mesh_stability(&mesh, coords, mesh.input.gll_order);
-    print_stability_report("FINAL MESH", stab, mesh.input.gll_order);
-  }
+  fflush(stdout);
+  // Stability is evaluated once on the final mesh below (after PML, if enabled).
 
   { // ponytail: bug3 evidence -- dump all inverted element ids for A/B comparison, remove after
     const char *dbgpath = getenv("HEXMESH_INVDUMP");

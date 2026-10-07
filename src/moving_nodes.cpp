@@ -17,6 +17,7 @@ using namespace std;
 #include "hexa.h"
 #include "hilbert.h"
 #include "mesh_geom.h"
+#include "pillow_geometry.h"
 #include "verify_mesh.h"
 #include "optimize_mesh.h"
 
@@ -2359,6 +2360,141 @@ static void UntangleOctreeInterior(hexa_tree_t *mesh, std::vector<double> &coord
 	       "h_min %.6e -> %.6e\n", a1.n_inverted, remaining, a0.h_min, a1.h_min);
 }
 
+// Projection/untangling used to move shared vertices independently on each
+// rank. Agree on the lowest-rank copy before certifying the mesh, and agree on
+// the retreat target too. The subsequent collective retreat then preserves
+// identical positions on every side of a partition boundary.
+static void SynchronizeProjectedNodes(hexa_tree_t *mesh, std::vector<double> &coords,
+                                      std::vector<double> &reference) {
+	struct SharedPosition {
+		int xyz[3], rank, id;
+		double position[3], target[3];
+	};
+	std::array<int,2> low={INT_MAX,INT_MAX}, high={INT_MIN,INT_MIN};
+	for (size_t id=0; id<mesh->nodes.elem_count; ++id) {
+		auto *n=static_cast<octant_node_t *>(sc_array_index(&mesh->nodes,id));
+		low[0]=std::min(low[0],n->x); high[0]=std::max(high[0],n->x);
+		low[1]=std::min(low[1],n->y); high[1]=std::max(high[1],n->y);
+	}
+	std::vector<SharedPosition> send;
+	for (size_t id=0; id<mesh->nodes.elem_count; ++id) {
+		auto *n=static_cast<octant_node_t *>(sc_array_index(&mesh->nodes,id));
+		if (n->x!=low[0] && n->x!=high[0] && n->y!=low[1] && n->y!=high[1]) continue;
+		SharedPosition p{};
+		p.xyz[0]=n->x; p.xyz[1]=n->y; p.xyz[2]=n->z;
+		p.rank=mesh->mpi_rank; p.id=static_cast<int>(id);
+		for (int d=0; d<3; ++d) { p.position[d]=coords[3*id+d]; p.target[d]=reference[3*id+d]; }
+		send.push_back(p);
+	}
+	int bytes=static_cast<int>(send.size()*sizeof(SharedPosition)), total=0;
+	std::vector<int> sizes(mesh->mpi_size), offsets(mesh->mpi_size);
+	MPI_Allgather(&bytes,1,MPI_INT,sizes.data(),1,MPI_INT,MPI_COMM_WORLD);
+	for (int r=0; r<mesh->mpi_size; ++r) { offsets[r]=total; total+=sizes[r]; }
+	std::vector<SharedPosition> positions(total/sizeof(SharedPosition));
+	MPI_Allgatherv(send.data(),bytes,MPI_BYTE,positions.data(),sizes.data(),offsets.data(),MPI_BYTE,MPI_COMM_WORLD);
+	std::sort(positions.begin(),positions.end(),[](const SharedPosition &a,const SharedPosition &b) {
+		for (int d=0; d<3; ++d) if (a.xyz[d]!=b.xyz[d]) return a.xyz[d]<b.xyz[d];
+		return a.rank<b.rank;
+	});
+	int changed=0;
+	double maximum=0;
+	for (size_t i=0; i<positions.size();) {
+		size_t j=i+1;
+		while (j<positions.size() && std::equal(positions[i].xyz,positions[i].xyz+3,positions[j].xyz)) ++j;
+		for (size_t k=i; k<j; ++k) if (positions[k].rank==mesh->mpi_rank) {
+			int id=positions[k].id;
+			double gap=0;
+			for (int d=0; d<3; ++d) {
+				double delta=coords[3*id+d]-positions[i].position[d]; gap+=delta*delta;
+				coords[3*id+d]=positions[i].position[d];
+				reference[3*id+d]=positions[i].target[d];
+			}
+			if (gap>0) ++changed;
+			maximum=std::max(maximum,std::sqrt(gap));
+		}
+		i=j;
+	}
+	printf("    Projection MPI agreement: rank %d, %d shared nodes synchronized (maximum gap %.6g m)\n",
+	       mesh->mpi_rank,changed,maximum);
+}
+
+// The corner-only untangler can leave a Jacobian sign change inside a hex.
+// Retreat only nodes incident to those cells toward the saved pre-projection
+// mesh, then recheck every affected neighbour with the full-volume certificate.
+// This uses the same projection retreat as ProjectFreeNodes; material labels
+// have not been assigned yet. Pillow insertion must receive a valid host mesh.
+static void ValidateProjectedJacobians(hexa_tree_t *mesh, std::vector<double> &coords,
+                                      const std::vector<double> &reference_input) {
+	std::vector<double> synchronized_reference;
+	if (mesh->mpi_size>1) {
+		synchronized_reference=reference_input;
+		SynchronizeProjectedNodes(mesh,coords,synchronized_reference);
+	}
+	const auto &reference=mesh->mpi_size>1 ? synchronized_reference : reference_input;
+	const int ne=mesh->elements.elem_count, nn=mesh->nodes.elem_count;
+	std::vector<unsigned char> bad(ne,0);
+	std::vector<std::vector<int>> incidence(nn);
+	auto valid=[&](int ie) {
+		auto *e=static_cast<octant_t *>(sc_array_index(&mesh->elements,ie));
+		pillowgeom::Hex p;
+		for (int k=0; k<8; ++k) for (int d=0; d<3; ++d)
+			p[k][d]=coords[3*e->nodes[mgeom::H5_ORD[k]].id+d];
+		return pillowgeom::valid(p,1);
+	};
+	int count=0;
+	for (int ie=0; ie<ne; ++ie) {
+		bad[ie]=!valid(ie); count+=bad[ie];
+		auto *e=static_cast<octant_t *>(sc_array_index(&mesh->elements,ie));
+		for (auto &n : e->nodes) incidence[n.id].push_back(ie);
+	}
+	const int initial=count;
+	std::map<std::array<int,3>,int> lattice;
+	if (mesh->mpi_size>1) for (int id=0; id<nn; ++id) {
+		auto *n=static_cast<octant_node_t *>(sc_array_index(&mesh->nodes,id));
+		lattice[{n->x,n->y,n->z}]=id;
+	}
+	int retreats=0, iteration=0;
+	for (; iteration<80; ++iteration) {
+		int global_count=count;
+		if (mesh->mpi_size>1) MPI_Allreduce(&count,&global_count,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+		if (!global_count) break;
+		std::set<int> move, dirty;
+		for (int ie=0; ie<ne; ++ie) if (bad[ie]) {
+			auto *e=static_cast<octant_t *>(sc_array_index(&mesh->elements,ie));
+			for (auto &n : e->nodes)
+				if (!std::equal(coords.begin()+3*n.id,coords.begin()+3*n.id+3,reference.begin()+3*n.id))
+					move.insert(n.id);
+		}
+		// A shared projected node retreats on both ranks in the same iteration.
+		if (mesh->mpi_size>1) {
+			std::vector<int> send, sizes(mesh->mpi_size), offsets(mesh->mpi_size);
+			for (int id : move) {
+				auto *n=static_cast<octant_node_t *>(sc_array_index(&mesh->nodes,id));
+				send.insert(send.end(),{n->x,n->y,n->z});
+			}
+			int sz=send.size(), total=0;
+			MPI_Allgather(&sz,1,MPI_INT,sizes.data(),1,MPI_INT,MPI_COMM_WORLD);
+			for (int r=0; r<mesh->mpi_size; ++r) { offsets[r]=total; total+=sizes[r]; }
+			std::vector<int> received(total);
+			MPI_Allgatherv(send.data(),sz,MPI_INT,received.data(),sizes.data(),offsets.data(),MPI_INT,MPI_COMM_WORLD);
+			for (int i=0; i<total; i+=3) {
+				auto it=lattice.find({received[i],received[i+1],received[i+2]});
+				if (it!=lattice.end()) move.insert(it->second);
+			}
+		}
+		for (int id : move) {
+			for (int d=0; d<3; ++d) coords[3*id+d]=0.8*coords[3*id+d]+0.2*reference[3*id+d];
+			dirty.insert(incidence[id].begin(),incidence[id].end());
+			++retreats;
+		}
+		for (int ie : dirty) {
+			count-=bad[ie]; bad[ie]=!valid(ie); count+=bad[ie];
+		}
+	}
+	printf("    Full-Jacobian projection check: %d invalid before, %d after (%d local node retreats, %d rounds)\n",
+	       initial,count,retreats,iteration);
+}
+
 void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int>& nodes_b_mat) {
 
 	bool deb = false;
@@ -2435,6 +2571,7 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		printf("    MovingNodes inversion check: after octree untangling\n");
 		VerifyMeshInversion(mesh, &coords);
 	}
+	ValidateProjectedJacobians(mesh,coords,coords_prewarp);
 	DumpInversionMap(mesh, coords, coords_in,      use_warp ? "warpON_3total" : "warpOFF_3total");
 
 	if(deb){

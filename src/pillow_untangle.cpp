@@ -238,9 +238,12 @@ void selfcheck(const std::vector<Tet> &tets, std::vector<double> pos,
 
 } // namespace
 
-int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int ref,
-                          const std::unordered_map<int, BufferAnchor> &anchors,
-                          double alpha_min, double angle_cos, int *n_patches_out)
+static int EllipticPatchUntanglePass(hexa_tree_t *mesh, std::vector<double> &coords, int ref,
+                                     const std::unordered_map<int, BufferAnchor> &anchors,
+                                     const std::unordered_map<int, InterfaceAnchor> &iface_anchors,
+                                     double alpha_min, double angle_cos,
+                                     bool allow_iface_slide,
+                                     int *n_patches_out)
 {
 	const int ne = (int) mesh->elements.elem_count;
 	std::vector<char> bad(ne, 0);
@@ -249,17 +252,16 @@ int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int re
 		if (elem_inverted(mesh, coords, ie, ref)) { bad[ie] = 1; nbad++; }
 	if (nbad == 0) { if (n_patches_out) *n_patches_out = 0; return 0; }
 
-	// free node -> the elements that use it (only buffer nodes may move)
-	std::unordered_map<int, std::vector<int> > n2e;
+	// node -> elements that use it
+	std::unordered_map<int, std::vector<int>> n2e;
 	for (int ie = 0; ie < ne; ie++) {
 		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, ie);
 		for (int k = 0; k < 8; k++) {
-			int id = e->nodes[k].id;
-			if (anchors.count(id)) n2e[id].push_back(ie);
+			n2e[e->nodes[k].id].push_back(ie);
 		}
 	}
 
-	// Patches: inverted elements joined transitively through a shared free node. The element list
+	// Patches: inverted elements joined transitively through shared free nodes. The element list
 	// then takes in everything incident to those nodes -- the neighbours are what keep the solve
 	// honest; they are present but locked.
 	std::vector<char> seen(ne, 0);
@@ -269,7 +271,7 @@ int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int re
 	for (int seed = 0; seed < ne; seed++) {
 		if (!bad[seed] || seen[seed]) continue;
 
-		std::unordered_set<int> pfree, pelem;
+		std::unordered_set<int> pfree_buf, pfree_iface, pelem;
 		std::vector<int> stack(1, seed);
 		seen[seed] = 1;
 		while (!stack.empty()) {
@@ -278,15 +280,36 @@ int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int re
 			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, ie);
 			for (int k = 0; k < 8; k++) {
 				int id = e->nodes[k].id;
-				if (!anchors.count(id)) continue;
-				if (!pfree.insert(id).second) continue;
-				for (int je : n2e[id]) {
-					pelem.insert(je);
-					if (bad[je] && !seen[je]) { seen[je] = 1; stack.push_back(je); }
+				auto it_a = anchors.find(id);
+				if (it_a != anchors.end()) {
+					if (pfree_buf.insert(id).second) {
+						for (int je : n2e[id]) {
+							pelem.insert(je);
+							if (bad[je] && !seen[je]) { seen[je] = 1; stack.push_back(je); }
+						}
+					}
+					if (allow_iface_slide) {
+						int oid = it_a->second.orig_id;
+						auto it_ia = iface_anchors.find(oid);
+						if (it_ia != iface_anchors.end()) {
+							for (int b = 0; b < it_ia->second.buf_count; b++) {
+								int bid = it_ia->second.buf_ids[b];
+								if (pfree_buf.insert(bid).second) {
+									for (int je : n2e[bid]) {
+										pelem.insert(je);
+									}
+								}
+							}
+							for (int je : n2e[oid]) {
+								pelem.insert(je);
+							}
+							pfree_iface.insert(oid);
+						}
+					}
 				}
 			}
 		}
-		if (pfree.empty()) continue;
+		if (pfree_buf.empty()) continue;
 
 		// --- local numbering ----------------------------------------------------------------
 		std::unordered_map<int,int> g2l;
@@ -303,11 +326,19 @@ int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int re
 		std::vector<double> pos(3*nv);
 		for (int i = 0; i < nv; i++)
 			for (int d = 0; d < 3; d++) pos[3*i+d] = coords[3*l2g[i]+d];
+
 		std::vector<int> free_dof;
-		free_dof.reserve(3*pfree.size());
-		for (int id : pfree) {
+		free_dof.reserve(3*pfree_buf.size() + 3*pfree_iface.size());
+		for (int id : pfree_buf) {
 			int li = g2l[id];
 			for (int d = 0; d < 3; d++) free_dof.push_back(3*li+d);
+		}
+		for (int id : pfree_iface) {
+			int li = g2l[id];
+			const InterfaceAnchor &ia = iface_anchors.at(id);
+			if (!(ia.lock_mask & mgeom::LOCK_X)) free_dof.push_back(3*li+0);
+			if (!(ia.lock_mask & mgeom::LOCK_Y)) free_dof.push_back(3*li+1);
+			if (ia.gts_id >= 0) free_dof.push_back(3*li+2);
 		}
 
 		// --- corner tets with a right-angled reference of the same size ----------------------
@@ -351,36 +382,183 @@ int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int re
 			selfcheck(tets, pos, free_dof, e0, theta);
 			do_selfcheck = false;
 		}
-		for (int outer = 0; outer < 8; outer++) {
-			energy_grad(tets, pos, 1.0, theta, NULL, &detmin);
-			// eps large enough to smooth over the inverted tets, then decayed toward zero
-			double e0 = std::pow(0.5, outer);
-			double eps = detmin > 0.0 ? 0.5*e0 : std::sqrt(e0*e0 + 0.04*detmin*detmin);
-			minimize(tets, pos, free_dof, eps, theta, 60);
-		}
 
-		// --- accept only if it actually removes inverted elements -----------------------------
 		int before = 0;
 		for (int ie : elems) if (elem_inverted(mesh, coords, ie, ref)) before++;
-		for (int id : pfree) {
-			int li = g2l[id];
-			double c3[3] = { pos[3*li+0], pos[3*li+1], pos[3*li+2] };
-			clamp_to_cone(anchors.at(id), alpha_min, angle_cos, c3);
-			for (int d = 0; d < 3; d++) coords[3*id+d] = c3[d];
+
+		auto solve_mode = [&](const std::vector<int> &fdof, bool allow_reproject, std::vector<double> &cur_pos) -> int {
+			cur_pos = saved;
+			for (int outer = 0; outer < 8; outer++) {
+				double detmin_local = 0.0;
+				energy_grad(tets, cur_pos, 1.0, theta, NULL, &detmin_local);
+				double e0 = std::pow(0.5, outer);
+				double eps = detmin_local > 0.0 ? 0.5*e0 : std::sqrt(e0*e0 + 0.04*detmin_local*detmin_local);
+				minimize(tets, cur_pos, fdof, eps, theta, 60);
+
+				if (allow_reproject) {
+					for (int id : pfree_iface) {
+						int li = g2l[id];
+						const InterfaceAnchor &ia = iface_anchors.at(id);
+						double dx = cur_pos[3*li+0] - ia.orig_xyz[0];
+						double dy = cur_pos[3*li+1] - ia.orig_xyz[1];
+						if (ia.lock_mask & mgeom::LOCK_X) dx = 0.0;
+						if (ia.lock_mask & mgeom::LOCK_Y) dy = 0.0;
+						double dist = std::sqrt(dx*dx + dy*dy);
+						if (dist > ia.max_disp && dist > 1e-12) {
+							double s = ia.max_disp / dist;
+							dx *= s; dy *= s;
+						}
+						cur_pos[3*li+0] = ia.orig_xyz[0] + dx;
+						cur_pos[3*li+1] = ia.orig_xyz[1] + dy;
+
+						if (ia.gts_id >= 0) {
+							double z_surf = ia.orig_xyz[2];
+							bool ok = false;
+							for (double alpha : {1.0, 0.75, 0.5, 0.25, 0.1, 0.0}) {
+								double tx = ia.orig_xyz[0] + alpha * dx;
+								double ty = ia.orig_xyz[1] + alpha * dy;
+								double tz = z_surf;
+								if (eval_gts_height_near(mesh, ia.gts_id, tx, ty, z_surf, tz)) {
+									cur_pos[3*li+0] = tx;
+									cur_pos[3*li+1] = ty;
+									cur_pos[3*li+2] = tz;
+									ok = true;
+									break;
+								}
+							}
+							if (!ok) {
+								cur_pos[3*li+0] = ia.orig_xyz[0];
+								cur_pos[3*li+1] = ia.orig_xyz[1];
+								cur_pos[3*li+2] = ia.orig_xyz[2];
+							}
+						} else {
+							cur_pos[3*li+2] = ia.orig_xyz[2];
+						}
+					}
+				}
+			}
+
+			// Apply to coords temporarily to evaluate
+			if (allow_reproject) {
+				for (int id : pfree_iface) {
+					int li = g2l[id];
+					for (int d = 0; d < 3; d++) coords[3*id+d] = cur_pos[3*li+d];
+				}
+			} else {
+				for (int id : pfree_iface) {
+					int li = g2l[id];
+					for (int d = 0; d < 3; d++) coords[3*id+d] = saved[3*li+d];
+				}
+			}
+
+			for (int id : pfree_buf) {
+				int li = g2l[id];
+				BufferAnchor a = anchors.at(id);
+				auto it_orig = g2l.find(a.orig_id);
+				if (it_orig != g2l.end()) {
+					int oli = it_orig->second;
+					for (int d = 0; d < 3; d++) a.orig_xyz[d] = cur_pos[3*oli+d];
+				}
+				double c3[3] = { cur_pos[3*li+0], cur_pos[3*li+1], cur_pos[3*li+2] };
+				clamp_to_cone(a, alpha_min, angle_cos, c3);
+				for (int d = 0; d < 3; d++) {
+					cur_pos[3*li+d] = c3[d];
+					coords[3*id+d] = c3[d];
+				}
+			}
+
+			int after = 0;
+			for (int ie : elems) if (elem_inverted(mesh, coords, ie, ref)) after++;
+			return after;
+		};
+
+		// Try Mode 0 (sliding + buffer)
+		std::vector<double> pos0;
+		int after0 = solve_mode(free_dof, allow_iface_slide && !pfree_iface.empty(), pos0);
+
+		int best_mode = -1;
+		int best_after = before;
+		if (after0 < best_after) {
+			best_after = after0;
+			best_mode = 0;
 		}
-		int after = 0;
-		for (int ie : elems) if (elem_inverted(mesh, coords, ie, ref)) after++;
-		if (after >= before) {                       // no gain: put the patch back untouched
-			for (int id : pfree) {
+
+		// If Mode 0 didn't eliminate all inverted elements and interface sliding was active, try Mode 1 (locked)
+		std::vector<double> pos1;
+		if (best_after > 0 && allow_iface_slide && !pfree_iface.empty()) {
+			std::vector<int> free_dof_buf_only;
+			free_dof_buf_only.reserve(3*pfree_buf.size());
+			for (int id : pfree_buf) {
+				int li = g2l[id];
+				for (int d = 0; d < 3; d++) free_dof_buf_only.push_back(3*li+d);
+			}
+			int after1 = solve_mode(free_dof_buf_only, false, pos1);
+			if (after1 < best_after) {
+				best_after = after1;
+				best_mode = 1;
+			}
+		}
+
+		if (best_mode == 0) {
+			// Mode 0 won: reapply pos0 to coords
+			for (int id : pfree_iface) {
+				int li = g2l[id];
+				for (int d = 0; d < 3; d++) coords[3*id+d] = pos0[3*li+d];
+			}
+			for (int id : pfree_buf) {
+				int li = g2l[id];
+				for (int d = 0; d < 3; d++) coords[3*id+d] = pos0[3*li+d];
+			}
+			n_fixed += before - best_after;
+			printf("    [pass %d patch %d] before=%d after=%d (mode=%s, buf=%zu iface=%zu elems=%zu)\n",
+			       allow_iface_slide ? 2 : 1, n_patches, before, best_after,
+			       (allow_iface_slide && !pfree_iface.empty()) ? "slide" : "buf",
+			       pfree_buf.size(), pfree_iface.size(), elems.size());
+		} else if (best_mode == 1) {
+			// Mode 1 won: pos1 is ALREADY in coords (as Mode 1 just finished)
+			n_fixed += before - best_after;
+			printf("    [pass %d patch %d] before=%d after=%d (mode=locked, buf=%zu iface=%zu elems=%zu)\n",
+			       allow_iface_slide ? 2 : 1, n_patches, before, best_after,
+			       pfree_buf.size(), pfree_iface.size(), elems.size());
+		} else {
+			// Neither improved: revert coords to saved
+			for (int id : pfree_buf) {
 				int li = g2l[id];
 				for (int d = 0; d < 3; d++) coords[3*id+d] = saved[3*li+d];
 			}
-		} else {
-			n_fixed += before - after;
+			for (int id : pfree_iface) {
+				int li = g2l[id];
+				for (int d = 0; d < 3; d++) coords[3*id+d] = saved[3*li+d];
+			}
+			printf("    [pass %d patch %d] before=%d after=%d (reverted, buf=%zu iface=%zu elems=%zu)\n",
+			       allow_iface_slide ? 2 : 1, n_patches, before, before,
+			       pfree_buf.size(), pfree_iface.size(), elems.size());
 		}
 		n_patches++;
 	}
 
 	if (n_patches_out) *n_patches_out = n_patches;
 	return n_fixed;
+}
+
+int EllipticPatchUntangle(hexa_tree_t *mesh, std::vector<double> &coords, int ref,
+                          const std::unordered_map<int, BufferAnchor> &anchors,
+                          const std::unordered_map<int, InterfaceAnchor> &iface_anchors,
+                          double alpha_min, double angle_cos, int *n_patches_out)
+{
+	// Pass 1: buffer-only solve (interface strictly locked, minimal patch footprints)
+	int n_patches_p1 = 0;
+	int n_fixed_p1 = EllipticPatchUntanglePass(mesh, coords, ref, anchors, iface_anchors,
+	                                          alpha_min, angle_cos, false, &n_patches_p1);
+
+	// Pass 2: local interface sliding on the GTS surface for elements that remain inverted
+	int n_patches_p2 = 0;
+	int n_fixed_p2 = 0;
+	if (getenv("NO_SLIDE_IFACE") == NULL) {
+		n_fixed_p2 = EllipticPatchUntanglePass(mesh, coords, ref, anchors, iface_anchors,
+		                                      alpha_min, angle_cos, true, &n_patches_p2);
+	}
+
+	if (n_patches_out) *n_patches_out = n_patches_p1 + n_patches_p2;
+	return n_fixed_p1 + n_fixed_p2;
 }

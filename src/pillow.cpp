@@ -1,3 +1,6 @@
+// Previous implementation preserved verbatim for reference. The active implementation
+// is in pillow_rebuild.cpp; it validates a complete insertion before changing the mesh.
+#if 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,6 +83,520 @@ static face_key make_face_key(const int n[4]) {
 	return fk;
 }
 
+static inline int64_t pillow_key(int node_id, int mat_id) {
+	return ((int64_t)node_id << 32) | (uint32_t)mat_id;
+}
+
+// Structure to store interface quad face info. A and B are the two materials
+// meeting at this quad, oriented deterministically by n_mat (A = lower value)
+// so run-to-run output doesn't depend on element scan order.
+typedef struct {
+	int elemA_id, elemB_id; // the two elements on either side
+	int matA, matB;         // their actual materials (matA < matB)
+	int faceA, faceB;       // face index in elemA / elemB
+	int quad_nodes[4];      // global node IDs of the quad
+	int normal[3]; // face normal vector (nx, ny, nz) pointing from the A side to the B side
+} interface_quad_t;
+
+// Helper to evaluate minimum normalized corner cross product (sine of angle) across all 4 corners of a quad.
+// Positive (>0) indicates convex; <=0 indicates reflex (>=180 deg) or self-intersecting bowtie.
+static double quad_min_corner_s(const interface_quad_t &q, const std::vector<double> &coords) {
+	double p[4][3];
+	for (int k = 0; k < 4; k++) {
+		int nid = q.quad_nodes[k];
+		for (int d = 0; d < 3; d++) p[k][d] = coords[3*nid+d];
+	}
+	double d02[3] = { p[2][0]-p[0][0], p[2][1]-p[0][1], p[2][2]-p[0][2] };
+	double d13[3] = { p[3][0]-p[1][0], p[3][1]-p[1][1], p[3][2]-p[1][2] };
+	double N[3] = {
+		d02[1]*d13[2] - d02[2]*d13[1],
+		d02[2]*d13[0] - d02[0]*d13[2],
+		d02[0]*d13[1] - d02[1]*d13[0]
+	};
+	double n_len = std::sqrt(N[0]*N[0] + N[1]*N[1] + N[2]*N[2]);
+	if (n_len < 1e-12) return -1.0;
+
+	double min_s = 1e300;
+	for (int k = 0; k < 4; k++) {
+		double v_prev[3] = { p[(k+3)%4][0]-p[k][0], p[(k+3)%4][1]-p[k][1], p[(k+3)%4][2]-p[k][2] };
+		double v_next[3] = { p[(k+1)%4][0]-p[k][0], p[(k+1)%4][1]-p[k][1], p[(k+1)%4][2]-p[k][2] };
+		double C[3] = {
+			v_next[1]*v_prev[2] - v_next[2]*v_prev[1],
+			v_next[2]*v_prev[0] - v_next[0]*v_prev[2],
+			v_next[0]*v_prev[1] - v_next[1]*v_prev[0]
+		};
+		double l_prev = std::sqrt(v_prev[0]*v_prev[0] + v_prev[1]*v_prev[1] + v_prev[2]*v_prev[2]);
+		double l_next = std::sqrt(v_next[0]*v_next[0] + v_next[1]*v_next[1] + v_next[2]*v_next[2]);
+		double denom = n_len * l_prev * l_next;
+		double s = (denom > 1e-12) ? (C[0]*N[0] + C[1]*N[1] + C[2]*N[2]) / denom : -1.0;
+		if (s < min_s) min_s = s;
+	}
+	return min_s;
+}
+
+// The feasible cone of a shared pillow buffer node, in one place because two stages need the
+// same answer: the extrusion field (which has to aim inside it) and the node-pinch despeckle
+// (which has to detect when it is empty).
+//
+// At an interface corner the pillow hex's corner Jacobian is (e1 x e2) . d = cn . d, so a single
+// buffer node serving every interface quad that meets this node on this material side needs one
+// direction d with cn_q . d > 0 for all of them. The deepest such direction maximises
+// min_q (cn_q . d) -- the Chebyshev centre of the spherical cone. Its optimum is supported by
+// one, two or three of the constraints: a single normal, the bisector normalize(n_i + n_j) of a
+// pair, or for a triple the direction equidistant from all three, which solves
+// n_i.d = n_j.d = n_l.d, i.e. d is along (n_i - n_j) x (n_j - n_l). NOT the normalised sum --
+// that is the average, and PILLOW_CONE_SELFCHECK caught the sphere beating it by 0.588.
+//
+// Returns the best achievable margin (<= 0 means the cone is EMPTY: no direction is valid, so at
+// least one incident hex must invert whatever the mesher does) and, if asked, the direction.
+static double cone_max_min(const std::vector<std::array<double,3>> &N,
+                           std::array<double,3> *dir_out = NULL)
+{
+	const std::vector<std::array<double,3>> &U = N;
+	if (U.empty()) return 1.0;                      // no constraint: anything is valid
+
+	double bm = -1e300;
+	std::array<double,3> best = {0.0, 0.0, 1.0};
+	auto margin = [&U](const std::array<double,3> &d) {
+		double m = 1e300;
+		for (size_t i = 0; i < U.size(); i++) {
+			double t = U[i][0]*d[0] + U[i][1]*d[1] + U[i][2]*d[2];
+			if (t < m) m = t;
+		}
+		return m;
+	};
+	auto consider = [&](std::array<double,3> v) {
+		double l = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+		if (l < 1e-12) return;
+		for (int k = 0; k < 3; k++) v[k] /= l;
+		double m = margin(v);
+		if (m > bm) { bm = m; best = v; }
+	};
+	const size_t nk = U.size();
+	std::array<double,3> tot = {0.0, 0.0, 0.0};
+	for (size_t i = 0; i < nk; i++) {
+		consider(U[i]);
+		for (int k = 0; k < 3; k++) tot[k] += U[i][k];
+		for (size_t j = i+1; j < nk; j++) {
+			consider({U[i][0]+U[j][0], U[i][1]+U[j][1], U[i][2]+U[j][2]});
+			for (size_t l = j+1; l < nk; l++) {
+				double u[3], w[3], cr[3];
+				for (int k = 0; k < 3; k++) { u[k] = U[i][k]-U[j][k]; w[k] = U[j][k]-U[l][k]; }
+				cr[0] = u[1]*w[2]-u[2]*w[1];
+				cr[1] = u[2]*w[0]-u[0]*w[2];
+				cr[2] = u[0]*w[1]-u[1]*w[0];
+				consider({ cr[0],  cr[1],  cr[2]});
+				consider({-cr[0], -cr[1], -cr[2]});
+			}
+		}
+	}
+	consider(tot);
+	if (dir_out) *dir_out = best;
+	return bm;
+}
+
+// Which way is "into each material side" for this interface quad: the quad's own geometric normal
+// (from the diagonals, the robust choice on a warped quad) plus the sign that turns it into
+// material A and into material B, each decided by that host element's own interior node.
+//
+// Shared because two stages must agree exactly on it: the extrusion field, which aims the buffer
+// node along it, and the cone-opening convexification, which moves interface nodes to make room
+// for that aim. If they drifted, one would be opening a cone the other does not measure.
+// Returns false on a degenerate quad, which contributes nothing to either.
+static bool quad_side_signs(hexa_tree_t *mesh, const std::vector<double> &coords,
+                            const interface_quad_t &q, double ng[3], int &sA, int &sB)
+{
+	const double *p[4];
+	for (int n = 0; n < 4; n++) p[n] = &coords[3*q.quad_nodes[n]];
+	double d02[3], d13[3];
+	for (int k = 0; k < 3; k++) { d02[k] = p[2][k]-p[0][k]; d13[k] = p[3][k]-p[1][k]; }
+	ng[0] = d02[1]*d13[2]-d02[2]*d13[1];
+	ng[1] = d02[2]*d13[0]-d02[0]*d13[2];
+	ng[2] = d02[0]*d13[1]-d02[1]*d13[0];
+	double nl = std::sqrt(ng[0]*ng[0]+ng[1]*ng[1]+ng[2]*ng[2]);
+	if (nl < 1e-12) return false;
+	for (int k = 0; k < 3; k++) ng[k] /= nl;
+
+	octant_t *eA = (octant_t *) sc_array_index(&mesh->elements, q.elemA_id);
+	octant_t *eB = (octant_t *) sc_array_index(&mesh->elements, q.elemB_id);
+	int iA = eA->nodes[FaceNodesMap_inv[q.faceA][0]].id;
+	int iB = eB->nodes[FaceNodesMap_inv[q.faceB][0]].id;
+	double dotA = 0.0, dotB = 0.0;
+	for (int k = 0; k < 3; k++) {
+		dotA += ng[k] * (coords[3*iA+k] - p[0][k]);
+		dotB += ng[k] * (coords[3*iB+k] - p[0][k]);
+	}
+	sA = (dotA < 0.0 ? -1 : 1);
+	sB = (dotB < 0.0 ? -1 : 1);
+	return true;
+}
+
+// The corner normal of an interface quad at its corner n: e1 x e2 of the two in-plane edges,
+// taken raw. On a reflex corner it genuinely opposes the quad's diagonal normal, and that is the
+// information the cone needs, not something to normalise away. Multiply by sA / sB from
+// quad_side_signs to get it oriented into a material side; the pillow hex's corner Jacobian there
+// is then exactly cn . d.
+static void quad_corner_normal(const std::vector<double> &coords,
+                               const interface_quad_t &q, int n, double cn[3])
+{
+	int v = q.quad_nodes[n], a = q.quad_nodes[(n+1)%4], b = q.quad_nodes[(n+3)%4];
+	double e1[3], e2[3];
+	for (int k = 0; k < 3; k++) {
+		e1[k] = coords[3*a+k] - coords[3*v+k];
+		e2[k] = coords[3*b+k] - coords[3*v+k];
+	}
+	cn[0] = e1[1]*e2[2]-e1[2]*e2[1];
+	cn[1] = e1[2]*e2[0]-e1[0]*e2[2];
+	cn[2] = e1[0]*e2[1]-e1[1]*e2[0];
+}
+
+// Convexify interface quads prior to pillow buffer extrusion (Metodologia 1).
+// Eliminates reflex corners (theta >= 180 deg) and bowtie crossings by moving interface nodes
+// along the GTS surface, strictly ensuring:
+// 1. Coupled star monotonicity: no neighboring interface quad in the node's star is degraded.
+// 2. Zero host element inversions.
+// 3. Exact GTS surface reprojection.
+// 4. Zero hanging nodes (C0 conforming continuous nodal shift).
+static int ConvexifyInterfaceQuads(hexa_tree_t *mesh, std::vector<double> &coords,
+                                   const std::vector<interface_quad_t> &interface_quads,
+                                   int ref)
+{
+	const size_t ne = mesh->elements.elem_count;
+	std::unordered_map<int, std::vector<int>> n2e;
+	for (size_t iel = 0; iel < ne; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		for (int k = 0; k < 8; k++) {
+			n2e[e->nodes[k].id].push_back((int)iel);
+		}
+	}
+
+	// Bounding box for domain boundary walls
+	double dom_min_x = 1e300, dom_max_x = -1e300;
+	double dom_min_y = 1e300, dom_max_y = -1e300;
+	for (size_t i = 0; i < coords.size()/3; i++) {
+		double x = coords[3*i+0], y = coords[3*i+1];
+		if (x < dom_min_x) dom_min_x = x;
+		if (x > dom_max_x) dom_max_x = x;
+		if (y < dom_min_y) dom_min_y = y;
+		if (y > dom_max_y) dom_max_y = y;
+	}
+	const double wall_x = std::min(1.0, 1e-3 * (dom_max_x - dom_min_x));
+	const double wall_y = std::min(1.0, 1e-3 * (dom_max_y - dom_min_y));
+
+	// Precompute h_min, node-to-quad star mapping, and interface neighbor graph
+	std::unordered_map<int, double> iface_hmin;
+	std::unordered_map<int, std::vector<int>> n2q;
+	std::unordered_map<int, std::vector<int>> n2nbr;
+	for (size_t iq = 0; iq < interface_quads.size(); iq++) {
+		const auto &q = interface_quads[iq];
+		for (int n = 0; n < 4; n++) {
+			int n1 = q.quad_nodes[n];
+			int n2 = q.quad_nodes[(n+1)%4];
+			n2q[n1].push_back((int)iq);
+			n2nbr[n1].push_back(n2);
+			n2nbr[n2].push_back(n1);
+
+			double dx = coords[3*n1+0] - coords[3*n2+0];
+			double dy = coords[3*n1+1] - coords[3*n2+1];
+			double dz = coords[3*n1+2] - coords[3*n2+2];
+			double elen = std::sqrt(dx*dx + dy*dy + dz*dz);
+			auto it1 = iface_hmin.find(n1);
+			if (it1 == iface_hmin.end() || elen < it1->second) iface_hmin[n1] = elen;
+			auto it2 = iface_hmin.find(n2);
+			if (it2 == iface_hmin.end() || elen < it2->second) iface_hmin[n2] = elen;
+		}
+	}
+
+	// Unique neighbors in n2nbr
+	for (auto &kv : n2nbr) {
+		std::sort(kv.second.begin(), kv.second.end());
+		kv.second.erase(std::unique(kv.second.begin(), kv.second.end()), kv.second.end());
+	}
+
+	// Associate interface nodes with closest GTS surface
+	std::unordered_map<int, int> node_gts;
+	for (auto &kv : iface_hmin) {
+		int nid = kv.first;
+		double px = coords[3*nid+0], py = coords[3*nid+1], pz = coords[3*nid+2];
+		int best_g = -1;
+		double best_dz = 1e300;
+		for (size_t g = 0; g < mesh->gdata_vec.size(); g++) {
+			double z_eval = pz;
+			if (eval_gts_height_near(mesh, (int)g, px, py, pz, z_eval)) {
+				double dz = std::fabs(pz - z_eval);
+				if (dz < best_dz) { best_dz = dz; best_g = (int)g; }
+			}
+		}
+		node_gts[nid] = (best_dz < 2.0) ? best_g : -1;
+	}
+
+	auto check_elem_inverted = [&](int iel) -> bool {
+		double X[8], Y[8], Z[8];
+		load_elem_xyz(mesh, coords, iel, X, Y, Z);
+		return mgeom::is_inverted(mgeom::hex_signed_volume(X, Y, Z),
+		                          mgeom::hex_min_corner_sj(X, Y, Z), ref);
+	};
+
+	// The feasible cone at a node, which is the quantity the extrusion field will later have to
+	// aim inside: one shared buffer node per (node, material side) must satisfy cn . d > 0 for
+	// every interface quad meeting it there. Section 14 measured the residual's cones as empty by
+	// less than 0.05 -- within ~3 degrees of feasible -- so they are marginal geometry, and node
+	// motion on the GTS surface is the lever that fits. Material reassignment was tried and made
+	// things worse; the numbers are at the despeckle.
+	auto eval_node_cone = [&](int nid) -> double {
+		auto it = n2q.find(nid);
+		if (it == n2q.end() || it->second.empty()) return 1.0;
+		std::unordered_map<int, std::vector<std::array<double,3>>> by_mat;
+		for (int iq : it->second) {
+			const interface_quad_t &q = interface_quads[iq];
+			double ng[3]; int sA, sB;
+			if (!quad_side_signs(mesh, coords, q, ng, sA, sB)) continue;
+			int n = -1;
+			for (int k = 0; k < 4; k++) if (q.quad_nodes[k] == nid) { n = k; break; }
+			if (n < 0) continue;
+			double cn[3];
+			quad_corner_normal(coords, q, n, cn);
+			double l = std::sqrt(cn[0]*cn[0] + cn[1]*cn[1] + cn[2]*cn[2]);
+			if (l < 1e-12) continue;
+			for (int k = 0; k < 3; k++) cn[k] /= l;
+			by_mat[q.matA].push_back({sA*cn[0], sA*cn[1], sA*cn[2]});
+			by_mat[q.matB].push_back({sB*cn[0], sB*cn[1], sB*cn[2]});
+		}
+		double worst = 1e300;
+		for (auto &kv : by_mat) {
+			double m = cone_max_min(kv.second);
+			if (m < worst) worst = m;
+		}
+		return (worst > 1e299) ? 1.0 : worst;
+	};
+
+	// Moving a node changes the corner normals of its ring too -- the corner normal at a
+	// neighbour uses the edge back to this node -- so the monotonicity test has to cover the ring,
+	// exactly as the convexity test covers every quad in the star rather than one corner.
+	auto eval_cone_star = [&](int nid) -> double {
+		double worst = eval_node_cone(nid);
+		auto it = n2nbr.find(nid);
+		if (it != n2nbr.end())
+			for (int nb2 : it->second) {
+				double m = eval_node_cone(nb2);
+				if (m < worst) worst = m;
+			}
+		return worst;
+	};
+
+	// OFF by default, and the reason is a negative result worth keeping (section 15). Turned on at
+	// PILLOW_CONE_OPEN=0 it does exactly what it promises -- every empty cone in the set
+	// disappears, on every mesh, 6 -> 0 at ref3 -- and it changes the inverted count by ZERO:
+	// ref3 stays at 8. That retires the attribution in sections 13.5 and 14 that the residual was
+	// "forced by" those cones. It was correlation, not cause.
+	//
+	// What it does move, ref3, against the default: neighbour folds 25 -> 22, and dt case by case
+	// -- hyeres 8.6x BETTER, hawaii 1.3x better, seven meshes unchanged, mauna_loa_small 2x worse
+	// and Argostoli 14x worse (1.44e-06 -> 1.01e-07). That last one is why this is not the
+	// default. At 0.05, where it also moves merely-tight cones, ref3 goes 8 -> 11 inverted.
+	//
+	// Kept behind the knob rather than deleted: on a mesh set where hyeres-like cases dominate and
+	// Argostoli-like ones do not, PILLOW_CONE_OPEN=0 is a real option.
+	double CONE_OPEN = -2.0;      // <= -1 never fires: cone margins are bounded below by -1
+	if (const char *ev = getenv("PILLOW_CONE_OPEN")) CONE_OPEN = atof(ev);
+	// Off has to mean off: the extra candidates and the extra acceptance term below change which
+	// move the ORIGINAL reflex path picks even when no cone is ever out of tolerance (measured:
+	// ref3 went 25 -> 28 neighbour folds with the threshold already disabled). So gate them.
+	const bool cone_obj = (CONE_OPEN > -1.0);
+
+	auto eval_star_worst_s = [&](int nid) -> double {
+		double worst = 1e300;
+		auto it = n2q.find(nid);
+		if (it == n2q.end()) return 1.0;
+		for (int iq : it->second) {
+			double s = quad_min_corner_s(interface_quads[iq], coords);
+			if (s < worst) worst = s;
+		}
+		return worst;
+	};
+
+	int n_convexified = 0;
+
+	// Sweeps over interface nodes
+	for (int sweep = 0; sweep < 6; sweep++) {
+		int sweep_moves = 0;
+
+		for (auto &kv : n2q) {
+			int nid = kv.first;
+			double px = coords[3*nid+0], py = coords[3*nid+1], pz = coords[3*nid+2];
+
+			// Domain boundary check
+			if (std::fabs(px - dom_min_x) < wall_x || std::fabs(px - dom_max_x) < wall_x) continue;
+			if (std::fabs(py - dom_min_y) < wall_y || std::fabs(py - dom_max_y) < wall_y) continue;
+
+			double worst_s_before = eval_star_worst_s(nid);
+			double cone_before    = cone_obj ? eval_cone_star(nid) : 1.0;
+			// Adjust nodes with a reflex corner (the original objective) or with a cone too tight
+			// for a shared buffer node to fit (the new one). Either alone is reason to move.
+			if (worst_s_before >= 0.05 && cone_before >= CONE_OPEN) continue;
+
+			// Find worst quad in star to determine chord target
+			int worst_qid = -1;
+			double worst_q_s = 1e300;
+			for (int iq : kv.second) {
+				double s = quad_min_corner_s(interface_quads[iq], coords);
+				if (s < worst_q_s) { worst_q_s = s; worst_qid = iq; }
+			}
+			if (worst_qid < 0) continue;
+
+			const auto &wq = interface_quads[worst_qid];
+			int rk = -1;
+			for (int k = 0; k < 4; k++) {
+				if (wq.quad_nodes[k] == nid) { rk = k; break; }
+			}
+			if (rk < 0) continue;
+
+			double wp[4][3];
+			for (int k = 0; k < 4; k++) {
+				int qnid = wq.quad_nodes[k];
+				for (int d = 0; d < 3; d++) wp[k][d] = coords[3*qnid+d];
+			}
+
+			// Candidate 1: Chord convexification target
+			double m_chord[3] = {
+				0.5 * (wp[(rk+3)%4][0] + wp[(rk+1)%4][0]),
+				0.5 * (wp[(rk+3)%4][1] + wp[(rk+1)%4][1]),
+				0.5 * (wp[(rk+3)%4][2] + wp[(rk+1)%4][2])
+			};
+			double opp[3] = { wp[(rk+2)%4][0], wp[(rk+2)%4][1], wp[(rk+2)%4][2] };
+			double target1[3] = {
+				m_chord[0] + 0.15 * (m_chord[0] - opp[0]),
+				m_chord[1] + 0.15 * (m_chord[1] - opp[1]),
+				m_chord[2] + 0.15 * (m_chord[2] - opp[2])
+			};
+
+			// Candidate 2: Star Laplacian centroid
+			double target2[3] = { 0.0, 0.0, 0.0 };
+			const auto &nbrs = n2nbr[nid];
+			if (!nbrs.empty()) {
+				for (int nbid : nbrs) {
+					target2[0] += coords[3*nbid+0];
+					target2[1] += coords[3*nbid+1];
+					target2[2] += coords[3*nbid+2];
+				}
+				target2[0] /= nbrs.size();
+				target2[1] /= nbrs.size();
+				target2[2] /= nbrs.size();
+			} else {
+				target2[0] = target1[0]; target2[1] = target1[1]; target2[2] = target1[2];
+			}
+
+			// Candidate 3: Blend
+			double target3[3] = {
+				0.5 * (target1[0] + target2[0]),
+				0.5 * (target1[1] + target2[1]),
+				0.5 * (target1[2] + target2[2])
+			};
+
+			// Candidates 4-7: plain in-plane steps. The three above are aimed at convexity and
+			// say nothing useful when the corner is already convex but the cone is tight, which
+			// is the whole new case. A four-point pattern search is the cheap robust answer --
+			// the cone's dependence on the node position has no closed form worth deriving for a
+			// handful of nodes per mesh.
+			const double step = 0.25 * iface_hmin[nid];
+			double target4[3] = { px + step, py, pz };
+			double target5[3] = { px - step, py, pz };
+			double target6[3] = { px, py + step, pz };
+			double target7[3] = { px, py - step, pz };
+
+			const double (*cands[7])[3] = {
+				(const double(*)[3])target3, (const double(*)[3])target1, (const double(*)[3])target2,
+				(const double(*)[3])target4, (const double(*)[3])target5,
+				(const double(*)[3])target6, (const double(*)[3])target7 };
+
+			double best_tx = px, best_ty = py, best_tz = pz;
+			double best_s_after = worst_s_before;
+			double best_cone_after = cone_before;
+			bool move_found = false;
+
+			int gid = node_gts[nid];
+			double max_d = 0.25 * iface_hmin[nid];
+
+			for (int ic = 0; ic < (cone_obj ? 7 : 3); ic++) {
+				double dx = (*cands[ic])[0] - px;
+				double dy = (*cands[ic])[1] - py;
+				double dist = std::sqrt(dx*dx + dy*dy);
+				if (dist > max_d && dist > 1e-12) {
+					dx *= max_d / dist;
+					dy *= max_d / dist;
+				}
+				if (std::sqrt(dx*dx + dy*dy) < 1e-4 * iface_hmin[nid]) continue;
+
+				for (double alpha : {1.0, 0.5, 0.25}) {
+					double cur_tx = px + alpha * dx;
+					double cur_ty = py + alpha * dy;
+					double cur_tz = pz;
+					bool proj_ok = false;
+
+					if (gid >= 0) {
+						if (eval_gts_height_near(mesh, gid, cur_tx, cur_ty, pz, cur_tz)) {
+							proj_ok = true;
+						}
+					} else {
+						proj_ok = true;
+					}
+					if (!proj_ok) continue;
+
+					// Temporarily apply candidate
+					coords[3*nid+0] = cur_tx;
+					coords[3*nid+1] = cur_ty;
+					coords[3*nid+2] = cur_tz;
+
+					double cand_s    = eval_star_worst_s(nid);
+					double cand_cone = cone_obj ? eval_cone_star(nid) : 1.0;
+
+					// Two objectives, one monotonicity rule: a move must strictly improve one of
+					// them and must not degrade the other. Opening a cone by creating a reflex
+					// corner, or convexifying a quad by closing a neighbour's cone, both just move
+					// the problem, and this is what stops it.
+					bool better_s    = (cand_s > best_s_after + 1e-4)
+					                && (!cone_obj || cand_cone >= best_cone_after - 1e-6);
+					bool better_cone = cone_obj && (cand_cone > best_cone_after + 1e-6)
+					                && (cand_s >= best_s_after - 1e-6);
+					if (better_s || better_cone) {
+						// Verify incident host elements validity
+						bool host_ok = true;
+						for (int ie : n2e[nid]) {
+							if (check_elem_inverted(ie)) { host_ok = false; break; }
+						}
+						if (host_ok) {
+							best_s_after = cand_s;
+							best_cone_after = cand_cone;
+							best_tx = cur_tx; best_ty = cur_ty; best_tz = cur_tz;
+							move_found = true;
+						}
+					}
+
+					// Revert for next evaluation
+					coords[3*nid+0] = px;
+					coords[3*nid+1] = py;
+					coords[3*nid+2] = pz;
+
+					if (move_found && best_s_after > 0.05) break; // Reached clean convexity
+				}
+				if (move_found && best_s_after > 0.05) break;
+			}
+
+			if (move_found) {
+				coords[3*nid+0] = best_tx;
+				coords[3*nid+1] = best_ty;
+				coords[3*nid+2] = best_tz;
+				sweep_moves++;
+				n_convexified++;
+			}
+		}
+
+		if (sweep_moves == 0) break;
+	}
+
+	return n_convexified;
+}
+
 void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat) {
 	if (!mesh || mesh->elements.elem_count == 0) return;
 
@@ -149,17 +666,6 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		octant_node_t *nd = (octant_node_t *) sc_array_index(&mesh->nodes, i);
 		orig_pos_hash[{nd->x, nd->y, nd->z}] = (int)i;
 	}
-
-	// Structure to store interface quad face info. A and B are the two materials
-	// meeting at this quad, oriented deterministically by n_mat (A = lower value)
-	// so run-to-run output doesn't depend on element scan order.
-	typedef struct {
-		int elemA_id, elemB_id; // the two elements on either side
-		int matA, matB;         // their actual materials (matA < matB)
-		int faceA, faceB;       // face index in elemA / elemB
-		int quad_nodes[4];      // global node IDs of the quad
-		int normal[3]; // face normal vector (nx, ny, nz) pointing from the A side to the B side
-	} interface_quad_t;
 
 	std::vector<interface_quad_t> interface_quads;
 
@@ -244,6 +750,15 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 		// inverted elements on Argostoli ref3 and on hyeres ref3 touch one of these nodes. It is
 		// the last family and it is topological -- the fix is to remove the pinch from the
 		// material field, one cell at a time, before the interface quads are built.
+		// Tried and rejected: replacing this face-connectivity proxy with the exact cone test
+		// (cone_max_min over the incident interface quads' corner normals at each node, which is
+		// literally "can one shared buffer node serve them all"). At a threshold of 0 it fires
+		// 122 times on Argostoli ref3 against this rule's 40 and makes things WORSE -- 4 -> 13
+		// inverted -- because reassigning a whole cell's material to close a cone shreds the
+		// coastline. At any threshold below -0.05 it never fires at all. Both facts say the same
+		// thing: the cones that matter are empty by less than 0.05, i.e. within ~3 degrees of
+		// feasible. They are marginal geometry, not material pinches, and material is the wrong
+		// lever for them. See section 14.
 		int npinch_total = 0;
 		// A cell is reassigned at most once: flipping the small component can create a pinch on
 		// the other side, and without this the same two cells swap material every round forever.
@@ -313,6 +828,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 							if (!flipped_once.count(ie)) flip.insert(ie);
 				}
 			}
+
 			if (flip.empty()) break;
 			for (int iel : flip) {
 				octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
@@ -391,6 +907,19 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	       (int)mesh->elements.elem_count, interface_quads.size());
 
 	if (interface_quads.empty()) return;
+
+	// Pre-extrusion convexification of interface quads on GTS surface
+	if (getenv("NO_CONVEXIFY") == NULL) {
+		double vol_sum = 0.0;
+		double X[8], Y[8], Z[8];
+		for (size_t ie = 0; ie < mesh->elements.elem_count; ie++) {
+			load_elem_xyz(mesh, coords, (int)ie, X, Y, Z);
+			vol_sum += mgeom::hex_signed_volume(X, Y, Z);
+		}
+		int ref_host = mgeom::reference_sign(vol_sum);
+		int n_conv = ConvexifyInterfaceQuads(mesh, coords, interface_quads, ref_host);
+		printf("    Pre-extrusion quad convexification: %d node adjustments on surface\n", n_conv);
+	}
 
 	// 3. Helper to create unique buffer nodes with pure axis-aligned offset in `coords`
 
@@ -595,19 +1124,44 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	// lattice-based placement stays behind PILLOW_LEGACY=1 as an A/B control.
 	const bool legacy_placement = (getenv("PILLOW_LEGACY") != NULL);
 	double PILLOW_ETA = 0.45;                 // thickness as a fraction of the shortest quad edge
+	                                          // (swept 0.45-0.75 in section 16: 0.45 wins, raising
+	                                          // it fails the inverted-count constraint everywhere)
 	if (const char *ev = getenv("PILLOW_ETA")) PILLOW_ETA = atof(ev);
 	const int    DIR_SMOOTH_ITERS = 3;
 	const double DIR_SMOOTH_W     = 0.5;
-	const double LEN_FLOOR        = 0.4;   // floor for the host-room cap, as a fraction of the
-	                                       // size-based nominal thickness (visual, not numerical)
+	// Floor for the host-room cap, as a fraction of the size-based nominal thickness. 0.2, not the
+	// original 0.4: with the interior limit actually working (the sqrt below), a 16-point sweep of
+	// ETA x LEN_FLOOR over the 11 ref3 meshes puts the only passing points at ETA 0.45 with a floor
+	// of 0.2 or 0.1, and 0.2 dominates 0.1 on every mesh. Raising the floor is monotonically bad
+	// -- 0.4/0.6/0.8 give 10/21/30 inverted -- which makes sense: the floor forces thickness back
+	// exactly where the cap has just concluded there is no room, so it pushes host elements out.
+	// Raising ETA is bad too: 0.55, 0.65 and 0.75 fail at every floor. Section 16 has the grid.
+	double LEN_FLOOR              = 0.2;
+	if (const char *ev = getenv("PILLOW_LEN_FLOOR")) LEN_FLOOR = atof(ev);
 
 	std::unordered_map<int64_t, std::array<double,3>> ext_dir;
 	std::unordered_map<int64_t, double> ext_len;
 	std::unordered_map<int64_t, std::vector<int64_t>> ext_nbr;
+	// The validity constraint the direction has to satisfy, collected alongside the direction
+	// itself: for each interface quad incident to this (node, material side), the CORNER normal
+	// at this node, e1 x e2 of the two in-plane edges, oriented into the side. The pillow hex's
+	// corner Jacobian here is exactly (e1 x e2) . d, so the layer is valid at this corner only
+	// while cn . d > 0. Per corner, not per quad: on a warped or reflex quad the four corner
+	// normals do not agree with the quad's diagonal normal, and it is the corner ones that decide.
+	std::unordered_map<int64_t, std::vector<std::array<double,3>>> ext_cn;
 	{
-		auto add_side = [&](int64_t key, const double d[3], double len, int64_t n1, int64_t n2) {
+		auto add_side = [&](int64_t key, const double d[3], const double cn[3], double len,
+		                    int64_t n1, int64_t n2) {
 			auto &e = ext_dir[key];
 			e[0] += d[0]; e[1] += d[1]; e[2] += d[2];
+			double cl = std::sqrt(cn[0]*cn[0] + cn[1]*cn[1] + cn[2]*cn[2]);
+			if (cl > 1e-12) ext_cn[key].push_back({cn[0]/cl, cn[1]/cl, cn[2]/cl});
+			// Tried and rejected: also pushing `d` (the quad's diagonal normal, oriented into
+			// this side) as a second constraint, to couple the four corners of a quad against
+			// each other rather than only against their own corner normals. It tightens the
+			// cone without buying anything -- same inverted count over the 11 ref3 meshes, and
+			// it costs dt: kefalonia 4.2e-5 -> 2.3e-6 s, hyeres 7.2e-7 -> 2.8e-7, and Argostoli
+			// goes from 5 to 14 neighbour folds. The per-corner constraint is the one that pays.
 			auto it = ext_len.find(key);
 			if (it == ext_len.end() || len < it->second) ext_len[key] = len;
 			std::vector<int64_t> &nb = ext_nbr[key];
@@ -623,46 +1177,40 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 				                     (a[2]-b[2])*(a[2]-b[2]));
 				if (e < emin) emin = e;
 			}
-			// normal from the diagonals: the robust choice on a warped (non-planar) quad
-			double d02[3], d13[3], ng[3];
-			for (int k = 0; k < 3; k++) { d02[k] = p[2][k]-p[0][k]; d13[k] = p[3][k]-p[1][k]; }
-			ng[0] = d02[1]*d13[2]-d02[2]*d13[1];
-			ng[1] = d02[2]*d13[0]-d02[0]*d13[2];
-			ng[2] = d02[0]*d13[1]-d02[1]*d13[0];
-			double nl = std::sqrt(ng[0]*ng[0]+ng[1]*ng[1]+ng[2]*ng[2]);
-			if (nl < 1e-12 || emin >= 1e299) continue;    // degenerate quad: contributes nothing
-			for (int k = 0; k < 3; k++) ng[k] /= nl;
-
+			double ng[3]; int sA, sB;
+			if (!quad_side_signs(mesh, coords, q, ng, sA, sB) || emin >= 1e299) continue;
 			octant_t *eA = (octant_t *) sc_array_index(&mesh->elements, q.elemA_id);
 			octant_t *eB = (octant_t *) sc_array_index(&mesh->elements, q.elemB_id);
-			int iA = eA->nodes[FaceNodesMap_inv[q.faceA][0]].id;
-			int iB = eB->nodes[FaceNodesMap_inv[q.faceB][0]].id;
-			double dotA = 0.0, dotB = 0.0;   // orient into each side with its own interior node
-			for (int k = 0; k < 3; k++) {
-				dotA += ng[k] * (coords[3*iA+k] - p[0][k]);
-				dotB += ng[k] * (coords[3*iB+k] - p[0][k]);
-			}
 			double dA[3], dB[3];
-			for (int k = 0; k < 3; k++) {
-				dA[k] = (dotA < 0.0 ? -ng[k] : ng[k]);
-				dB[k] = (dotB < 0.0 ? -ng[k] : ng[k]);
-			}
+			for (int k = 0; k < 3; k++) { dA[k] = sA*ng[k]; dB[k] = sB*ng[k]; }
 			for (int n = 0; n < 4; n++) {
 				int nid = q.quad_nodes[n];
 				int nb1 = q.quad_nodes[(n+1)%4], nb3 = q.quad_nodes[(n+3)%4];
+				// this corner's own normal, e1 x e2 of the two in-plane edges, flipped into each
+				// material side by the same sign the side direction got. Taken raw: on a reflex
+				// corner it genuinely opposes the quad's diagonal normal, and that is the
+				// information the cone repair below needs, not something to normalise away.
+				double cn[3], cnA[3], cnB[3];
+				quad_corner_normal(coords, q, n, cn);
+				for (int k = 0; k < 3; k++) { cnA[k] = sA*cn[k]; cnB[k] = sB*cn[k]; }
 				// how much room this corner actually has on each side: the edge from the
 				// interface node to the host element's own interior node
 				int inA = eA->nodes[FaceNodesMap_inv[q.faceA][n]].id;
 				int inB = eB->nodes[FaceNodesMap_inv[q.faceB][n]].id;
+				// DISTANCE to the host interior node, not its square. This accumulated a*a and
+				// was then compared against emin, a length -- a dimensional error that silently
+				// disabled the whole interior limit on every metre-scale mesh (hA ~ 1e4 against
+				// emin ~ 1e2, so the min always picked emin) while inverting the meaning on the
+				// sub-metre `plane` case (hA ~ 1e-4 < emin, layer ~100x thinner than designed).
 				double hA = 0.0, hB = 0.0;
 				for (int k = 0; k < 3; k++) {
 					double a = coords[3*inA+k] - p[n][k], b = coords[3*inB+k] - p[n][k];
 					hA += a*a; hB += b*b;
 				}
 				hA = std::sqrt(hA); hB = std::sqrt(hB);
-				add_side(pillow_key(nid, q.matA), dA, PILLOW_ETA*std::min(emin, hA),
+				add_side(pillow_key(nid, q.matA), dA, cnA, PILLOW_ETA*std::min(emin, hA),
 				         pillow_key(nb1, q.matA), pillow_key(nb3, q.matA));
-				add_side(pillow_key(nid, q.matB), dB, PILLOW_ETA*std::min(emin, hB),
+				add_side(pillow_key(nid, q.matB), dB, cnB, PILLOW_ETA*std::min(emin, hB),
 				         pillow_key(nb1, q.matB), pillow_key(nb3, q.matB));
 			}
 		}
@@ -696,6 +1244,120 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			}
 			ext_dir.swap(next);
 		}
+
+		// --- cone repair: put the direction back inside the feasible set ---------------------
+		// Neither of the two steps above knows about signs. The accumulator sums raw normals, so
+		// at a coastline step where a node's incident corner normals on the SAME material side
+		// oppose each other the sum cancels and renorm leaves a near-zero vector in the map --
+		// which the Laplacian then spreads to the neighbours at weight 0.5 for three rounds. And
+		// the Laplacian itself averages across sharp features and across the two shores of a
+		// one-cell channel, which are edge-neighbours in the interface graph while carrying
+		// nearly opposite normals. Either way the result can leave the feasible cone and put the
+		// buffer node on the WRONG SIDE of its own interface quad.
+		//
+		// This was the whole residual (tools/pillow_residual.py on the previous run): 100 % of the
+		// inverted pillow hexes had an offset more than 45 degrees -- median 110 to 135, up to 165
+		// -- from a direction that would have worked, while a valid direction existed for every
+		// single residual quad with a margin of ~0.99. Inversion rate on the hexes whose four
+		// offsets straddle their own quad: 26-74 %, against 0.000-0.076 % on all the others; the
+		// two meshes with no such hex had no inverted element at all. The legacy path already
+		// guards this (avg_offset zeroes opposing axes and falls back); the field path lost it.
+		//
+		// The fix is the constrained problem stated honestly: maximise the worst corner margin
+		// min_q (cn_q . d) over unit d -- the Chebyshev centre of the spherical cone. With a
+		// handful of quads meeting at a node the optimum is supported by one, two or three of the
+		// constraints, so enumerating the normals, their pairwise and their triple sums reaches
+		// it. Applied ONLY where the field has actually left the cone, so the smoothing of step
+		// 3 -- which is what removed the >60 degree disagreement in the first place -- is kept
+		// everywhere it is doing its job. Where the cone is genuinely empty (a one-cell notch the
+		// node-pinch despeckle of section 5 did not reach) no direction scores positive and the
+		// best available is still the least bad one.
+		double CONE_MARGIN = 0.05;            // ~3 deg of slack, calibration knob
+		if (const char *ev = getenv("PILLOW_CONE_MARGIN")) CONE_MARGIN = atof(ev);
+		// PILLOW_CONE_SELFCHECK=1 brute-forces the same max-min over a 2000-point Fibonacci
+		// sphere and reports the worst amount by which cone_max_min above was beaten. That
+		// enumeration claims the optimum is supported by one, two or three constraints; if that
+		// were wrong the sphere would find a better direction and the gap would be large. The
+		// sphere itself only resolves to ~0.05 rad, so a few 1e-3 either way is the sampling,
+		// not an error. Same role as UNTANGLE_SELFCHECK in pillow_untangle.cpp.
+		const bool cone_selfcheck = (getenv("PILLOW_CONE_SELFCHECK") != NULL);
+		double worst_gap = 0.0;
+		int n_reaimed = 0, n_empty_cone = 0;
+		for (auto &kv : ext_dir) {
+			auto itc = ext_cn.find(kv.first);
+			if (itc == ext_cn.end() || itc->second.empty()) continue;
+			const std::vector<std::array<double,3>> &N = itc->second;
+			auto margin = [&N](const std::array<double,3> &d) {
+				double m = 1e300;
+				for (size_t i = 0; i < N.size(); i++) {
+					double t = N[i][0]*d[0] + N[i][1]*d[1] + N[i][2]*d[2];
+					if (t < m) m = t;
+				}
+				return m;
+			};
+			// A direction the two steps above failed to normalise is still sitting in the map
+			// as a near-zero vector, and its margin is ~0 -- which BEATS every real candidate
+			// whenever the cone is empty, so the garbage would survive and create_from_field
+			// would then reject the key (|d| < 1e-12) and fall back to avg_offset, the legacy
+			// lattice guess with none of the guarantees here. Treat a non-unit direction as
+			// having no margin at all, so a real direction always wins.
+			double dl0 = std::sqrt(kv.second[0]*kv.second[0] + kv.second[1]*kv.second[1]
+			                     + kv.second[2]*kv.second[2]);
+			double m0 = (dl0 > 0.5) ? margin(kv.second) : -1e300;
+			if (m0 > CONE_MARGIN) continue;               // already comfortably inside
+
+			// The deepest direction the cone allows, from the shared helper above.
+			std::array<double,3> best;
+			double bm = cone_max_min(N, &best);
+			if (bm <= m0) { best = kv.second; bm = m0; }
+			const double enum_bm = bm;   // the enumeration's own depth, before the projection
+			                             // trades some of it away -- this is what the selfcheck
+			                             // has to be compared against, not the final bm
+			// Aim the smoothed
+			// direction at HALF that depth rather than at the bare acceptance threshold: a
+			// projection that stops on the cone boundary is grazing, and the first perturbation
+			// downstream pushes it back out (measured: targeting CONE_MARGIN gave 38 neighbour
+			// folds against 19 for a deeper aim, at 9 inverted against 8). Half the achievable
+			// depth is self-scaling -- generous in a wide cone, modest in a tight one -- and
+			// needs no second constant. If the projection cannot reach it, the enumeration's
+			// direction stands, which is also what happens when the cone is empty.
+			if (dl0 > 0.5 && bm > 0.0) {
+				const double target = 0.5 * bm;
+				std::array<double,3> pd = {kv.second[0]/dl0, kv.second[1]/dl0, kv.second[2]/dl0};
+				for (int it2 = 0; it2 < 32; it2++) {
+					size_t wi = 0; double wm = 1e300;
+					for (size_t i = 0; i < N.size(); i++) {
+						double t = N[i][0]*pd[0] + N[i][1]*pd[1] + N[i][2]*pd[2];
+						if (t < wm) { wm = t; wi = i; }
+					}
+					if (wm >= target) break;
+					for (int k = 0; k < 3; k++) pd[k] += (target - wm) * N[wi][k];
+					double pl = std::sqrt(pd[0]*pd[0] + pd[1]*pd[1] + pd[2]*pd[2]);
+					if (pl < 1e-12) break;
+					for (int k = 0; k < 3; k++) pd[k] /= pl;
+				}
+				if (margin(pd) >= target) { best = pd; bm = margin(pd); }
+			}
+			if (cone_selfcheck) {
+				double bf = -1e300;
+				for (int sp = 0; sp < 2000; sp++) {
+					double z = 1.0 - 2.0*(sp + 0.5)/2000.0;
+					double rr = std::sqrt(std::max(0.0, 1.0 - z*z));
+					double phi = M_PI*(3.0 - std::sqrt(5.0))*sp;
+					std::array<double,3> v = {rr*std::cos(phi), rr*std::sin(phi), z};
+					double m = margin(v);
+					if (m > bf) bf = m;
+				}
+				if (bf - enum_bm > worst_gap) worst_gap = bf - enum_bm;
+			}
+			if (bm > m0) { kv.second = best; n_reaimed++; }
+			if (bm <= 0.0) n_empty_cone++;
+		}
+		printf("    Extrusion cone repair: %d (node, side) directions re-aimed into the feasible "
+		       "cone, %d with an empty cone (no direction valid)\n", n_reaimed, n_empty_cone);
+		if (cone_selfcheck)
+			printf("    Cone repair selfcheck: worst margin the sphere search beat the "
+			       "enumeration by: %.3e\n", worst_gap);
 
 		std::unordered_map<int64_t, double> nominal = ext_len;   // size-based thickness, pre-cap
 
@@ -1109,6 +1771,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 			for (auto &kv : buffer_orig) {
 				int bid = kv.first, oid = kv.second;
 				BufferAnchor a;
+				a.orig_id = oid;
 				double w[3];
 				for (int k = 0; k < 3; k++) {
 					a.orig_xyz[k] = coords[3*oid+k];
@@ -1120,8 +1783,81 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 				a.t_nom = l / std::max(buffer_scale[bid], 1e-9);
 				anchors[bid] = a;
 			}
+
+			// Precompute interface node anchors for tangential sliding on the GTS surface
+			double dom_min_x = 1e300, dom_max_x = -1e300;
+			double dom_min_y = 1e300, dom_max_y = -1e300;
+			for (size_t i = 0; i < coords.size()/3; i++) {
+				double x = coords[3*i+0], y = coords[3*i+1];
+				if (x < dom_min_x) dom_min_x = x;
+				if (x > dom_max_x) dom_max_x = x;
+				if (y < dom_min_y) dom_min_y = y;
+				if (y > dom_max_y) dom_max_y = y;
+			}
+			const double wall_x = std::min(1.0, 1e-3 * (dom_max_x - dom_min_x));
+			const double wall_y = std::min(1.0, 1e-3 * (dom_max_y - dom_min_y));
+
+			std::unordered_map<int, double> iface_hmin;
+			for (const auto &q : interface_quads) {
+				for (int n = 0; n < 4; n++) {
+					int n1 = q.quad_nodes[n];
+					int n2 = q.quad_nodes[(n+1)%4];
+					double dx = coords[3*n1+0] - coords[3*n2+0];
+					double dy = coords[3*n1+1] - coords[3*n2+1];
+					double dz = coords[3*n1+2] - coords[3*n2+2];
+					double elen = std::sqrt(dx*dx + dy*dy + dz*dz);
+					auto it1 = iface_hmin.find(n1);
+					if (it1 == iface_hmin.end() || elen < it1->second) iface_hmin[n1] = elen;
+					auto it2 = iface_hmin.find(n2);
+					if (it2 == iface_hmin.end() || elen < it2->second) iface_hmin[n2] = elen;
+				}
+			}
+
+			std::unordered_map<int, InterfaceAnchor> iface_anchors;
+			for (auto &kv : iface_hmin) {
+				int oid = kv.first;
+				InterfaceAnchor ia;
+				ia.orig_xyz[0] = coords[3*oid+0];
+				ia.orig_xyz[1] = coords[3*oid+1];
+				ia.orig_xyz[2] = coords[3*oid+2];
+				ia.max_disp = 0.20 * kv.second;
+				ia.lock_mask = 0;
+				ia.buf_count = 0;
+				if (std::fabs(ia.orig_xyz[0] - dom_min_x) < wall_x || std::fabs(ia.orig_xyz[0] - dom_max_x) < wall_x)
+					ia.lock_mask |= mgeom::LOCK_X;
+				if (std::fabs(ia.orig_xyz[1] - dom_min_y) < wall_y || std::fabs(ia.orig_xyz[1] - dom_max_y) < wall_y)
+					ia.lock_mask |= mgeom::LOCK_Y;
+
+				int best_k = -1;
+				double best_dz = 1e300;
+				for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+					double z_eval = ia.orig_xyz[2];
+					if (eval_gts_height_near(mesh, (int)k, ia.orig_xyz[0], ia.orig_xyz[1], ia.orig_xyz[2], z_eval)) {
+						double dz = std::fabs(ia.orig_xyz[2] - z_eval);
+						if (dz < best_dz) {
+							best_dz = dz;
+							best_k = (int)k;
+						}
+					}
+				}
+				// ONLY associate with GTS surface if the node actually lies on it (dz < 2.0 m)
+				if (best_dz < 2.0) {
+					ia.gts_id = best_k;
+				} else {
+					ia.gts_id = -1; // flat interface / not on GTS surface: keeps z = orig_xyz[2]
+				}
+				iface_anchors[oid] = ia;
+			}
+			for (auto &kv : buffer_orig) {
+				int bid = kv.first, oid = kv.second;
+				auto it = iface_anchors.find(oid);
+				if (it != iface_anchors.end() && it->second.buf_count < 4) {
+					it->second.buf_ids[it->second.buf_count++] = bid;
+				}
+			}
+
 			int npatch = 0;
-			int nfix = EllipticPatchUntangle(mesh, coords, ref, anchors, 0.25, 0.5, &npatch);
+			int nfix = EllipticPatchUntangle(mesh, coords, ref, anchors, iface_anchors, 0.25, 0.5, &npatch);
 			printf("    Elliptic patch untangle: %d patches, %d elements recovered\n", npatch, nfix);
 		}
 
@@ -1169,3 +1905,4 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::v
 	printf("    Total mesh count: %d elements, %d nodes (%d interface nodes registered)\n",
 	       mesh->local_n_elements, mesh->local_n_nodes, (int)nodes_b_mat.size());
 }
+#endif // archived double-layer extrusion
