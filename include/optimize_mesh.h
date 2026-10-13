@@ -24,4 +24,32 @@ int untangle_inversions(hexa_tree_t *mesh, std::vector<double> &coords,
                         const std::vector<NodeConstraint> &cons,
                         const std::vector<uint8_t> &wall_lock, int ref);
 
+// Level 2, interface step: tangential Laplacian of the material-interface nodes,
+// re-projected vertically onto their GTS surface. Before the pillow pass -1; after the
+// pillow pass the node count before it, so the pillow inner nodes move with the interface.
+void SmoothInterfaceSurface(hexa_tree_t *mesh, std::vector<double> &coords, int first_pillow_node = -1);
+
+// Level 2, top step (before the pillow): smart Laplacian on the free surface -- water lid
+// in (x, y) at z = 0, land nodes re-projected vertically onto the topography.
+void SmoothTopSurface(hexa_tree_t *mesh, std::vector<double> &coords);
+
+// Level 2, wall step (before the pillow): smart Laplacian in the plane of the 4 side walls
+// and the bottom, with box edges, surfaces and zcuts transitions fixed.
+void SmoothWallSurfaces(hexa_tree_t *mesh, std::vector<double> &coords);
+
+// Level 1, before the pillow: 1D Laplacian on the 12 edges of the domain box.
+void SmoothBoxEdges(hexa_tree_t *mesh, std::vector<double> &coords, const std::vector<int> &nodes_b_mat);
+
+// Level 3, before the pillow: smart Laplacian on the interior nodes, guarding the thickness
+// of the hosts the pillow will split.
+void SmoothVolume(hexa_tree_t *mesh, std::vector<double> &coords);
+
+// After the pillow: patch-wise pattern search on the worst-dt elements' nodes, maximizing
+// the local minimum critical time step (serial only for now).
+void OptimizeDtPatches(hexa_tree_t *mesh, std::vector<double> &coords);
+
+// After the pillow: the same goal by nonlinear CG on a smooth barrier of the sigma_min(J)/vp
+// dt proxy, no eigen-dt in the loop (serial only for now).
+void OptimizeSizeGradient(hexa_tree_t *mesh, std::vector<double> &coords);
+
 #endif // OPTIMIZE_MESH_H

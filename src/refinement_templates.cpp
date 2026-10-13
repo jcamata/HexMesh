@@ -2,6 +2,7 @@
 // Recovered from origin/template_ref pinned at commit 1f146f1e7ddd85ff5f63700dc10f197387cba6d1.
 
 #include "refinement_templates.h"
+#include "pillow_geometry.h"
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
@@ -600,7 +601,7 @@ static const CanonicalTemplate CANONICAL_TEMPLATES[11] = {
 };
 
 static const PadOrientation PAD_TABLE[135] = {
-    {10, 1, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 0},
+    {10, 1, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 1},
     {11, 1, {0, 0, -1}, {0, 0, 0}, {1, 2, 3, 0, 5, 6, 7, 4}, false, 2},
     {12, 1, {0, 0, 0}, {0, 1, 0}, {3, 2, 1, 0, 7, 6, 5, 4}, true, 4},
     {13, 1, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 8},
@@ -612,10 +613,10 @@ static const PadOrientation PAD_TABLE[135] = {
     {19, 1, {0, 0, -1}, {0, 0, 1}, {5, 6, 7, 4, 1, 2, 3, 0}, true, 512},
     {20, 1, {-1, 0, 0}, {0, 1, 0}, {7, 6, 2, 3, 4, 5, 1, 0}, true, 1024},
     {21, 1, {0, 0, 1}, {0, 0, 1}, {7, 4, 5, 6, 3, 0, 1, 2}, true, 2048},
-    {22, 2, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 0},
+    {22, 2, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 1285},
     {23, 2, {1, 0, 0}, {0, 0, 0}, {4, 5, 1, 0, 7, 6, 2, 3}, false, 2570},
     {24, 2, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 240},
-    {25, 3, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 0},
+    {25, 3, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 5},
     {26, 3, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 10},
     {27, 3, {0, 0, 0}, {0, 0, 1}, {4, 5, 6, 7, 0, 1, 2, 3}, true, 1280},
     {28, 3, {0, 0, 1}, {0, 0, 1}, {7, 4, 5, 6, 3, 0, 1, 2}, true, 2560},
@@ -627,7 +628,7 @@ static const PadOrientation PAD_TABLE[135] = {
     {34, 3, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 514},
     {35, 3, {-1, 0, 1}, {0, 0, 0}, {7, 3, 2, 6, 4, 0, 1, 5}, false, 1028},
     {36, 3, {0, -1, 0}, {0, 0, 0}, {4, 0, 3, 7, 5, 1, 2, 6}, false, 2056},
-    {37, 4, {0, 0, 0}, {1, 0, 0}, {1, 0, 3, 2, 5, 4, 7, 6}, true, 0},
+    {37, 4, {0, 0, 0}, {1, 0, 0}, {1, 0, 3, 2, 5, 4, 7, 6}, true, 771},
     {38, 4, {0, 0, -1}, {1, 0, 0}, {2, 1, 0, 3, 6, 5, 4, 7}, true, 1542},
     {39, 4, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 3084},
     {40, 4, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 2313},
@@ -639,7 +640,7 @@ static const PadOrientation PAD_TABLE[135] = {
     {46, 4, {0, 1, 0}, {0, 1, 0}, {2, 6, 5, 1, 3, 7, 4, 0}, true, 202},
     {47, 4, {0, 1, 0}, {1, 1, 0}, {6, 2, 1, 5, 7, 3, 0, 4}, false, 2752},
     {48, 4, {0, 1, 0}, {1, 0, 0}, {5, 1, 2, 6, 4, 0, 3, 7}, true, 2608},
-    {49, 5, {0, 0, 0}, {0, 0, 1}, {4, 5, 6, 7, 0, 1, 2, 3}, true, 0},
+    {49, 5, {0, 0, 0}, {0, 0, 1}, {4, 5, 6, 7, 0, 1, 2, 3}, true, 15},
     {50, 5, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 3840},
     {51, 5, {-1, 0, 0}, {0, 0, 0}, {3, 2, 6, 7, 0, 1, 5, 4}, false, 305},
     {52, 5, {0, -1, 0}, {0, 0, 0}, {4, 0, 3, 7, 5, 1, 2, 6}, false, 610},
@@ -693,7 +694,7 @@ static const PadOrientation PAD_TABLE[135] = {
     {100, 5, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 80},
     {101, 5, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 192},
     {102, 5, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 136},
-    {103, 6, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 0},
+    {103, 6, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 2827},
     {104, 6, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 1799},
     {105, 6, {0, 0, -1}, {0, 0, 0}, {1, 2, 3, 0, 5, 6, 7, 4}, false, 3598},
     {106, 6, {0, 0, 0}, {1, 0, 0}, {1, 0, 3, 2, 5, 4, 7, 6}, true, 3341},
@@ -705,7 +706,7 @@ static const PadOrientation PAD_TABLE[135] = {
     {112, 6, {1, 1, 0}, {1, 0, 0}, {6, 5, 1, 2, 7, 4, 0, 3}, true, 2618},
     {113, 6, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 2800},
     {114, 6, {1, 1, 0}, {0, 0, 0}, {5, 6, 2, 1, 4, 7, 3, 0}, false, 2762},
-    {115, 7, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 0},
+    {115, 7, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 25},
     {116, 7, {0, 0, -1}, {0, 0, 0}, {1, 2, 3, 0, 5, 6, 7, 4}, false, 35},
     {117, 7, {0, 0, -1}, {1, 0, 0}, {2, 1, 0, 3, 6, 5, 4, 7}, true, 70},
     {118, 7, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 140},
@@ -713,16 +714,16 @@ static const PadOrientation PAD_TABLE[135] = {
     {120, 7, {0, 0, -1}, {0, 0, 1}, {5, 6, 7, 4, 1, 2, 3, 0}, true, 800},
     {121, 7, {0, 0, -1}, {1, 0, 1}, {6, 5, 4, 7, 2, 1, 0, 3}, false, 1600},
     {122, 7, {0, 0, 1}, {0, 0, 1}, {7, 4, 5, 6, 3, 0, 1, 2}, true, 3200},
-    {123, 8, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 0},
+    {123, 8, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 3855},
     {124, 8, {1, 0, 0}, {0, 0, 0}, {4, 5, 1, 0, 7, 6, 2, 3}, false, 1525},
     {125, 8, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 2810},
-    {126, 9, {0, 0, 0}, {0, 0, 1}, {4, 5, 6, 7, 0, 1, 2, 3}, true, 0},
+    {126, 9, {0, 0, 0}, {0, 0, 1}, {4, 5, 6, 7, 0, 1, 2, 3}, true, 255},
     {127, 9, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 4080},
     {128, 9, {-1, 0, 0}, {0, 0, 0}, {3, 2, 6, 7, 0, 1, 5, 4}, false, 2875},
     {129, 9, {1, 0, 0}, {0, 0, 0}, {4, 5, 1, 0, 7, 6, 2, 3}, false, 3790},
     {130, 9, {0, -1, 0}, {0, 0, 0}, {4, 0, 3, 7, 5, 1, 2, 6}, false, 1895},
     {131, 9, {0, 1, 0}, {0, 0, 0}, {1, 5, 6, 2, 0, 4, 7, 3}, false, 3485},
-    {132, 10, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 0},
+    {132, 10, {0, 0, 0}, {0, 0, 0}, {0, 1, 2, 3, 4, 5, 6, 7}, false, 59},
     {133, 10, {0, 0, -1}, {0, 0, 0}, {1, 2, 3, 0, 5, 6, 7, 4}, false, 103},
     {134, 10, {0, 0, 0}, {0, 1, 0}, {3, 2, 1, 0, 7, 6, 5, 4}, true, 206},
     {135, 10, {0, 0, 1}, {0, 0, 0}, {3, 0, 1, 2, 7, 4, 5, 6}, false, 157},
@@ -821,11 +822,11 @@ Point3 trilinear_map(const Point3 &ref_pt, const HexCorners &parent) {
         u         * v         * w,
         (1.0 - u) * v         * w
     };
-    Point3 pt = {0.0, 0.0, 0.0};
+    Point3 pt = parent[0];
     for (int i = 0; i < 8; ++i) {
-        pt.x += N[i] * parent[i].x;
-        pt.y += N[i] * parent[i].y;
-        pt.z += N[i] * parent[i].z;
+        pt.x += N[i] * (parent[i].x-parent[0].x);
+        pt.y += N[i] * (parent[i].y-parent[0].y);
+        pt.z += N[i] * (parent[i].z-parent[0].z);
     }
     return pt;
 }
@@ -851,9 +852,9 @@ double hex_jacobian_at(const HexCorners &hex, double u, double v, double w) {
 
     double J[3][3] = {{0}};
     for (int i = 0; i < 8; ++i) {
-        J[0][0] += dNu[i] * hex[i].x; J[0][1] += dNu[i] * hex[i].y; J[0][2] += dNu[i] * hex[i].z;
-        J[1][0] += dNv[i] * hex[i].x; J[1][1] += dNv[i] * hex[i].y; J[1][2] += dNv[i] * hex[i].z;
-        J[2][0] += dNw[i] * hex[i].x; J[2][1] += dNw[i] * hex[i].y; J[2][2] += dNw[i] * hex[i].z;
+        J[0][0] += dNu[i] * (hex[i].x-hex[0].x); J[0][1] += dNu[i] * (hex[i].y-hex[0].y); J[0][2] += dNu[i] * (hex[i].z-hex[0].z);
+        J[1][0] += dNv[i] * (hex[i].x-hex[0].x); J[1][1] += dNv[i] * (hex[i].y-hex[0].y); J[1][2] += dNv[i] * (hex[i].z-hex[0].z);
+        J[2][0] += dNw[i] * (hex[i].x-hex[0].x); J[2][1] += dNw[i] * (hex[i].y-hex[0].y); J[2][2] += dNw[i] * (hex[i].z-hex[0].z);
     }
 
     const double detJ = J[0][0] * (J[1][1] * J[2][2] - J[1][2] * J[2][1])
@@ -1092,6 +1093,15 @@ TemplateValidationReport validate_template_pad(int pad, const HexCorners &parent
     }
 
     report.child_count = static_cast<int>(children.size());
+    auto certified = [](const HexCorners &h) {
+        pillowgeom::Hex p;
+        for (int k=0;k<8;++k) p[k]={h[k].x,h[k].y,h[k].z};
+        return pillowgeom::valid(p,1);
+    };
+    if (!certified(parent)) {
+        report.error_message="Parent has a non-positive, non-finite or uncertifiable Jacobian";
+        return report;
+    }
     double parent_vol = 0.0, parent_min_j = 0.0;
     hex_volume_and_jacobian_bounds(parent, parent_vol, parent_min_j);
 
@@ -1103,13 +1113,13 @@ TemplateValidationReport validate_template_pad(int pad, const HexCorners &parent
         hex_volume_and_jacobian_bounds(child, vol, min_j);
         report.total_volume += vol;
         if (min_j < report.min_jacobian) report.min_jacobian = min_j;
-        if (min_j <= 0.0) {
+        if (!certified(child) || !std::isfinite(vol) || !(min_j > 0.0)) {
             report.error_message = "Child has non-positive Jacobian: " + std::to_string(min_j);
             return report;
         }
     }
 
-    if (std::abs(report.total_volume - parent_vol) > 1e-6 * std::abs(parent_vol)) {
+    if (!std::isfinite(report.total_volume) || std::abs(report.total_volume - parent_vol) > 1e-6 * std::abs(parent_vol)) {
         report.error_message = "Volume mismatch: total child vol=" + std::to_string(report.total_volume) +
                                " vs parent vol=" + std::to_string(parent_vol);
         return report;

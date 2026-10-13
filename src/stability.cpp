@@ -389,6 +389,9 @@ MeshStabilityAnalysis analyze_mesh_stability(hexa_tree_t *mesh, const std::vecto
 
 	double sum_dt = 0.0;
 
+	// per-element dt in parallel (independent, the costly part); the statistics below run serially
+	// in element order, so the result is bit-identical to the serial loop
+	#pragma omp parallel for schedule(dynamic, 256)
 	for (int iel = 0; iel < ne; iel++) {
 		octant_t *elem = (octant_t *) sc_array_index(&mesh->elements, iel);
 		int mat_id = elem->n_mat;
@@ -404,9 +407,11 @@ MeshStabilityAnalysis analyze_mesh_stability(hexa_tree_t *mesh, const std::vecto
 		double X[8], Y[8], Z[8];
 		load_elem_xyz(mesh, coords, iel, X, Y, Z);
 
-		ElementStability es = compute_hex_gll_stability(iel, mat_id, mat, X, Y, Z, N, gll_nodes, gll_weights);
-		out.elem_stability[iel] = es;
-
+		out.elem_stability[iel] = compute_hex_gll_stability(iel, mat_id, mat, X, Y, Z, N, gll_nodes, gll_weights);
+	}
+	for (int iel = 0; iel < ne; iel++) {
+		const ElementStability &es = out.elem_stability[iel];
+		const int mat_id = es.mat_id;
 		if (es.valid && es.dt_crit > 0.0) {
 			valid_dts.push_back(es.dt_crit);
 			sum_dt += es.dt_crit;

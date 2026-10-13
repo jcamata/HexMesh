@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -134,6 +135,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords,
     std::sort(faces.begin(),faces.end(),[](const Face &a,const Face &b) { return a.nodes<b.nodes; });
     std::vector<unsigned char> selected(old_elements,0), interface_node(old_nodes,0);
     std::vector<Face> boundary;
+    std::set<std::array<int,4>> interface_faces;   // sorted node ids of material-interface faces
     size_t interfaces=0;
     for (size_t i=0; i<faces.size();) {
         size_t j=i+1;
@@ -142,6 +144,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords,
         if (j-i==1) boundary.push_back(faces[i]);
         if (j-i==2 && element(mesh,faces[i].element).n_mat!=element(mesh,faces[i+1].element).n_mat) {
             selected[faces[i].element]=selected[faces[i+1].element]=1;
+            interface_faces.insert(faces[i].nodes);
             for (int id : faces[i].nodes) interface_node[id]=1;
             ++interfaces;
         }
@@ -152,7 +155,7 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords,
     select_partition_interfaces(mesh,boundary,selected,interface_node);
     std::vector<Face>().swap(boundary);
 
-    struct Insertion { int host; pillowgeom::Hex inner; std::array<int,6> rotations; };
+    struct Insertion { int host; pillowgeom::Hex inner; std::array<int,6> rotations; double t[6]; };
     double min_inset=0.175;
     std::vector<Insertion> insertions;
     insertions.reserve(std::count(selected.begin(),selected.end(),1));
@@ -166,7 +169,22 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords,
         Insertion insertion;
         insertion.host=static_cast<int>(i);
         double inset;
-        if (!pillowgeom::build(p,orientation,insertion.inner,&inset)) {
+        const octant_t &host=element(mesh,static_cast<int>(i));
+        // pillowFaceInset = 1 (default): half-cell shell on interface faces (default_insets);
+        // 0: the old uniform 0.175 box
+        const bool half=mesh->input.pillowFaceInset || mesh->input.pillowFirst;
+        unsigned mask=0x3F;
+        if (half) mask=0;
+        for (int f=0; f<6 && mesh->input.pillowFaceInset; ++f) {
+            std::array<int,4> key;
+            for (int k=0; k<4; ++k) key[k]=host.nodes[mgeom::H5_ORD[pillowgeom::faces[f][k]]].id;
+            std::sort(key.begin(),key.end());
+            if (interface_faces.count(key)) mask|=1u<<f;
+        }
+        static const bool fixed_inset=getenv("PILLOW_FIXED_INSET")!=nullptr;   // A/B: old uniform backoff
+        pillowgeom::default_insets(mask,half,insertion.t);   // also the lattice layout below
+        if (!(fixed_inset ? pillowgeom::build(p,orientation,insertion.inner,&inset,mask,half)
+                          : pillowgeom::build_optimized(p,orientation,insertion.inner,&inset,mask,half))) {
             error="no valid closed pillow fits inside element "+std::to_string(i);
             break;
         }
@@ -176,6 +194,26 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords,
         insertions.push_back(insertion);
     }
     check_all_ranks(mesh,error);
+    if (getenv("PILLOW_DT_DIAG")) {
+        // which hosts give the thinnest children, and is the host itself already thin there
+        struct Row { double child, host; int host_id, which; };
+        std::vector<Row> rows;
+        for (const auto &ins : insertions) {
+            auto p=geometry(element(mesh,ins.host),coords);
+            Row r{pillowgeom::size_metric(ins.inner),pillowgeom::size_metric(p),ins.host,6};
+            for (int f=0; f<6; ++f) {
+                double s=pillowgeom::size_metric(pillowgeom::shell_geometry(p,ins.inner,f,ins.rotations[f]));
+                if (s<r.child) { r.child=s; r.which=f; }
+            }
+            rows.push_back(r);
+        }
+        std::sort(rows.begin(),rows.end(),[](const Row &a,const Row &b) { return a.child<b.child; });
+        printf("    PILLOW_DT_DIAG: worst hosts by child size metric (sigma_min of J, m)\n");
+        for (size_t i=0; i<std::min<size_t>(12,rows.size()); ++i)
+            printf("      host %7d  child %-5s %.4e   host %.4e   ratio %.3f\n",rows[i].host_id,
+                   rows[i].which==6 ? "core" : ("f"+std::to_string(rows[i].which)).c_str(),
+                   rows[i].child,rows[i].host,rows[i].child/rows[i].host);
+    }
     // Every child has a positive Jacobian throughout its reference cube. The
     // seven children share their internal faces and preserve the host boundary.
     // Their positive maps make this a conforming subdivision of the host.
@@ -239,21 +277,29 @@ void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords,
         // Copy before sc_array_push: a growth of either array may relocate it.
         const octant_t host=element(mesh,insertion.host);
         std::array<octant_node_t,8> inner_nodes;
-        double lattice_center[3]={0,0,0};
-        for (const auto &n : host.nodes) {
-            lattice_center[0]+=n.x/8.0; lattice_center[1]+=n.y/8.0; lattice_center[2]+=n.z/8.0;
-        }
+        // lattice position of the core: the host's lattice box restricted by the default insets
+        // (not the optimized ones), so the reference mesh shows the layout -- e.g. the half-cell
+        // shell on an interface face spans 2 of the host's 4 slots
+        pillowgeom::Hex lat, lat_core;
         for (int k=0; k<8; ++k) {
-            const auto &outer=host.nodes[mgeom::H5_ORD[k]];
+            const auto &o=host.nodes[mgeom::H5_ORD[k]];
+            lat[k]={static_cast<double>(o.x),static_cast<double>(o.y),static_cast<double>(o.z)};
+        }
+        pillowgeom::core_from_insets(lat,insertion.t,lat_core);
+        for (int k=0; k<8; ++k) {
             octant_node_t node{};
             node.id=static_cast<int>(mesh->nodes.elem_count);
-            node.x=static_cast<int>(std::lround(0.65*outer.x+0.35*lattice_center[0]));
-            node.y=static_cast<int>(std::lround(0.65*outer.y+0.35*lattice_center[1]));
-            node.z=static_cast<int>(std::lround(0.65*outer.z+0.35*lattice_center[2]));
+            node.x=static_cast<int>(std::lround(lat_core[k][0]));
+            node.y=static_cast<int>(std::lround(lat_core[k][1]));
+            node.z=static_cast<int>(std::lround(lat_core[k][2]));
             *static_cast<octant_node_t *>(sc_array_push(&mesh->nodes))=node;
             inner_nodes[k]=node;
             coords.insert(coords.end(),insertion.inner[k].begin(),insertion.inner[k].end());
         }
+        pillow_host_t rec;
+        for (int k=0; k<8; ++k) { rec.outer[k]=host.nodes[mgeom::H5_ORD[k]].id; rec.core[k]=inner_nodes[k].id; }
+        std::copy(insertion.t,insertion.t+6,rec.t);
+        mesh->pillow_hosts.push_back(rec);
         auto &core=element(mesh,insertion.host);
         for (int k=0; k<8; ++k) core.nodes[mgeom::H5_ORD[k]]=inner_nodes[k];
         for (auto &s : core.surf) s.ext=false;

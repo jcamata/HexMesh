@@ -7,6 +7,8 @@
 #include "hexa.h"
 #include "pml.h"
 #include <regex>
+#include <cmath>
+#include <stdexcept>
 
 void parseMaterial(const std::string &line, std::vector<Material> &materials)
 {
@@ -58,7 +60,7 @@ void parse_zcuts(const std::string &line, std::vector<double> &out) {
 
 Input readInputFile(const std::string &filePath)
 {
-    Input input;
+    Input input{};
 
     // Derive output prefix from input file path:
     // e.g. "HexMesh_hawaii.input" -> "hawaii", "HexMesh.input" -> "HexMesh"
@@ -119,6 +121,22 @@ Input readInputFile(const std::string &filePath)
                 if (input.inter.empty()) input.inter = ifile;
             }
         }
+        else if (line.find("refinement") == 0)
+        {
+            auto key=line.substr(0,line.find('=')); trim(key);
+            auto value=line.substr(line.find('=')+1); trim(value);
+            size_t used=0;
+            if(key=="refinement") {
+                const int enabled=std::stoi(value,&used);
+                if(enabled!=0 && enabled!=1) throw std::runtime_error("refinement must be 0 or 1");
+                input.refinement=enabled==1;
+            } else if(key=="refinementMinSJ") {
+                input.refinementMinSJ=std::stod(value,&used);
+            } else if(key=="refinementMaxElements") {
+                input.refinementMaxElements=std::stoi(value,&used);
+            } else throw std::runtime_error("Unknown refinement setting: "+key);
+            if(used!=value.size()) throw std::runtime_error("Invalid refinement value: "+value);
+        }
         else if (line.find("ref") == 0)
         {
             input.ref = std::stoi(line.substr(line.find('=') + 1));
@@ -126,6 +144,42 @@ Input readInputFile(const std::string &filePath)
         else if (line.find("movingNodes") == 0)
         {
             input.movingNodes = std::stoi(line.substr(line.find('=') + 1));
+        }
+        else if (line.find("pillowFirst") == 0)
+        {
+            input.pillowFirst = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
+        else if (line.find("pillowFaceInset") == 0)
+        {
+            input.pillowFaceInset = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
+        else if (line.find("optimizeDt") == 0)
+        {
+            input.optimizeDt = std::stoi(line.substr(line.find('=') + 1));
+            if (input.optimizeDt < 0 || input.optimizeDt > 2)
+                throw std::runtime_error("optimizeDt must be 0 (off), 1 (gradient, sigma_min proxy) or 2 (pattern search, eigen-dt)");
+        }
+        else if (line.find("smoothVolume") == 0)
+        {
+            input.smoothVolume = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
+        else if (line.find("smoothEdges") == 0)
+        {
+            input.smoothEdges = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
+        else if (line.find("smoothWalls") == 0)
+        {
+            input.smoothWalls = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
+        else if (line.find("smoothTop") == 0)
+        {
+            input.smoothTop = std::stoi(line.substr(line.find('=') + 1)) != 0;
+        }
+        else if (line.find("smoothInterface") == 0)
+        {
+            input.smoothInterface = std::stoi(line.substr(line.find('=') + 1));
+            if (input.smoothInterface < 0 || input.smoothInterface > 3)
+                throw std::runtime_error("smoothInterface must be 0 (off), 1 (before pillow), 2 (after pillow) or 3 (both)");
         }
         else if (line.find("writeH5") == 0)
         {
@@ -196,6 +250,10 @@ Input readInputFile(const std::string &filePath)
         }
     }
     file.close();    
+    if(!std::isfinite(input.refinementMinSJ) || input.refinementMinSJ<=0 || input.refinementMinSJ>1)
+        throw std::runtime_error("refinementMinSJ must be in (0,1]");
+    if(input.refinementMaxElements<=0)
+        throw std::runtime_error("refinementMaxElements must be positive");
     return input;
 }
 
@@ -214,6 +272,9 @@ int inpreader(hexa_tree_t *mesh, const char *input_path)
         std::cout << "Inter: " << input.inter << std::endl;
     }
     std::cout << "Refinement Level: " << input.ref << std::endl;
+    std::cout << "Adaptive template refinement: " << (input.refinement?"Enabled":"Disabled")
+              << ", minimum corner SJ " << input.refinementMinSJ
+              << ", final element budget " << input.refinementMaxElements << std::endl;
     std::cout << "Z-Depth: " << input.z << std::endl;
     std::cout << "Z-Cuts: ";
     for (const auto &zcut : input.zcut)

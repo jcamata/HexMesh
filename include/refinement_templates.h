@@ -117,6 +117,9 @@ Point3 trilinear_map(const Point3 &ref_pt, const HexCorners &parent);
 Point3 trilinear_map(const RationalCoord3 &ref_pt, const HexCorners &parent);
 double hex_jacobian_at(const HexCorners &hex, double u, double v, double w);
 void hex_volume_and_jacobian_bounds(const HexCorners &hex, double &volume, double &min_jac);
+// The function above integrates volume exactly with 2x2x2 quadrature, but
+// min_jac is a sampled diagnostic. validate_template_pad separately certifies
+// the entire reference cube using the shared Bernstein predicate.
 
 // Child generation for a specific pad and parent hex
 std::vector<HexCorners> generate_children_for_pad(int pad, const HexCorners &parent);

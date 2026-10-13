@@ -36,6 +36,11 @@ CXX       = mpicxx -lstdc++ -O2 -std=c++17
 #CXX       = mpicxx -g -std=c++17 -fsanitize=address
 LDFLAGS   =-L$(GTS_DIR)/lib -lgts -L$(SC_DIR)/lib -L$(HDF5_DIR)/lib -lsc -lm -lglib-2.0 -lhdf5_cpp -lhdf5 -L$(MESQUITE_DIR)/lib -lmesquite $(CGAL_LIB)
 CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -I./include -I$(HDF5_DIR)/include -I$(MESQUITE_DIR)/include
+# OpenMP for the closeness pass of MeshOptimization and the GLL stability reports
+# (optimize_mesh.cpp, stability.cpp; without it they run serially). Apple clang + Homebrew libomp; on Linux/GCC use -fopenmp for both.
+OMP_DIR   = /opt/homebrew/opt/libomp
+src/optimize_mesh.o src/stability.o: CXX_FLAGS += -Xpreprocessor -fopenmp -I$(OMP_DIR)/include
+LDFLAGS  += -L$(OMP_DIR)/lib -lomp -Wl,-rpath,$(OMP_DIR)/lib
 
 #CXX       = mpicxx -O2
 #LDFLAGS   = -L/home/lucio/local -lsc -lgts -lm
@@ -46,9 +51,18 @@ CXX_FLAGS = -I$(GTS_DIR)/include -I$(SC_DIR)/include $(GLIB_INCLUDE) -I./include
 all: hexmesh
 
 src/pillow_rebuild.o: include/pillow_geometry.h include/mesh_geom.h include/hexa.h
-src/moving_nodes.o: include/pillow_geometry.h
+src/moving_nodes.o src/optimize_mesh.o src/adaptive_refinement.o main.o: include/pillow_geometry.h
+$(objects): include/hexa.h
+src/refinement_templates.o: include/refinement_templates.h include/pillow_geometry.h
+src/conforming_refinement.o: include/conforming_refinement.h include/refinement_templates.h include/pillow_geometry.h
+src/adaptive_refinement.o: include/adaptive_refinement.h include/conforming_refinement.h
 
-.PHONY: test-pillow test-refinement-templates
+.PHONY: test-pillow test-refinement-templates test-conforming-refinement
+test-conforming-refinement: tests/test_conforming_refinement
+	./tests/test_conforming_refinement
+
+tests/test_conforming_refinement: tests/test_conforming_refinement.cpp src/conforming_refinement.o src/refinement_templates.o
+	$(CXX) $(CXX_FLAGS) $^ -o $@
 test-pillow: tests/test_pillow
 	./tests/test_pillow
 

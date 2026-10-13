@@ -46,10 +46,35 @@ struct Input {
     int nlayersx, nlayersy, nlayersz;
     bool meshOpt;
     int gll_order = 4;
+    bool refinement = false;
+    double refinementMinSJ = 0.25;
+    int refinementMaxElements = 10000;
     // Saida HDF5. Desligada por omissao: um sweep completo do run_cases.sh
     // enche o disco. Ligar com "writeH5 = 1" no .input para o caso que se quer
     // inspecionar ou levar para outro codigo.
     bool writeH5 = false;
+    // Level-2 tangential Laplacian on the material interface (bathymetry):
+    // 0 off, 1 before the pillow, 2 after the pillow, 3 both.
+    int smoothInterface = 0;
+    // Level-2 smart Laplacian on the free surface (water lid + land topography), before the pillow.
+    bool smoothTop = false;
+    // Level-2 smart Laplacian in the plane of the side walls and the bottom, before the pillow.
+    bool smoothWalls = false;
+    // Level-1 1D Laplacian on the 12 box edges, before the pillow (first of the smoothing steps).
+    bool smoothEdges = false;
+    // Level-3 smart Laplacian on the interior nodes, before the pillow (last of the smoothing steps).
+    bool smoothVolume = false;
+    // Raise dt_min on the worst elements. 1 = gradient method on the sigma_min/vp proxy
+    // (OptimizeSizeGradient), before and after the pillow; 2 = pattern search on the GLL
+    // eigen-dt after the pillow (OptimizeDtPatches, ~10 min per ref3 case).
+    int optimizeDt = 0;
+    // Closed pillow: 1 = half-cell shell on the interface faces (pillowgeom::default_insets);
+    // 0 = the old uniform 0.175 inset on all six faces. Default 0 until pillowFirst is ready:
+    // the half shell on hosts the projection already sheared cost hawaii ref3 44 % of dt_min.
+    bool pillowFaceInset = false;
+    // 1 = pillow the unmoved (staircase) mesh first, then glue the interface to the GTS
+    // (ProjectPillowedInterface) -- log/plans/2026-10-12_pillow-before-projection.md
+    bool pillowFirst = false;
 	std::vector<double> zcut;
     std::string output_prefix = "mesh";
 };
@@ -225,6 +250,10 @@ typedef struct
 	GtsBBox *bbox; // Surface boundry box
 } GeometryData;
 
+// A pillowed host: its 8 outer and 8 core node ids in pillowgeom corner order and its six face
+// insets, so pillowFirst can rebuild the core after the outer nodes move.
+struct pillow_host_t { int outer[8], core[8]; double t[6]; };
+
 typedef struct
 {
 
@@ -276,6 +305,15 @@ typedef struct
 	GeometryData gdata;
 	std::vector<GeometryData> gdata_vec;
 	GeometryData tdata;
+	// Raw projection failures captured before retreat/untangling. Refine their
+	// last-valid hosts, never the inverted candidate geometry.
+	std::vector<int> refinement_projection_requests;
+	// Where ProjectFreeNodes wanted each node (3 per node, NaN = no target) and how far that was
+	// from the node's lattice position, before the limiter retreated it. Node ids added later
+	// (pillow, refinement) are past the end: no target. Used by MeshOptimization.
+	std::vector<double> proj_target, proj_len;
+	// One per pillowed host, filled by ApplyDoublePillowing (see pillow_host_t).
+	std::vector<pillow_host_t> pillow_hosts;
 
 } hexa_tree_t;
 
@@ -477,6 +515,10 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double> &coords);
 void ClassifyOctreeCorners(hexa_tree_t *mesh, const std::vector<double> &coords);
 void ExtrudePMLElements(hexa_tree_t *mesh, std::vector<double> &coords);
 void MovingNodes(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat);
+// pillowFirst: glue the pillowed staircase interface to the GTS (moving_nodes.cpp)
+void ProjectPillowedInterface(hexa_tree_t *mesh, std::vector<double> &coords);
+// closest point of interface GTS k (gdata_vec) to x; false if there is none
+bool closest_on_gts(hexa_tree_t *mesh, int k, const double x[3], double out[3], double *dist);
 void MeshOpt(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes);
 void PillowingInterface(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat);
 void ApplyDoublePillowing(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> &nodes_b_mat);

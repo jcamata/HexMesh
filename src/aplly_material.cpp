@@ -169,6 +169,9 @@ void Apply_material(hexa_tree_t *mesh, std::vector<double>& coords) {
 				cord_in_z[ii] = coords[3 * elem->nodes[ii].id + 2];
 			}
 
+			// bottom-face centre. pillowFirst tried the element centre on the unmoved lattice (to centre
+			// the staircase on the GTS): it dropped most of the interface (kashiwazaki ref3 1384 -> 114
+			// faces, kefalonia_small1 2601 -> 780), so the staircase stays as it is
 			double cord_in_ref[3] = {0.0, 0.0, -1.0};
 			GtsPoint *point = LinearMapHex(cord_in_ref, cord_in_x, cord_in_y, cord_in_z);
 

@@ -1,3 +1,5 @@
+#include <limits>
+#include <cmath>
 #include <gts.h>
 #include <glib.h>
 #include <vector>
@@ -1091,6 +1093,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		}
 	};
 	std::unordered_map<std::array<double,3>, int, pt3_hash> claimed_by;
+	mesh->proj_target.assign(coords.size(), std::numeric_limits<double>::quiet_NaN());
+	mesh->proj_len.assign(coords.size() / 3, 0.0);
 	int n_collapse_rejected = 0;
 	int n_collapse_backoff = 0;
 
@@ -1120,6 +1124,12 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// node, and distinct by a real distance rather than by an epsilon.
 		static const double BACKOFF[] = {1.0, 0.9, 0.75, 0.5, 0.25};
 		const double ox = coords0[3*node+0], oy = coords0[3*node+1], oz = coords0[3*node+2];
+		if (std::isnan(mesh->proj_target[3*node])) {   // first write wins, as for pending
+			double tx = x, ty = y, tz = z;
+			constrain(node, tx, ty, tz);
+			mesh->proj_target[3*node] = tx; mesh->proj_target[3*node+1] = ty; mesh->proj_target[3*node+2] = tz;
+			mesh->proj_len[node] = std::sqrt((tx-ox)*(tx-ox) + (ty-oy)*(ty-oy) + (tz-oz)*(tz-oz));
+		}
 		for (size_t k = 0; k < sizeof(BACKOFF)/sizeof(BACKOFF[0]); k++) {
 			const double a = BACKOFF[k];
 			double cx = ox + a*(x-ox), cy = oy + a*(y-oy), cz = oz + a*(z-oz);
@@ -1433,6 +1443,16 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 	report_collapses();
 
 	RegularizeSkippedOctreeNodes(mesh, coords, nodes_b_mat);
+	if(mesh->input.refinement) {
+		mesh->refinement_projection_requests.clear();
+		for(int ie=0;ie<int(mesh->elements.elem_count);++ie) {
+			auto *e=static_cast<octant_t *>(sc_array_index(&mesh->elements,ie));
+			pillowgeom::Hex p;
+			for(int k=0;k<8;++k)for(int d=0;d<3;++d)p[k][d]=coords[3*e->nodes[mgeom::H5_ORD[k]].id+d];
+			if(!pillowgeom::valid(p,1))mesh->refinement_projection_requests.push_back(ie);
+		}
+		printf("    Adaptive refinement: captured %zu raw projection failures before repair\n",mesh->refinement_projection_requests.size());
+	}
 
 	// --- Projection validity limiter: repair ---------------------------------
 	// Pull moved nodes back toward their original lattice positions wherever an
@@ -1493,6 +1513,27 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 		// while one edge is crushed). Overridable with PROJ_EDGE_MIN_FRAC for A/B runs.
 		double EDGE_MIN_FRAC = 0.25;
 		if (const char *ev = getenv("PROJ_EDGE_MIN_FRAC")) EDGE_MIN_FRAC = atof(ev);
+		// Shear: none of the tests above sees an element the projection turned on its side. At a
+		// coastline the two ends of one lattice column are placed by different cuts (top-edge node
+		// on the coast wall, face-centre node on the sea floor) and can land on opposite sides of
+		// the cell: hawaii ref3 had a 0.5 km tall water cell sheared 11 km sideways, valid by every
+		// test above, whose pillow children set the whole mesh's dt_min (2.5e-06 s). dt follows
+		// sigma_min(J) (tools/dt_report.py), so cap how much of it the projection may take, relative
+		// to the same element before the projection: scale-free, any coastline, any interface.
+		// Overridable with PROJ_SIGMA_MIN_FRAC (0 disables).
+		double SIGMA_MIN_FRAC = 0.05;   // 0.02/0.05/0.1 on hawaii, kefalonia_small1 ref3: see HANDOFF §5
+		if (const char *ev = getenv("PROJ_SIGMA_MIN_FRAC")) SIGMA_MIN_FRAC = atof(ev);
+		auto sigma_of = [&](octant_t *e, const std::vector<double> &c) {
+			pillowgeom::Hex h;
+			for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) h[k][d] = c[3*e->nodes[mgeom::H5_ORD[k]].id+d];
+			return pillowgeom::size_metric(h, false);
+		};
+		std::vector<double> ref_sigma;
+		if (SIGMA_MIN_FRAC > 0) {
+			ref_sigma.resize(mesh->elements.elem_count);
+			for (int iel = 0; iel < mesh->elements.elem_count; iel++)
+				ref_sigma[iel] = sigma_of((octant_t*) sc_array_index(&mesh->elements, iel), coords0);
+		}
 		// Stall detector. The retreat is only monotone if ALL nodes of an element retreat
 		// together; a partial retreat can invert a neighbour that was fine, so the failing
 		// SET can rotate instead of shrinking and the loop burns every iteration without
@@ -1537,7 +1578,8 @@ void ProjectFreeNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vecto
 					double sgn = (rv >= 0.0) ? 1.0 : -1.0;
 					sj_ok = (mgeom::hex_min_corner_sj(X, Y, Z) * sgn >= SJ_MIN);
 				}
-				if (vol_ok && edge_ok && sj_ok) continue;   // still healthy
+				bool sigma_ok = SIGMA_MIN_FRAC <= 0 || sigma_of(e, coords) >= SIGMA_MIN_FRAC * ref_sigma[iel];
+				if (vol_ok && edge_ok && sj_ok && sigma_ok) continue;   // still healthy
 				// An element none of whose nodes this projection moved was already invalid
 				// before it ran; retreating cannot repair it, and counting it would keep the
 				// loop spinning to MAXIT. Leave it to the untangler.
@@ -2602,5 +2644,328 @@ void MovingNodes(hexa_tree_t* mesh, std::vector<double>& coords, std::vector<int
 		for(int i = 0; i<nodes_b_mat.size();i++){
 			mesh->part_nodes[nodes_b_mat[i]] = 1;
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// pillowFirst (log/plans/2026-10-12_pillow-before-projection.md). The mesh was pillowed while it
+// was still the unmoved staircase (every host a near-box, half-cell shells on the interface
+// faces); now the staircase interface is glued to its GTS, the shells taking up the deformation:
+//  a. each interface node goes to the closest point of its GTS (a vertical ray alone would send
+//     both rows of a stair riser to the same z and collapse the riser face);
+//  b. a few sweeps of tangential smoothing on the GTS (neighbour average, re-projected) spread the
+//     riser rows along the slope, so the staircase quads become regular quads on the surface;
+//  c. the core of every touched host is rebuilt from the host's new geometry and insets, so the
+//     shells keep their proportions;
+//  d. limiter: an element incident to a moved node that is not valid over its whole volume, or
+//     lost more than PROJ_SIGMA_MIN_FRAC of its sigma_min, halves the move of its interface nodes
+//     (repeated; at the end they go back). The intended point is kept in proj_target (meshOpt).
+// Fixed: nodes on the domain boundary (walls, bottom, topography / sea lid -> the coastline) and
+// nodes whose interface faces involve more than two materials (triple junctions). Only nodes within
+// 1.5 local edges of a GTS move: material boundaries that are not on a GTS (e.g. the zcuts) stay.
+// Env for A/B: PF_NOPROJ=1 skips all of it, PF_LIMITER=0 skips d, PF_SMOOTH=<sweeps> (default 5).
+// closest point of triangle abc to p (Ericson, Real-Time Collision Detection 5.1.5)
+static void closest_on_triangle(const double p[3], const double a[3], const double b[3], const double c[3], double q[3]) {
+	auto dot = [](const double *u, const double *v) { return u[0]*v[0] + u[1]*v[1] + u[2]*v[2]; };
+	double ab[3], ac[3], ap[3], bp[3], cp[3];
+	for (int d = 0; d < 3; d++) { ab[d] = b[d]-a[d]; ac[d] = c[d]-a[d]; ap[d] = p[d]-a[d]; bp[d] = p[d]-b[d]; cp[d] = p[d]-c[d]; }
+	auto set = [&](const double *o, double s, const double *u, double t, const double *v) { for (int d = 0; d < 3; d++) q[d] = o[d] + s*u[d] + t*v[d]; };
+	const double d1 = dot(ab, ap), d2 = dot(ac, ap);
+	if (d1 <= 0 && d2 <= 0) { set(a, 0, ab, 0, ac); return; }
+	const double d3 = dot(ab, bp), d4 = dot(ac, bp);
+	if (d3 >= 0 && d4 <= d3) { set(b, 0, ab, 0, ac); return; }
+	const double vc = d1*d4 - d3*d2;
+	if (vc <= 0 && d1 >= 0 && d3 <= 0) { set(a, d1/(d1-d3), ab, 0, ac); return; }
+	const double d5 = dot(ab, cp), d6 = dot(ac, cp);
+	if (d6 >= 0 && d5 <= d6) { set(c, 0, ab, 0, ac); return; }
+	const double vb = d5*d2 - d1*d6;
+	if (vb <= 0 && d2 >= 0 && d6 <= 0) { set(a, 0, ab, d2/(d2-d6), ac); return; }
+	const double va = d3*d6 - d5*d4;
+	if (va <= 0 && (d4-d3) >= 0 && (d5-d6) >= 0) {
+		const double w = (d4-d3)/((d4-d3)+(d5-d6)), bc[3] = {c[0]-b[0], c[1]-b[1], c[2]-b[2]};
+		set(b, w, bc, 0, ac); return;
+	}
+	const double den = 1.0/(va+vb+vc);
+	set(a, vb*den, ab, vc*den, ac);
+}
+
+// closest point of GTS surface k to x. GTS's own gts_point_triangle_closest aborts here (stack
+// check inside the library), so the bb-tree only gives the candidate triangles.
+bool closest_on_gts(hexa_tree_t *mesh, int k, const double x[3], double out[3], double *dist) {
+	if (k < 0 || k >= (int)mesh->gdata_vec.size() || !mesh->gdata_vec[k].bbt) return false;
+	GtsPoint *p = gts_point_new(gts_point_class(), x[0], x[1], x[2]);
+	GSList *list = gts_bb_tree_point_closest_bboxes(mesh->gdata_vec[k].bbt, p);
+	gts_object_destroy(GTS_OBJECT(p));
+	double best = std::numeric_limits<double>::infinity();
+	for (GSList *l = list; l; l = l->next) {
+		GtsTriangle *t = GTS_TRIANGLE(GTS_BBOX(l->data)->bounded);
+		GtsVertex *v1, *v2, *v3;
+		gts_triangle_vertices(t, &v1, &v2, &v3);
+		const double a[3] = {GTS_POINT(v1)->x, GTS_POINT(v1)->y, GTS_POINT(v1)->z},
+		             b[3] = {GTS_POINT(v2)->x, GTS_POINT(v2)->y, GTS_POINT(v2)->z},
+		             c[3] = {GTS_POINT(v3)->x, GTS_POINT(v3)->y, GTS_POINT(v3)->z};
+		double q[3];
+		closest_on_triangle(x, a, b, c, q);
+		const double d2 = (q[0]-x[0])*(q[0]-x[0]) + (q[1]-x[1])*(q[1]-x[1]) + (q[2]-x[2])*(q[2]-x[2]);
+		if (d2 < best) { best = d2; for (int d = 0; d < 3; d++) out[d] = q[d]; }
+	}
+	g_slist_free(list);
+	if (!std::isfinite(best)) return false;
+	if (dist) *dist = std::sqrt(best);
+	return true;
+}
+
+void ProjectPillowedInterface(hexa_tree_t *mesh, std::vector<double> &coords) {
+	if (getenv("PF_NOPROJ") && atoi(getenv("PF_NOPROJ"))) { printf("    ProjectPillowedInterface: skipped (PF_NOPROJ)\n"); return; }
+	if (mesh->mpi_size > 1) { printf("    ProjectPillowedInterface: serial only for now\n"); return; }
+	const int nn = mesh->nodes.elem_count, ne = mesh->elements.elem_count;
+	auto ids_of = [&](int e, int id[8]) {
+		octant_t *el = (octant_t *) sc_array_index(&mesh->elements, e);
+		for (int k = 0; k < 8; k++) id[k] = el->nodes[mgeom::H5_ORD[k]].id;
+	};
+	auto mat_of = [&](int e) { return ((octant_t *) sc_array_index(&mesh->elements, e))->n_mat; };
+	auto hex_of = [&](int e) {
+		int id[8]; ids_of(e, id);
+		pillowgeom::Hex h;
+		for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) h[k][d] = coords[3*id[k]+d];
+		return h;
+	};
+	double vol = 0;
+	for (int e = 0; e < ne; e++) vol += pillowgeom::jacobian(hex_of(e), 0.5, 0.5, 0.5);
+	const int orient = vol >= 0 ? 1 : -1;
+
+	// faces: interface (two elements, two materials) and boundary (one element)
+	struct F { std::array<int,4> key, ring; int e; };
+	std::vector<F> faces;
+	faces.reserve(6 * ne);
+	for (int e = 0; e < ne; e++) {
+		int id[8]; ids_of(e, id);
+		for (const auto &f : pillowgeom::faces) {
+			F x; x.e = e;
+			for (int k = 0; k < 4; k++) x.ring[k] = x.key[k] = id[f[k]];
+			std::sort(x.key.begin(), x.key.end());
+			faces.push_back(x);
+		}
+	}
+	std::sort(faces.begin(), faces.end(), [](const F &a, const F &b) { return a.key < b.key; });
+	std::vector<char> on_boundary(nn, 0);
+	std::vector<std::vector<int>> node_mats(nn), nbr(nn);
+	std::vector<std::vector<int>> inc(nn);
+	for (int e = 0; e < ne; e++) { int id[8]; ids_of(e, id); for (int k = 0; k < 8; k++) inc[id[k]].push_back(e); }
+	size_t n_iface_faces = 0;
+	for (size_t i = 0; i < faces.size();) {
+		size_t j = i + 1;
+		while (j < faces.size() && faces[j].key == faces[i].key) j++;
+		if (j - i == 1) for (int n : faces[i].key) on_boundary[n] = 1;
+		else if (j - i == 2 && mat_of(faces[i].e) != mat_of(faces[i+1].e)) {
+			n_iface_faces++;
+			const int ma = mat_of(faces[i].e), mb = mat_of(faces[i+1].e);
+			for (int k = 0; k < 4; k++) {
+				const int n = faces[i].ring[k];
+				for (int m : {ma, mb}) if (std::find(node_mats[n].begin(), node_mats[n].end(), m) == node_mats[n].end()) node_mats[n].push_back(m);
+				for (int nb : {faces[i].ring[(k+1)%4], faces[i].ring[(k+3)%4]})
+					if (std::find(nbr[n].begin(), nbr[n].end(), nb) == nbr[n].end()) nbr[n].push_back(nb);
+			}
+		}
+		i = j;
+	}
+	// local cell size: longest interface edge at the node (lattice edges of the host faces; the
+	// pillow's own edges are shorter, and the cells are often much taller than wide)
+	auto h_of = [&](int n) {
+		double h = 0;
+		for (int nb : nbr[n]) {
+			double d2 = 0;
+			for (int d = 0; d < 3; d++) { const double t = coords[3*n+d] - coords[3*nb+d]; d2 += t*t; }
+			h = std::max(h, std::sqrt(d2));
+		}
+		return h;
+	};
+	// movers: interface nodes off the boundary, two materials, a GTS within 1.5 local edges
+	const double FAR = getenv("PF_FAR") ? atof(getenv("PF_FAR")) : 1.5;   // A/B
+	const std::vector<double> x0 = coords;
+	std::vector<int> movers, surf_of(nn, -1);
+	int n_iface = 0, n_bnd = 0, n_triple = 0, n_far = 0;
+	for (int n = 0; n < nn; n++) {
+		if (node_mats[n].empty()) continue;
+		n_iface++;
+		if (on_boundary[n]) { n_bnd++; continue; }
+		if (node_mats[n].size() > 2) { n_triple++; continue; }
+		double best = 1e300, c[3], d;
+		for (int k = 0; k < (int)mesh->gdata_vec.size(); k++)
+			if (closest_on_gts(mesh, k, &coords[3*n], c, &d) && d < best) { best = d; surf_of[n] = k; }
+		if (surf_of[n] < 0 || best > FAR * h_of(n)) {
+			if (getenv("PF_DEBUG")) printf("      far node %d mats %d/%d z %.1f dist %.1f h %.1f\n", n, node_mats[n][0], node_mats[n][1], coords[3*n+2], best, h_of(n));
+			surf_of[n] = -1; n_far++; continue;
+		}
+		movers.push_back(n);
+	}
+	printf("    ProjectPillowedInterface: %zu interface faces, %d interface nodes: %zu move, %d on the boundary (coast/walls), %d triple junctions, %d off any GTS\n",
+	       n_iface_faces, n_iface, movers.size(), n_bnd, n_triple, n_far);
+	std::vector<char> is_mover(nn, 0);
+	for (int n : movers) is_mover[n] = 1;
+
+	// a. closest point
+	for (int n : movers) closest_on_gts(mesh, surf_of[n], &x0[3*n], &coords[3*n], nullptr);
+	// b. tangential smoothing on the GTS (Jacobi, relaxed); fixed interface nodes are anchors
+	int SWEEPS = getenv("PF_SMOOTH") ? atoi(getenv("PF_SMOOTH")) : 5;
+	for (int sw = 0; sw < SWEEPS; sw++) {
+		std::vector<double> nxt(3 * movers.size());
+		for (size_t i = 0; i < movers.size(); i++) {
+			const int n = movers[i];
+			double a[3] = {0, 0, 0};
+			for (int nb : nbr[n]) for (int d = 0; d < 3; d++) a[d] += coords[3*nb+d] / nbr[n].size();
+			double y[3];
+			for (int d = 0; d < 3; d++) y[d] = 0.5 * coords[3*n+d] + 0.5 * a[d];
+			if (!closest_on_gts(mesh, surf_of[n], y, &nxt[3*i], nullptr)) for (int d = 0; d < 3; d++) nxt[3*i+d] = coords[3*n+d];
+		}
+		for (size_t i = 0; i < movers.size(); i++) for (int d = 0; d < 3; d++) coords[3*movers[i]+d] = nxt[3*i+d];
+	}
+	// intended points, for meshOpt closeness
+	mesh->proj_target.assign(coords.size(), std::numeric_limits<double>::quiet_NaN());
+	mesh->proj_len.assign(nn, 0.0);
+	for (int n : movers) {
+		double l2 = 0;
+		for (int d = 0; d < 3; d++) { mesh->proj_target[3*n+d] = coords[3*n+d]; l2 += (coords[3*n+d]-x0[3*n+d])*(coords[3*n+d]-x0[3*n+d]); }
+		mesh->proj_len[n] = std::sqrt(l2);
+	}
+	const std::vector<double> target = coords;
+
+	// columns: the original nodes sharing a lattice (x, y), bottom to top. The displacement of the
+	// interface nodes is spread along their column (option 1 of the plan's results), linearly
+	// between anchors: the column's ends, every interface or boundary node that does not move
+	// (displacement 0) and the movers (their own) -- as GetMeshFromSurface stretches the columns to
+	// the topography. The shells alone absorb about half a cell; most movers need one or more.
+	const bool STRETCH = !(getenv("PF_STRETCH") && atoi(getenv("PF_STRETCH")) == 0);
+	int first_new = nn;
+	for (const auto &r : mesh->pillow_hosts) for (int k = 0; k < 8; k++) first_new = std::min(first_new, r.core[k]);
+	std::vector<std::vector<int>> columns;
+	std::vector<int> col_of(nn, -1);
+	{
+		std::map<std::pair<int,int>, int> idx;
+		for (int n = 0; n < first_new; n++) {
+			const auto *nd = (octant_node_t *) sc_array_index(&mesh->nodes, n);
+			auto it = idx.emplace(std::make_pair(nd->x, nd->y), (int)columns.size()).first;
+			if (it->second == (int)columns.size()) columns.emplace_back();
+			columns[it->second].push_back(n);
+			col_of[n] = it->second;
+		}
+		for (auto &c : columns) std::sort(c.begin(), c.end(), [&](int a, int b) { return x0[3*a+2] < x0[3*b+2]; });
+	}
+	std::vector<std::vector<int>> col_movers(columns.size());
+	for (int n : movers) col_movers[col_of[n]].push_back(n);
+	std::vector<char> anchor(nn, 0);
+	for (int n = 0; n < first_new; n++) anchor[n] = is_mover[n] || on_boundary[n] || !node_mats[n].empty();
+
+	// c. cores follow their hosts
+	std::vector<std::vector<int>> hosts_of(nn);
+	for (size_t i = 0; i < mesh->pillow_hosts.size(); i++) for (int k = 0; k < 8; k++) hosts_of[mesh->pillow_hosts[i].outer[k]].push_back(i);
+	auto rebuild_all = [&]() {
+		for (const auto &r : mesh->pillow_hosts) {
+			pillowgeom::Hex outer, core;
+			for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) outer[k][d] = coords[3*r.outer[k]+d];
+			pillowgeom::core_from_insets(outer, r.t, core);
+			for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) coords[3*r.core[k]+d] = core[k][d];
+		}
+	};
+	// place everything for the share frac[n] of each mover's move
+	std::vector<double> frac(nn, 1.0);
+	auto apply = [&]() {
+		for (int n : movers) for (int d = 0; d < 3; d++) coords[3*n+d] = x0[3*n+d] + frac[n] * (target[3*n+d] - x0[3*n+d]);
+		if (STRETCH) for (size_t c = 0; c < columns.size(); c++) {
+			if (col_movers[c].empty()) continue;
+			const auto &col = columns[c];
+			int a = 0;   // last anchor (the bottom end is one)
+			for (size_t i = 1; i < col.size(); i++) {
+				if (!anchor[col[i]] && i + 1 < col.size()) continue;
+				const int na = col[a], nb = col[i];
+				const double za = x0[3*na+2], zb = x0[3*nb+2];
+				for (size_t j = a + 1; j < i; j++) {
+					const int n = col[j];
+					const double w = zb > za ? (x0[3*n+2] - za) / (zb - za) : 0.0;
+					for (int d = 0; d < 3; d++)
+						coords[3*n+d] = x0[3*n+d] + (1-w) * (coords[3*na+d] - x0[3*na+d]) + w * (coords[3*nb+d] - x0[3*nb+d]);
+				}
+				a = i;
+			}
+		}
+		rebuild_all();
+	};
+	apply();
+
+	// elements to watch: every element with a node that moved
+	std::vector<int> watch;
+	for (int e = 0; e < ne; e++) {
+		int id[8]; ids_of(e, id);
+		for (int k = 0; k < 8; k++) if (coords[3*id[k]] != x0[3*id[k]] || coords[3*id[k]+1] != x0[3*id[k]+1] || coords[3*id[k]+2] != x0[3*id[k]+2]) { watch.push_back(e); break; }
+	}
+	double FRAC = 0.05;
+	if (const char *ev = getenv("PROJ_SIGMA_MIN_FRAC")) FRAC = atof(ev);
+	std::unordered_map<int,double> sigma0;
+	{   // reference sigma on the pre-move geometry
+		std::vector<double> cur = coords; coords = x0;
+		for (int e : watch) sigma0[e] = pillowgeom::size_metric(hex_of(e), false);
+		coords = cur;
+	}
+	auto bad = [&](int e) {
+		const auto h = hex_of(e);
+		return !pillowgeom::valid(h, orient) || (FRAC > 0 && pillowgeom::size_metric(h, false) < FRAC * sigma0[e]);
+	};
+	int n_bad0 = 0;
+	for (int e : watch) n_bad0 += bad(e);
+	printf("    ProjectPillowedInterface: after projection + %d smoothing sweeps%s: %d of %zu watched elements fail (invalid or sigma < %.2f x start)\n",
+	       SWEEPS, STRETCH ? " + column stretch" : "", n_bad0, watch.size(), FRAC);
+	if (getenv("PF_DEBUG")) {   // who fails, and how far the movers go relative to their cell
+		std::vector<char> is_core(ne, 0), is_shell(ne, 0);
+		const int first_shell = ne - 6 * (int)mesh->pillow_hosts.size();
+		for (int e = first_shell; e < ne; e++) is_shell[e] = 1;
+		std::unordered_set<int> core_nodes;
+		for (const auto &r : mesh->pillow_hosts) for (int k = 0; k < 8; k++) core_nodes.insert(r.core[k]);
+		for (int e = 0; e < first_shell; e++) { int id[8]; ids_of(e, id); is_core[e] = core_nodes.count(id[0]) > 0; }
+		int c_core = 0, c_shell = 0, c_plain = 0, c_inv = 0;
+		for (int e : watch) if (bad(e)) {
+			(is_shell[e] ? c_shell : is_core[e] ? c_core : c_plain)++;
+			c_inv += !pillowgeom::valid(hex_of(e), orient);
+		}
+		printf("      failing: %d shells, %d cores, %d unpillowed; %d of them invalid (the rest too thin)\n", c_shell, c_core, c_plain, c_inv);
+		int hist[6] = {0};
+		for (int n : movers) {
+			double m2 = 0; for (int d = 0; d < 3; d++) m2 += (coords[3*n+d]-x0[3*n+d])*(coords[3*n+d]-x0[3*n+d]);
+			const double r = std::sqrt(m2) / std::max(1e-9, h_of(n));
+			hist[r < 0.1 ? 0 : r < 0.25 ? 1 : r < 0.5 ? 2 : r < 0.75 ? 3 : r < 1 ? 4 : 5]++;
+		}
+		printf("      move / cell size: <0.1 %d, <0.25 %d, <0.5 %d, <0.75 %d, <1 %d, >=1 %d\n", hist[0], hist[1], hist[2], hist[3], hist[4], hist[5]);
+	}
+
+	// d. limiter: a failing element halves the moves of the movers of the columns through its nodes
+	// (a core node has no column: its host's outer nodes stand for it)
+	const bool LIMIT = !(getenv("PF_LIMITER") && atoi(getenv("PF_LIMITER")) == 0);
+	int rounds = 0, n_bad = n_bad0;
+	if (LIMIT) {
+		std::vector<std::vector<int>> host_of_core(nn);
+		for (size_t i = 0; i < mesh->pillow_hosts.size(); i++) for (int k = 0; k < 8; k++) host_of_core[mesh->pillow_hosts[i].core[k]].push_back(i);
+		auto add_col = [&](int n, std::unordered_set<int> &pull) {
+			if (col_of[n] < 0) return;
+			if (STRETCH) for (int m : col_movers[col_of[n]]) pull.insert(m);
+			else if (is_mover[n]) pull.insert(n);
+		};
+		for (; rounds < 40 && n_bad > 0; rounds++) {
+			std::unordered_set<int> pull;
+			for (int e : watch) if (bad(e)) {
+				int id[8]; ids_of(e, id);
+				for (int k = 0; k < 8; k++) {
+					add_col(id[k], pull);
+					for (int h : host_of_core[id[k]]) for (int j = 0; j < 8; j++) add_col(mesh->pillow_hosts[h].outer[j], pull);
+				}
+			}
+			if (pull.empty()) break;
+			for (int n : pull) frac[n] = rounds < 30 ? 0.5 * frac[n] : 0.0;
+			apply();
+			n_bad = 0;
+			for (int e : watch) n_bad += bad(e);
+		}
+		double kept = 0;
+		for (int n : movers) kept += frac[n];
+		printf("    ProjectPillowedInterface: limiter %d rounds, %d elements still failing, movers keep %.1f%% of their move on average\n",
+		       rounds, n_bad, movers.empty() ? 100.0 : 100.0 * kept / movers.size());
 	}
 }

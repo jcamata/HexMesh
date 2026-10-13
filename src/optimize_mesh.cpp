@@ -1,3 +1,4 @@
+#include <numeric>
 #include <cstdio>
 #include <cmath>
 #include <vector>
@@ -12,9 +13,14 @@
 #include <sc_containers.h>
 #include "hexa.h"
 #include "verify_mesh.h"
+#include <functional>
 #include "mesh_geom.h"
+#include "pillow_geometry.h"
 #include "optimize_mesh.h"
 #include "stability.h"
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 /**
  * =========================================================================================
@@ -1285,6 +1291,95 @@ static bool relax_toward_centroid(hexa_tree_t *mesh, std::vector<double> &coords
 	return false;
 }
 
+// Level 1 (of curves -> faces -> volume): 1D Laplacian on the 12 edges of the domain box.
+// An edge node is one locked on two axes (lock_mask), so it can only slide along the
+// third; it moves to the mean of its neighbours on the same box edge. Fixed: box corners,
+// material-interface nodes, GTS surface nodes and the free (top) surface -- the top four
+// box edges lie on the topography and stay put. A move is kept only if every incident
+// element stays valid over its whole volume (pillowgeom::valid), halving it otherwise.
+static int smooth_box_edges_1d(hexa_tree_t *mesh, std::vector<double> &coords,
+                               const std::vector<NodeConstraint> &cons,
+                               const std::vector<int> &material_fixed_nodes) {
+	const int nn = mesh->nodes.elem_count;
+	auto inc = build_incidence(mesh, nn);
+	auto adj = build_adjacency(mesh, nn);
+	auto bits = [](uint8_t m) { return ((m & mgeom::LOCK_X) != 0) + ((m & mgeom::LOCK_Y) != 0) + ((m & mgeom::LOCK_Z) != 0); };
+	std::vector<char> fixed(nn, 0);
+	for (int n : material_fixed_nodes) if (n >= 0 && n < nn) fixed[n] = 1;
+	for (int n = 0; n < nn; n++) if (cons[n].gts_surface_id >= 0 || bits(cons[n].lock_mask) == 3) fixed[n] = 1;
+	// open faces that are not on a wall plane are the free surface
+	std::unordered_map<face_key, int, face_key_hash> count;
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		for (int f = 0; f < 6; f++)
+			count[make_face_key(e->nodes[FaceNodesMap[f][0]].id, e->nodes[FaceNodesMap[f][1]].id,
+			                    e->nodes[FaceNodesMap[f][2]].id, e->nodes[FaceNodesMap[f][3]].id)]++;
+	}
+	for (int iel = 0; iel < mesh->elements.elem_count; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		for (int f = 0; f < 6; f++) {
+			int id[4]; uint8_t wall = 0xFF;
+			for (int k = 0; k < 4; k++) { id[k] = e->nodes[FaceNodesMap[f][k]].id; wall &= cons[id[k]].lock_mask; }
+			if (count[make_face_key(id[0], id[1], id[2], id[3])] == 1 && !wall)
+				for (int k = 0; k < 4; k++) fixed[id[k]] = 1;
+		}
+	}
+	// free edge nodes and their neighbours along the same box edge
+	std::vector<int> nodes;
+	std::vector<std::vector<int>> nbr(nn);
+	int n_edge = 0, n_transition = 0;
+	for (int n = 0; n < nn; n++) {
+		const uint8_t m = cons[n].lock_mask;
+		if (bits(m) != 2) continue;
+		n_edge++;
+		if (fixed[n]) continue;
+		for (int j : adj[n]) if ((cons[j].lock_mask & m) == m) nbr[n].push_back(j);
+		if (nbr[n].size() != 2) continue;
+		// A jump in element size along the edge is a zcuts transition: keep it fixed so the
+		// smoothing only acts between consecutive transitions and the vertical grading survives.
+		// ponytail: 20% size jump as the transition test, read zcuts/lattice z if this misfires
+		double L[2];
+		for (int k = 0; k < 2; k++) {
+			const int j = nbr[n][k];
+			L[k] = std::sqrt(std::pow(coords[3*j]-coords[3*n],2) + std::pow(coords[3*j+1]-coords[3*n+1],2) + std::pow(coords[3*j+2]-coords[3*n+2],2));
+		}
+		if (std::max(L[0], L[1]) > 1.2*std::min(L[0], L[1])) { n_transition++; continue; }
+		nodes.push_back(n);
+	}
+	auto valid_around = [&](int n) {
+		for (int iel : inc[n]) {
+			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+			pillowgeom::Hex h;
+			for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) h[k][d] = coords[3*e->nodes[mgeom::H5_ORD[k]].id + d];
+			if (!pillowgeom::valid(h, 1)) return false;
+		}
+		return true;
+	};
+	const int SWEEPS = 5000;  // ponytail: plain Gauss-Seidel on ~100 nodes, cheap; stops when the largest move is below 1 mm
+	int total = 0;
+	for (int sweep = 0; sweep < SWEEPS; sweep++) {
+		int moved = 0; double dmax = 0;
+		for (int n : nodes) {
+			double d[3];
+			for (int k = 0; k < 3; k++) d[k] = 0.5*(coords[3*nbr[n][0]+k] + coords[3*nbr[n][1]+k]) - coords[3*n+k];
+			mgeom::apply_lock(cons[n].lock_mask, d[0], d[1], d[2]);
+			const double p[3] = {coords[3*n], coords[3*n+1], coords[3*n+2]};
+			for (double a = 1.0; a > 1.0/64.0; a *= 0.5) {
+				for (int k = 0; k < 3; k++) coords[3*n+k] = p[k] + a*d[k];
+				if (valid_around(n)) { moved++; dmax = std::max(dmax, a*std::sqrt(d[0]*d[0]+d[1]*d[1]+d[2]*d[2])); break; }
+				for (int k = 0; k < 3; k++) coords[3*n+k] = p[k];
+			}
+		}
+		total += moved;
+		if (sweep % 500 == 0 || dmax < 1e-3)
+			printf("      Level 1 sweep %d: %d moved, max move %.3f m\n", sweep, moved, dmax);
+		if (dmax < 1e-3) break;
+	}
+	printf("    Level 1: %d box-edge nodes, %zu free, %d zcuts transitions fixed, %d other fixed\n",
+	       n_edge, nodes.size(), n_transition, n_edge - n_transition - (int)nodes.size());
+	return total;
+}
+
 // Parallelepiped geometric reconstruction: reconstructs an inverted vertex from the remaining 7 vertices of the element
 static bool reconstruct_hex_vertex(hexa_tree_t *mesh, std::vector<double> &coords,
                                     const std::vector<std::vector<int>> &adj,
@@ -2395,6 +2490,69 @@ void synchronize_shared_boundary_nodes(hexa_tree_t *mesh, std::vector<double> &c
 	printf("    =========================================================\n\n");
 }
 
+// Distance of projected node n to the GTS: to its target, or vertically to any interface surface
+// if that is closer -- a node the optimizers slid along its surface is on the GTS, only not at
+// its target.
+static double gts_gap(hexa_tree_t *mesh, const std::vector<double> &coords, int n) {
+	double d2 = 0;
+	for (int k = 0; k < 3; k++) d2 += (coords[3*n+k] - mesh->proj_target[3*n+k]) * (coords[3*n+k] - mesh->proj_target[3*n+k]);
+	double d = std::sqrt(d2);
+	for (size_t k = 0; k < mesh->gdata_vec.size(); k++) {
+		double z;
+		if (eval_gts_height_near(mesh, k, coords[3*n], coords[3*n+1], coords[3*n+2], z)) d = std::min(d, std::fabs(z - coords[3*n+2]));
+	}
+	return d;
+}
+
+// How far the projected nodes ended up from where ProjectFreeNodes wanted them (proj_target),
+// after the limiter, untangler, pillow and optimizers moved them (gts_gap). "kept" = share of the requested
+// move the node still carries, 1 - distance / requested length (the limiter's "surviving
+// displacement", but over every projected node, not only the retreated ones).
+static void report_gts_distance(hexa_tree_t *mesh, const std::vector<double> &coords, const char *label) {
+	const int nt = std::min(mesh->proj_len.size(), coords.size() / 3);
+	std::vector<double> d;
+	double kept = 0;
+	int n_off = 0;
+	for (int n = 0; n < nt; n++) {
+		if (std::isnan(mesh->proj_target[3*n]) || mesh->proj_len[n] <= 0) continue;
+		d.push_back(gts_gap(mesh, coords, n));
+		kept += std::max(0.0, 1.0 - d.back() / mesh->proj_len[n]);
+		if (d.back() > 0.01 * mesh->proj_len[n]) n_off++;
+	}
+	if (d.empty()) { printf("    GTS distance %s: no projected nodes\n", label); return; }
+	const double mean = std::accumulate(d.begin(), d.end(), 0.0) / d.size();
+	std::sort(d.begin(), d.end());
+	printf("    GTS distance %s: %zu projected nodes, %d off target (>1%% of their move), distance mean %.3e m, p95 %.3e m, max %.3e m, move kept %.1f%%\n",
+	       label, d.size(), n_off, mean, d[(size_t)(0.95 * (d.size() - 1))], d.back(), 100.0 * kept / d.size());
+}
+
+struct SurfaceFace { int id[4]; int count; bool iface; };
+static std::vector<SurfaceFace> collect_faces(hexa_tree_t *mesh);
+
+// Distance to the nearest interface GTS of every node on a face between two materials -- the
+// same set whichever pipeline built the mesh (report_gts_distance only sees nodes that got a
+// projection target). Coastline, wall and junction nodes included.
+static void report_interface_distance(hexa_tree_t *mesh, const std::vector<double> &coords, const char *label) {
+	if (mesh->gdata_vec.empty()) return;
+	const auto faces = collect_faces(mesh);
+	std::vector<char> on(coords.size() / 3, 0);
+	for (const auto &f : faces) if (f.iface) for (int k = 0; k < 4; k++) on[f.id[k]] = 1;
+	std::vector<double> d;
+	for (size_t n = 0; n < on.size(); n++) if (on[n]) {
+		double best = 1e300, c[3], dd;
+		for (size_t k = 0; k < mesh->gdata_vec.size(); k++) if (closest_on_gts(mesh, k, &coords[3*n], c, &dd)) best = std::min(best, dd);
+		if (best < 1e300) d.push_back(best);
+	}
+	if (d.empty()) return;
+	const double mean = std::accumulate(d.begin(), d.end(), 0.0) / d.size();
+	std::sort(d.begin(), d.end());
+	printf("    Interface distance %s: %zu nodes on material faces, distance to the GTS mean %.3e m, p50 %.3e, p95 %.3e, max %.3e\n",
+	       label, d.size(), mean, d[d.size()/2], d[(size_t)(0.95*(d.size()-1))], d.back());
+}
+
+// returns the gain: dist before/after (closeness > 0) or min sigma/vp after/before (size)
+static double gradient_opt(hexa_tree_t *mesh, std::vector<double> &coords, double closeness, double *dt_floor_out = nullptr);
+
 void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vector<int> material_fixed_nodes) {
 	if (!mesh || mesh->elements.elem_count == 0 || coords.empty()) return;
 
@@ -2413,6 +2571,7 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	int nn = coords.size() / 3;
 	std::vector<double> coords0 = coords;
 
+	report_gts_distance(mesh, coords, "BEFORE Opt");
 	MeshAnalysis a0 = analyze_mesh(mesh, coords);
 	int ref = a0.reference_sign;
 	double h_min_0 = a0.h_min;
@@ -2438,8 +2597,32 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	(void)pre_h5;
 
 	// ---- Stage 2: Volume Untangling Phase (Laplacian only) ----
-	int remaining = untangle_inversions(mesh, coords, cons, wall_lock, ref);
-	(void)remaining;
+	// Untangler off for now: the user is evaluating the 3-level smoother on its own.
+	// int remaining = untangle_inversions(mesh, coords, cons, wall_lock, ref);
+	// (void)remaining;
+	(void)wall_lock;
+
+	// Level 1 (box edges) now runs before the pillow: SmoothBoxEdges, input key smoothEdges.
+
+	// ---- Closeness to the GTS, then element size ----
+	// The projection limiter left nodes short of the GTS to keep the not-yet-pillowed cells valid.
+	// Now most elements have dt far above dt_min: pull the nodes back toward the GTS with dt_min
+	// as a floor (gradient_opt closeness mode). Size first (the post-pillow pass of
+	// optimizeDt = 1, moved here): closeness first spent the slack the size pass needs
+	// (kefalonia_small1 ref3: size x1.000 after it instead of x3.3, true dt 4.0e-04 vs 9.9e-04).
+	// Then closeness at the raised floor, then size again; repeat while either gains > 1 %.
+	// ponytail: weight from env for A/B; an input key once a case needs a different value
+	const double CLOSENESS = getenv("MESHOPT_CLOSENESS") ? atof(getenv("MESHOPT_CLOSENESS")) : 10.0;   // kefalonia_small1 ref3: 1 / 10 / 100 -> distance -26/-36/-35 %, dt +10/+6/0 %
+	gradient_opt(mesh, coords, 0.0);
+	const std::vector<double> coords_sized = coords;   // safety net, see the dt check after the report
+	double dt_sized = 0;
+	for (int pass = 0; pass < 3; pass++) {
+		const double g_close = gradient_opt(mesh, coords, CLOSENESS, pass == 0 ? &dt_sized : nullptr);
+		const double g_size = gradient_opt(mesh, coords, 0.0);
+		printf("    closeness/size pass %d: distance x%.3f smaller, min sigma/vp x%.3f\n", pass, g_close, g_size);
+		if (g_close < 1.05 && g_size < 1.01) break;
+	}
+	report_gts_distance(mesh, coords, "after closeness/size");
 
 	// ---- DISABLED: every other optimization stage ------------------------
 	// They are under investigation for introducing mesh defects.
@@ -2469,6 +2652,8 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	// ---- MPI Boundary Consensus Synchronization (kept: conformity, not optimization) ----
 	synchronize_shared_boundary_nodes(mesh, coords, cons, ref);
 
+	report_gts_distance(mesh, coords, "AFTER  Opt");
+	report_interface_distance(mesh, coords, "AFTER  Opt");
 	MeshAnalysis a1 = analyze_mesh(mesh, coords);
 	printf("    Final:   %d inverted, h_min %.6e (dt gain %.3fx)\n",
 	       a1.n_inverted, a1.h_min, (h_min_0 > 0 ? a1.h_min / h_min_0 : 1.0));
@@ -2480,6 +2665,14 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 
 	// Element-wise Stability Analysis (AFTER)
 	MeshStabilityAnalysis stab_after = analyze_mesh_stability(mesh, coords, mesh->input.gll_order);
+	// The closeness stages check the true dt only on elements the proxy marks at risk; this full
+	// GLL analysis is the guarantee: if dt_min still dropped below where they started, undo them.
+	if (dt_sized > 0 && stab_after.dt_crit_min < dt_sized * (1 - 1e-9)) {
+		printf("    closeness lowered dt_min %.6e -> %.6e s: reverted to the mesh after the size pass\n", dt_sized, stab_after.dt_crit_min);
+		coords = coords_sized;
+		report_gts_distance(mesh, coords, "after revert");
+		stab_after = analyze_mesh_stability(mesh, coords, mesh->input.gll_order);
+	}
 	print_stability_report("AFTER Optimization", stab_after, mesh->input.gll_order);
 	std::vector<double> dt_after(mesh->elements.elem_count, 0.0);
 	for (size_t i = 0; i < stab_after.elem_stability.size(); i++)
@@ -2514,3 +2707,1041 @@ void MeshOptimization(hexa_tree_t *mesh, std::vector<double> &coords, std::vecto
 	if (viol != 0) printf("    ERROR: external boundary nodes moved off their plane!\n");
 	printf(" =========================================================\n\n");
 }
+
+// Shared by the level-2 surface steps. Gauss-Seidel smart Laplacian on `nodes`: each moves
+// toward the mean of its surface neighbours `nb` over its free axes (`free_axes`, default
+// x and y), then `project` sets the final z from the candidate (x, y, z) (false if it cannot). `partners` move rigidly with their node (post-pillow
+// inner nodes). A move is kept only if every incident element stays valid over its whole
+// volume, the worst corner scaled Jacobian around the moved nodes does not drop, and their
+// shortest incident edge does not shrink (nor the optional `keep` metric); the step is capped
+// at half that edge, halved on rejection. Validity alone flattened the interface staircase into zero-width hosts
+// (h_min 1.7 mm), and without the edge guard the pillow built 1-3 m layers on squeezed edges.
+static void smart_surface_laplacian(hexa_tree_t *mesh, std::vector<double> &coords,
+                                    const std::vector<std::vector<int>> &inc,
+                                    const std::vector<int> &nodes,
+                                    const std::vector<std::unordered_set<int>> &nb,
+                                    const std::vector<std::vector<int>> &partners,
+                                    const std::function<bool(int, double, double, double, double &)> &project,
+                                    const std::function<int(int)> &free_axes = nullptr,
+                                    const std::function<double(int)> &keep = nullptr) {
+	auto local_min_sj = [&](int n) {
+		double q = 1e300;
+		for (int iel : inc[n]) {
+			double X[8], Y[8], Z[8];
+			load_elem_xyz(mesh, coords, iel, X, Y, Z);
+			q = std::min(q, mgeom::hex_min_corner_sj(X, Y, Z));
+		}
+		for (int j : partners[n]) for (int iel : inc[j]) {
+			double X[8], Y[8], Z[8];
+			load_elem_xyz(mesh, coords, iel, X, Y, Z);
+			q = std::min(q, mgeom::hex_min_corner_sj(X, Y, Z));
+		}
+		return q;
+	};
+	auto shortest_edge = [&](int n) {
+		double h = shortest_incident_edge(mesh, coords, inc[n], n);
+		for (int j : partners[n]) h = std::min(h, shortest_incident_edge(mesh, coords, inc[j], j));
+		return h;
+	};
+	auto valid_one = [&](int n) {
+		for (int iel : inc[n]) {
+			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+			pillowgeom::Hex h;
+			for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) h[k][d] = coords[3*e->nodes[mgeom::H5_ORD[k]].id + d];
+			if (!pillowgeom::valid(h, 1)) return false;
+		}
+		return true;
+	};
+	auto valid = [&](int n) {
+		if (!valid_one(n)) return false;
+		for (int j : partners[n]) if (!valid_one(j)) return false;
+		return true;
+	};
+	const int SWEEPS = 200;  // ponytail: Gauss-Seidel, stops when the largest move is below 1 m
+	for (int sweep = 0; sweep < SWEEPS; sweep++) {
+		int moved = 0, missed = 0; double dmax = 0;
+		for (int n : nodes) {
+			// centroid over the node's free axes only (bit d = axis d); default (x, y)
+			const int axes = free_axes ? free_axes(n) : 3;
+			const double p[3] = {coords[3*n], coords[3*n+1], coords[3*n+2]};
+			double c[3] = {p[0], p[1], p[2]};
+			for (int d = 0; d < 3; d++) if (axes >> d & 1) {
+				c[d] = 0;
+				for (int j : nb[n]) c[d] += coords[3*j+d];
+				c[d] /= nb[n].size();
+			}
+			const double q0 = local_min_sj(n), he0 = shortest_edge(n), k0 = keep ? keep(n) : 0.0;
+			std::vector<double> pp; for (int j : partners[n]) for (int k = 0; k < 3; k++) pp.push_back(coords[3*j+k]);
+			const double cap = 0.5 * he0;
+			const double len = std::sqrt((c[0]-p[0])*(c[0]-p[0]) + (c[1]-p[1])*(c[1]-p[1]) + (c[2]-p[2])*(c[2]-p[2]));
+			if (len > cap) for (int d = 0; d < 3; d++) c[d] = p[d] + (c[d]-p[d])*cap/len;
+			for (double a = 1.0; a > 1.0/64.0; a *= 0.5) {
+				const double x = p[0] + a*(c[0] - p[0]), y = p[1] + a*(c[1] - p[1]);
+				double z = p[2] + a*(c[2] - p[2]);
+				if (!project(n, x, y, z, z)) { missed++; break; }
+				coords[3*n] = x; coords[3*n+1] = y; coords[3*n+2] = z;
+				for (size_t m = 0; m < partners[n].size(); m++) for (int k = 0; k < 3; k++)
+					coords[3*partners[n][m]+k] = pp[3*m+k] + coords[3*n+k] - p[k];
+				if (local_min_sj(n) >= q0 && shortest_edge(n) >= he0 && (!keep || keep(n) >= k0) && valid(n)) {
+					moved++;
+					dmax = std::max(dmax, std::sqrt(std::pow(x-p[0],2) + std::pow(y-p[1],2) + std::pow(z-p[2],2)));
+					break;
+				}
+				for (int k = 0; k < 3; k++) coords[3*n+k] = p[k];
+				for (size_t m = 0; m < partners[n].size(); m++) for (int k = 0; k < 3; k++) coords[3*partners[n][m]+k] = pp[3*m+k];
+			}
+		}
+		if (sweep % 20 == 0 || dmax < 1.0)
+			printf("      sweep %d: %d moved, %d projection misses, max move %.1f m\n", sweep, moved, missed, dmax);
+		if (dmax < 1.0) break;
+	}
+}
+
+// Every distinct face once: its 4 node ids (FaceNodesMap order of its first element), how
+// many elements share it, and whether those elements differ in material (an interface face).
+static std::vector<SurfaceFace> collect_faces(hexa_tree_t *mesh) {
+	std::unordered_map<face_key, int, face_key_hash> index;
+	std::vector<SurfaceFace> faces;
+	std::vector<int> mat;
+	for (int iel = 0; iel < (int)mesh->elements.elem_count; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		for (int f = 0; f < 6; f++) {
+			SurfaceFace sf;
+			for (int k = 0; k < 4; k++) sf.id[k] = e->nodes[FaceNodesMap[f][k]].id;
+			auto r = index.emplace(make_face_key(sf.id[0], sf.id[1], sf.id[2], sf.id[3]), (int)faces.size());
+			if (r.second) { sf.count = 1; sf.iface = false; faces.push_back(sf); mat.push_back(e->n_mat); }
+			else { faces[r.first->second].count++; faces[r.first->second].iface |= mat[r.first->second] != e->n_mat; }
+		}
+	}
+	return faces;
+}
+
+// Level 2, top step (before the pillow, before the interface step). The free surface = open
+// faces that are not on a domain wall. Water faces have all 4 nodes on the sea lid (z = 0):
+// their nodes slide in (x, y) with z kept at 0. Land faces have all 4 nodes above it: their
+// nodes slide in (x, y) and are put back on the topography by a vertical ray; a ray landing
+// at or below the lid is refused. Fixed: the shoreline (nodes on both kinds of face, on a
+// mixed face, or on a material interface) and every node on a wall.
+void SmoothTopSurface(hexa_tree_t *mesh, std::vector<double> &coords) {
+	const int nn = mesh->nodes.elem_count;
+	const double SEA_LEVEL = 0.0, EPS = 1e-6;
+	auto inc = build_incidence(mesh, nn);
+	double lo[3] = {1e300, 1e300, 1e300}, hi[3] = {-1e300, -1e300, -1e300};
+	for (int n = 0; n < nn; n++) for (int d = 0; d < 3; d++) { lo[d] = std::min(lo[d], coords[3*n+d]); hi[d] = std::max(hi[d], coords[3*n+d]); }
+	auto on_wall = [&](int n) {
+		for (int d = 0; d < 2; d++) {
+			const double tol = std::min(1.0, 1e-3*(hi[d]-lo[d]));
+			if (std::fabs(coords[3*n+d]-lo[d]) < tol || std::fabs(coords[3*n+d]-hi[d]) < tol) return true;
+		}
+		return false;
+	};
+	std::vector<char> kind(nn, 0), fixed(nn, 0);   // kind bit 1 water face, bit 2 land face
+	std::vector<std::unordered_set<int>> nb(nn);
+	for (const auto &f : collect_faces(mesh)) {
+		if (f.iface) for (int k = 0; k < 4; k++) fixed[f.id[k]] = 1;
+		if (f.count != 1) continue;
+		bool wall = true, water = true, land = true;
+		for (int k = 0; k < 4; k++) {
+			const double z = coords[3*f.id[k]+2];
+			wall &= on_wall(f.id[k]);
+			water &= std::fabs(z - SEA_LEVEL) < EPS;
+			land &= z > SEA_LEVEL + EPS;
+		}
+		if (wall || coords[3*f.id[0]+2] < lo[2] + 1.0) continue;   // side wall or bottom
+		for (int k = 0; k < 4; k++) {
+			const int n = f.id[k];
+			if (water) kind[n] |= 1; else if (land) kind[n] |= 2; else fixed[n] = 1;
+			if (water || land) { nb[n].insert(f.id[(k+1)%4]); nb[n].insert(f.id[(k+3)%4]); }
+		}
+	}
+	std::vector<int> water_nodes, land_nodes;
+	int n_top = 0;
+	for (int n = 0; n < nn; n++) {
+		if (!kind[n] && !fixed[n]) continue;
+		n_top++;
+		if (fixed[n] || on_wall(n) || nb[n].size() < 3) continue;
+		if (kind[n] == 1) water_nodes.push_back(n);
+		else if (kind[n] == 2) land_nodes.push_back(n);
+	}
+	const std::vector<std::vector<int>> no_partners(nn);
+	printf("    Level 2 top surface: %d free-surface nodes, %zu free water, %zu free land\n",
+	       n_top, water_nodes.size(), land_nodes.size());
+	printf("    Level 2 water lid (z = 0):\n");
+	smart_surface_laplacian(mesh, coords, inc, water_nodes, nb, no_partners,
+		[&](int, double, double, double, double &z) { z = SEA_LEVEL; return true; });
+	printf("    Level 2 land topography:\n");
+	smart_surface_laplacian(mesh, coords, inc, land_nodes, nb, no_partners,
+		[&](int, double x, double y, double zh, double &z) {
+			return eval_gts_height_near(mesh, 1000, x, y, zh, z) && z > SEA_LEVEL + EPS;
+		});
+}
+
+// Level 2, interface step. Interface = faces between elements of different material. Each
+// free interface node moves to the mean (x, y) of its neighbours along interface-face edges
+// and is put back on its own surface by a vertical ray (eval_gts_height_near), with the
+// sea-lid rule of ProjectFreeNodes (z <= -1 m). Fixed: nodes on any open face (coastline on
+// the lid, walls) and nodes already at the lid. After the (closed-cell) pillow, pass
+// first_pillow_node = the node count before the pillow: the pillow's inner nodes edge-linked
+// to an interface node then get the same displacement, so the layer travels with it.
+void SmoothInterfaceSurface(hexa_tree_t *mesh, std::vector<double> &coords, int first_pillow_node) {
+	const int nn = mesh->nodes.elem_count;
+	const double SEA_CLAMP = -1.0;
+	auto inc = build_incidence(mesh, nn);
+	std::vector<char> on_iface(nn, 0), fixed(nn, 0);
+	std::vector<std::unordered_set<int>> nb(nn);
+	for (const auto &f : collect_faces(mesh)) {
+		if (f.count == 1) for (int k = 0; k < 4; k++) fixed[f.id[k]] = 1;   // open face
+		if (!f.iface) continue;
+		for (int k = 0; k < 4; k++) {
+			on_iface[f.id[k]] = 1;
+			nb[f.id[k]].insert(f.id[(k+1)%4]); nb[f.id[k]].insert(f.id[(k+3)%4]);
+		}
+	}
+	// surface per node: the interface sheet closest to where the projection left it
+	const int nsurf = std::max<int>(1, mesh->gdata_vec.size());
+	std::vector<int> nodes, surf(nn, -1);
+	int n_iface = 0;
+	for (int n = 0; n < nn; n++) {
+		if (!on_iface[n]) continue;
+		n_iface++;
+		if (fixed[n] || coords[3*n+2] >= SEA_CLAMP - 1e-3 || nb[n].size() < 3) continue;
+		double best = 1e300;
+		for (int k = 0; k < nsurf; k++) {
+			double z;
+			if (eval_gts_height_near(mesh, k, coords[3*n], coords[3*n+1], coords[3*n+2], z) && std::fabs(z - coords[3*n+2]) < best) { best = std::fabs(z - coords[3*n+2]); surf[n] = k; }
+		}
+		if (surf[n] >= 0) nodes.push_back(n);
+	}
+	std::vector<std::vector<int>> partners(nn);
+	if (first_pillow_node >= 0) {
+		auto adj = build_adjacency(mesh, nn);
+		for (int n : nodes) for (int j : adj[n]) if (j >= first_pillow_node) partners[n].push_back(j);
+	}
+	size_t n_partners = 0; for (int n : nodes) n_partners += partners[n].size();
+	printf("    Level 2 interface (%s pillow): %d interface nodes, %zu free, %zu pillow nodes travelling with them\n",
+	       first_pillow_node >= 0 ? "after" : "before", n_iface, nodes.size(), n_partners);
+	smart_surface_laplacian(mesh, coords, inc, nodes, nb, partners,
+		[&](int n, double x, double y, double zh, double &z) {
+			if (!eval_gts_height_near(mesh, surf[n], x, y, zh, z)) return false;
+			z = std::min(z, SEA_CLAMP);
+			return true;
+		});
+}
+
+// Level 2, wall step (before the pillow): smart Laplacian in the plane of the 4 side walls
+// and the bottom. x-walls move in (y, z), y-walls in (x, z), the bottom in (x, y); the
+// locked coordinate stays exactly on its plane. Fixed: box edges (node on two planes), the
+// free surface and material interfaces, and the zcuts transitions -- a wall node without
+// exactly 4 in-plane neighbours (a transition template) or whose opposite edges differ by
+// more than 20% (a size jump). Without that the level-1 test showed the Laplacian erasing
+// the vertical grading.
+void SmoothWallSurfaces(hexa_tree_t *mesh, std::vector<double> &coords) {
+	const int nn = mesh->nodes.elem_count;
+	auto inc = build_incidence(mesh, nn);
+	double lo[3] = {1e300, 1e300, 1e300}, hi[3] = {-1e300, -1e300, -1e300};
+	for (int n = 0; n < nn; n++) for (int d = 0; d < 3; d++) { lo[d] = std::min(lo[d], coords[3*n+d]); hi[d] = std::max(hi[d], coords[3*n+d]); }
+	double tol[3];
+	for (int d = 0; d < 3; d++) tol[d] = std::min(1.0, 1e-3*(hi[d]-lo[d]));
+	// plane bits: 1 x-wall, 2 y-wall, 4 bottom (the top is the free surface, never a wall)
+	auto planes = [&](int n) {
+		int m = 0;
+		if (std::fabs(coords[3*n]-lo[0]) < tol[0] || std::fabs(coords[3*n]-hi[0]) < tol[0]) m |= 1;
+		if (std::fabs(coords[3*n+1]-lo[1]) < tol[1] || std::fabs(coords[3*n+1]-hi[1]) < tol[1]) m |= 2;
+		if (std::fabs(coords[3*n+2]-lo[2]) < tol[2]) m |= 4;
+		return m;
+	};
+	std::vector<int> plane(nn, 0);
+	for (int n = 0; n < nn; n++) plane[n] = planes(n);
+	std::vector<char> fixed(nn, 0), on_wall_face(nn, 0);
+	std::vector<std::unordered_set<int>> nb(nn);
+	for (const auto &f : collect_faces(mesh)) {
+		if (f.iface) for (int k = 0; k < 4; k++) fixed[f.id[k]] = 1;
+		if (f.count != 1) continue;
+		int common = 7;
+		for (int k = 0; k < 4; k++) common &= plane[f.id[k]];
+		if (!common) { for (int k = 0; k < 4; k++) fixed[f.id[k]] = 1; continue; }   // free surface
+		for (int k = 0; k < 4; k++) {
+			on_wall_face[f.id[k]] = 1;
+			nb[f.id[k]].insert(f.id[(k+1)%4]); nb[f.id[k]].insert(f.id[(k+3)%4]);
+		}
+	}
+	std::vector<int> nodes;
+	int n_wall = 0, n_transition = 0;
+	for (int n = 0; n < nn; n++) {
+		if (!on_wall_face[n]) continue;
+		n_wall++;
+		const int m = plane[n];
+		if (fixed[n] || (m != 1 && m != 2 && m != 4)) continue;   // edge/corner or surface/interface
+		if (nb[n].size() != 4) { n_transition++; continue; }
+		// opposite pairs: each neighbour with the one most opposite to it
+		std::vector<int> v(nb[n].begin(), nb[n].end());
+		double L[4], u[4][3];
+		for (int k = 0; k < 4; k++) {
+			for (int d = 0; d < 3; d++) u[k][d] = coords[3*v[k]+d] - coords[3*n+d];
+			L[k] = std::sqrt(u[k][0]*u[k][0] + u[k][1]*u[k][1] + u[k][2]*u[k][2]);
+		}
+		bool jump = false;
+		for (int k = 0; k < 4; k++) {
+			int o = -1; double best = 2;
+			for (int j = 0; j < 4; j++) if (j != k) {
+				const double cs = (u[k][0]*u[j][0] + u[k][1]*u[j][1] + u[k][2]*u[j][2]) / (L[k]*L[j]);
+				if (cs < best) { best = cs; o = j; }
+			}
+			jump |= std::max(L[k], L[o]) > 1.2*std::min(L[k], L[o]);   // ponytail: same 20% rule as level 1
+		}
+		if (jump) { n_transition++; continue; }
+		nodes.push_back(n);
+	}
+	const std::vector<std::vector<int>> no_partners(nn);
+	printf("    Level 2 walls + bottom: %d wall nodes, %zu free, %d zcuts transitions fixed\n",
+	       n_wall, nodes.size(), n_transition);
+	smart_surface_laplacian(mesh, coords, inc, nodes, nb, no_partners,
+		[&](int, double, double, double zc, double &z) { z = zc; return true; },
+		[&](int n) { return plane[n] == 1 ? 6 : plane[n] == 2 ? 5 : 3; });   // locked axis never leaves its plane
+}
+
+// Level 1, before the pillow: wraps smooth_box_edges_1d with the optimizer's wall locks.
+void SmoothBoxEdges(hexa_tree_t *mesh, std::vector<double> &coords, const std::vector<int> &nodes_b_mat) {
+	std::vector<NodeConstraint> cons = classify_node_constraints(mesh, coords, nodes_b_mat, nullptr);
+	printf("    Level 1: 1D Laplacian on the 12 edges of the domain box\n");
+	smooth_box_edges_1d(mesh, coords, cons, nodes_b_mat);
+}
+
+// Level 3, before the pillow: smart Laplacian in the volume. Free = every node not on an
+// open face (walls, bottom, free surface) and not on a material interface; each moves toward
+// the 3D mean of its edge neighbours. On top of the shared guards, the thinnest host touching
+// the interface around the node (distance between opposite face centroids) may not get
+// thinner: the closed-cell pillow inserts its layer as a fraction of the host, so a host
+// thin across the interface becomes a thin pillow layer and a small dt.
+void SmoothVolume(hexa_tree_t *mesh, std::vector<double> &coords) {
+	const int nn = mesh->nodes.elem_count, ne = mesh->elements.elem_count;
+	auto inc = build_incidence(mesh, nn);
+	auto adj = build_adjacency(mesh, nn);
+	std::vector<char> fixed(nn, 0), iface_host(ne, 0);
+	for (const auto &f : collect_faces(mesh))
+		if (f.count == 1 || f.iface) for (int k = 0; k < 4; k++) fixed[f.id[k]] = 1;
+	for (int iel = 0; iel < ne; iel++) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		bool any = false;
+		for (int k = 0; k < 8; k++) any |= fixed[e->nodes[k].id] != 0;
+		iface_host[iel] = any;   // touches a surface or the interface: the pillow can land here
+	}
+	auto thickness = [&](int iel) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		double t = 1e300;
+		for (int f = 0; f < 6; f += 2) {   // FaceNodesMap pairs (0,1), (2,3), (4,5) are opposite
+			double a[3] = {0, 0, 0}, b[3] = {0, 0, 0};
+			for (int k = 0; k < 4; k++) for (int d = 0; d < 3; d++) {
+				a[d] += 0.25*coords[3*e->nodes[FaceNodesMap[f][k]].id + d];
+				b[d] += 0.25*coords[3*e->nodes[FaceNodesMap[f+1][k]].id + d];
+			}
+			t = std::min(t, std::sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2])));
+		}
+		return t;
+	};
+	std::vector<int> nodes;
+	std::vector<std::unordered_set<int>> nb(nn);
+	for (int n = 0; n < nn; n++) {
+		if (fixed[n] || inc[n].empty() || adj[n].empty()) continue;
+		nb[n].insert(adj[n].begin(), adj[n].end());
+		nodes.push_back(n);
+	}
+	const std::vector<std::vector<int>> no_partners(nn);
+	printf("    Level 3 volume: %d nodes, %zu free interior nodes\n", nn, nodes.size());
+	smart_surface_laplacian(mesh, coords, inc, nodes, nb, no_partners,
+		[&](int, double, double, double zc, double &z) { z = zc; return true; },
+		[&](int) { return 7; },
+		[&](int n) {
+			double t = 1e300;
+			for (int iel : inc[n]) if (iface_host[iel]) t = std::min(t, thickness(iel));
+			return t;
+		});
+}
+
+// Node roles shared by the two dt optimizers. fixed: 0 = free in 3D, 1 = never moves (open
+// faces, walls, at the sea lid), 2 = interface node, slides on GTS surface surf[n],
+// 3 = coastline node (free surface AND interface), slides along the coastline (coast_nb),
+// 4 = free-surface node off the coast and the walls, slides on the free surface.
+struct DtNodeRoles {
+	std::vector<char> fixed;
+	std::vector<int> surf;
+	std::vector<std::vector<int>> coast_nb;
+	int n_slide = 0, n_coast = 0, n_surface = 0;
+};
+static DtNodeRoles classify_dt_nodes(hexa_tree_t *mesh, const std::vector<double> &coords) {
+	const int nn = mesh->nodes.elem_count;
+	DtNodeRoles R;
+	std::vector<char> &fixed = R.fixed;
+	fixed.assign(nn, 0);
+	const auto faces = collect_faces(mesh);
+	for (const auto &f : faces) {
+		if (f.count == 1) for (int k = 0; k < 4; k++) fixed[f.id[k]] = 1;
+		else if (f.iface) for (int k = 0; k < 4; k++) if (!fixed[f.id[k]]) fixed[f.id[k]] = 2;
+	}
+	// coastline = edges shared by a free-surface face (open, not on a wall) and an interface face
+	double lo[3] = {1e300, 1e300, 1e300}, hi[3] = {-1e300, -1e300, -1e300};
+	for (int n = 0; n < nn; n++) for (int d = 0; d < 3; d++) { lo[d] = std::min(lo[d], coords[3*n+d]); hi[d] = std::max(hi[d], coords[3*n+d]); }
+	auto on_wall = [&](int n) {
+		for (int d = 0; d < 2; d++) {
+			const double tol = std::min(1.0, 1e-3*(hi[d]-lo[d]));
+			if (std::fabs(coords[3*n+d]-lo[d]) < tol || std::fabs(coords[3*n+d]-hi[d]) < tol) return true;
+		}
+		return std::fabs(coords[3*n+2]-lo[2]) < std::min(1.0, 1e-3*(hi[2]-lo[2]));
+	};
+	auto edge_key = [](int a, int b) { return a < b ? (int64_t)a << 32 | (uint32_t)b : (int64_t)b << 32 | (uint32_t)a; };
+	std::unordered_set<int64_t> surface_edges, iface_edges;
+	for (const auto &f : faces) {
+		bool wall = true;
+		for (int k = 0; k < 4; k++) wall &= on_wall(f.id[k]);
+		for (int k = 0; k < 4; k++) {
+			const int64_t e = edge_key(f.id[k], f.id[(k+1)%4]);
+			if (f.count == 1 && !wall) surface_edges.insert(e);
+			if (f.iface) iface_edges.insert(e);
+		}
+	}
+	std::vector<std::vector<int>> &coast_nb = R.coast_nb;
+	coast_nb.assign(nn, {});
+	for (int64_t e : surface_edges) if (iface_edges.count(e)) {
+		const int a = (int)(e >> 32), b = (int)(e & 0xffffffff);
+		coast_nb[a].push_back(b); coast_nb[b].push_back(a);
+	}
+	int &n_coast = R.n_coast, &n_surface = R.n_surface;
+	for (int n = 0; n < nn; n++)
+		if (coast_nb[n].size() == 2 && !on_wall(n)) { fixed[n] = 3; n_coast++; }   // junctions stay fixed
+	// 4 = free-surface node off the coast and the walls: slides on the free surface
+	std::vector<char> on_surface(nn, 0), touches_iface(nn, 0);
+	for (const auto &f : faces) {
+		bool wall = true;
+		for (int k = 0; k < 4; k++) wall &= on_wall(f.id[k]);
+		for (int k = 0; k < 4; k++) {
+			if (f.count == 1 && !wall) on_surface[f.id[k]] = 1;
+			if (f.iface) touches_iface[f.id[k]] = 1;
+		}
+	}
+	for (int n = 0; n < nn; n++)
+		if (fixed[n] == 1 && on_surface[n] && !touches_iface[n] && !on_wall(n)) { fixed[n] = 4; n_surface++; }
+	const double SEA_CLAMP = -1.0;
+	const int nsurf = std::max<int>(1, mesh->gdata_vec.size());
+	std::vector<int> &surf = R.surf;
+	surf.assign(nn, -1);
+	for (int n = 0; n < nn; n++) {
+		if (fixed[n] != 2) continue;
+		if (coords[3*n+2] >= SEA_CLAMP - 1e-3) { fixed[n] = 1; continue; }   // at the sea lid
+		double best = 1e300;
+		for (int k = 0; k < nsurf; k++) {
+			double z;
+			if (eval_gts_height_near(mesh, k, coords[3*n], coords[3*n+1], coords[3*n+2], z) && std::fabs(z - coords[3*n+2]) < best) { best = std::fabs(z - coords[3*n+2]); surf[n] = k; }
+		}
+		if (surf[n] < 0) fixed[n] = 1; else R.n_slide++;
+	}
+	return R;
+}
+
+// After the pillow: raise the critical time step patch by patch. Each round takes the worst
+// 0.5% of the elements by dt_crit (at least 20), and the patch is their free nodes plus one
+// ring of neighbours. Each patch node tries 26 directions at two step sizes (1/4 and 1/16 of
+// its shortest incident edge) and keeps the best move that raises the smallest dt_crit of
+// its incident elements, with every incident element still valid over its whole volume.
+// Interface nodes slide on their surface (8 horizontal directions, vertical re-projection,
+// sea-lid rule z <= -1 m); nodes on an open face (walls, bottom, free surface, coastline)
+// and at the lid stay fixed, except coastline nodes (on the free surface and the interface),
+// which slide along the chords to their two coastline neighbours and are put back on the free
+// surface (z = 0 on the sea lid, topography on land); junctions and wall nodes stay. The
+// other free-surface nodes slide on it horizontally with the same z rule. Rounds stop when dt_min gains less than 0.1% twice in a row.
+// Patches rather than a global sweep: dt_min is set by a handful of pillow slivers, and a
+// per-element dt is an eigenproblem, too expensive to evaluate everywhere on every move.
+void OptimizeDtPatches(hexa_tree_t *mesh, std::vector<double> &coords) {
+	// ponytail: serial only; with MPI freeze partition-boundary nodes and Allreduce dt_min
+	if (mesh->mpi_size > 1) { printf("    dt patch optimizer: skipped (serial only for now)\n"); return; }
+	const int nn = mesh->nodes.elem_count, ne = mesh->elements.elem_count;
+	const int N = std::max(1, std::min(mesh->input.gll_order, 20));
+	std::vector<double> gll_nodes, gll_weights;
+	compute_gll_nodes_and_weights(N, gll_nodes, gll_weights);
+	auto inc = build_incidence(mesh, nn);
+	auto adj = build_adjacency(mesh, nn);
+	DtNodeRoles R = classify_dt_nodes(mesh, coords);
+	std::vector<char> &fixed = R.fixed;
+	const std::vector<int> &surf = R.surf;
+	const auto &coast_nb = R.coast_nb;
+	const int n_slide = R.n_slide, n_coast = R.n_coast, n_surface = R.n_surface;
+	const double SEA_CLAMP = -1.0;
+	auto elem_dt = [&](int iel) {
+		octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+		Material mat;
+		if (e->n_mat >= 0 && e->n_mat < (int)mesh->input.materials.size()) mat = mesh->input.materials[e->n_mat];
+		else if (!mesh->input.materials.empty()) mat = mesh->input.materials[0];
+		else { mat.type = "S"; mat.vp = 6000.0; mat.vs = 3400.0; mat.rho = 2700.0; }
+		double X[8], Y[8], Z[8];
+		load_elem_xyz(mesh, coords, iel, X, Y, Z);
+		ElementStability es = compute_hex_gll_stability(iel, e->n_mat, mat, X, Y, Z, N, gll_nodes, gll_weights);
+		return (es.valid && es.dt_crit > 0.0) ? es.dt_crit : 0.0;
+	};
+	auto valid_around = [&](int n) {
+		for (int iel : inc[n]) {
+			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, iel);
+			pillowgeom::Hex h;
+			for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) h[k][d] = coords[3*e->nodes[mgeom::H5_ORD[k]].id + d];
+			if (!pillowgeom::valid(h, 1)) return false;
+		}
+		return true;
+	};
+	std::vector<double> dt(ne);
+	for (int i = 0; i < ne; i++) dt[i] = elem_dt(i);
+	auto dt_min_of = [&]() { double m = 1e300; for (double v : dt) if (v > 0) m = std::min(m, v); return m; };
+	const double dt_start = dt_min_of();
+	const int K = std::max(20, ne / 200);
+	printf("    dt patch optimizer: %d elements, worst %d per round, %d interface nodes may slide, %d coastline nodes slide along the coast, %d free-surface nodes slide on it, start dt_min %.6e s\n", ne, K, n_slide, n_coast, n_surface, dt_start);
+	double prev = dt_start;
+	int stall = 0;
+	for (int round = 0; round < 30 && stall < 2; round++) {
+		std::vector<int> order(ne);
+		for (int i = 0; i < ne; i++) order[i] = i;
+		std::partial_sort(order.begin(), order.begin() + K, order.end(), [&](int a, int b) { return dt[a] < dt[b]; });
+		std::unordered_set<int> patch;
+		for (int r = 0; r < K; r++) {
+			octant_t *e = (octant_t *) sc_array_index(&mesh->elements, order[r]);
+			for (int k = 0; k < 8; k++) {
+				const int n = e->nodes[k].id;
+				if (fixed[n] != 1) patch.insert(n);
+				for (int j : adj[n]) if (fixed[j] != 1) patch.insert(j);
+			}
+		}
+		int moved = 0;
+		for (int n : patch) {
+			for (int it = 0; it < 5; it++) {   // ponytail: up to 5 accepted moves per node per round
+				double base = 1e300;
+				for (int iel : inc[n]) base = std::min(base, dt[iel]);
+				const double p[3] = {coords[3*n], coords[3*n+1], coords[3*n+2]};
+				const double he = shortest_incident_edge(mesh, coords, inc[n], n);
+				double best = base, bp[3] = {p[0], p[1], p[2]};
+				for (double step : {0.25*he, 0.0625*he}) {
+					if (fixed[n] == 3) {
+						// coastline node: along the chord to each coastline neighbour, at most halfway,
+						// then back onto the free surface (sea lid z = 0, or the topography on land)
+						for (int q : coast_nb[n]) {
+							double u[3]; for (int k = 0; k < 3; k++) u[k] = coords[3*q+k] - p[k];
+							const double L = std::sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2]);
+							if (L <= 0) continue;
+							const double t = std::min(step, 0.5*L) / L;
+							const double x = p[0] + t*u[0], y = p[1] + t*u[1];
+							double z = 0.0;
+							if (std::fabs(p[2]) > 1e-6 && !(eval_gts_height_near(mesh, 1000, x, y, p[2], z) && z > 1e-6)) continue;
+							coords[3*n] = x; coords[3*n+1] = y; coords[3*n+2] = z;
+							if (!valid_around(n)) continue;
+							double m = 1e300;
+							for (int iel : inc[n]) { m = std::min(m, elem_dt(iel)); if (m <= best) break; }
+							if (m > best) { best = m; for (int k = 0; k < 3; k++) bp[k] = coords[3*n+k]; }
+						}
+						if (best > base) break;
+						continue;
+					}
+					for (const auto &d : SEARCH_DIRS) {
+						if (fixed[n] == 2) {
+							// interface node: horizontal directions only, then back onto its surface
+							if (d[2] != 0) continue;
+							const double inv = 1.0 / std::sqrt(d[0]*d[0] + d[1]*d[1]);
+							const double x = p[0] + step*d[0]*inv, y = p[1] + step*d[1]*inv;
+							double z;
+							if (!eval_gts_height_near(mesh, surf[n], x, y, p[2], z)) continue;
+							coords[3*n] = x; coords[3*n+1] = y; coords[3*n+2] = std::min(z, SEA_CLAMP);
+						} else if (fixed[n] == 4) {
+							// free-surface node: horizontal, z = 0 on the sea lid or the topography on land
+							if (d[2] != 0) continue;
+							const double inv = 1.0 / std::sqrt(d[0]*d[0] + d[1]*d[1]);
+							const double x = p[0] + step*d[0]*inv, y = p[1] + step*d[1]*inv;
+							double z = 0.0;
+							if (std::fabs(p[2]) > 1e-6 && !(eval_gts_height_near(mesh, 1000, x, y, p[2], z) && z > 1e-6)) continue;
+							coords[3*n] = x; coords[3*n+1] = y; coords[3*n+2] = z;
+						} else {
+							const double inv = 1.0 / std::sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+							for (int k = 0; k < 3; k++) coords[3*n+k] = p[k] + step*d[k]*inv;
+						}
+						if (!valid_around(n)) continue;
+						double m = 1e300;
+						for (int iel : inc[n]) { m = std::min(m, elem_dt(iel)); if (m <= best) break; }
+						if (m > best) { best = m; for (int k = 0; k < 3; k++) bp[k] = coords[3*n+k]; }
+					}
+					if (best > base) break;   // the coarse step already found a gain
+				}
+				for (int k = 0; k < 3; k++) coords[3*n+k] = bp[k];
+				if (best <= base * (1.0 + 1e-6)) { for (int k = 0; k < 3; k++) coords[3*n+k] = p[k]; break; }
+				for (int iel : inc[n]) dt[iel] = elem_dt(iel);
+				moved++;
+			}
+		}
+		const double now = dt_min_of();
+		printf("      round %d: patch %zu nodes, %d moves, dt_min %.6e s (x%.3f)\n",
+		       round, patch.size(), moved, now, now / dt_start);
+		stall = (now <= prev * 1.001) ? stall + 1 : 0;
+		prev = now;
+	}
+}
+
+// After the pillow: raise dt_min with a gradient method instead of a pattern search, and
+// without the GLL eigen-dt in the loop. The per-element dt of a spectral element scales as
+// sigma_min(J)/vp (Spearman 0.99 against DtCrit, tools/dt_report.py), and at a hex corner J
+// is the forward-difference edge matrix P, so the objective over a patch is
+//     E = sum_corners ( vp^2 ||P^-1||_F^2 / v_ref )^(POW/2),      ||P^-1||_F^2 = sum 1/sigma_i^2
+// -- smooth, infinite as det P -> 0 (a barrier: a valid start stays valid at the corners),
+// and the high power makes the thinnest corners dominate, which is what dt_min is.
+// Patches: worst 0.5 % of elements by sigma_min/vp plus one ring of nodes, as OptimizeDtPatches.
+// Free: interior nodes in 3D; interface and free-surface nodes in (x, y) with z re-projected
+// on their surface (same rules as OptimizeDtPatches); coastline, wall and open-face nodes fixed.
+// Coastline sliding along the chord to its neighbours was tried: hawaii ref3 dt 2.50e-06 ->
+// 2.52e-06, kefalonia_small1 5.83e-04 -> 2.49e-04. Removed. Tried again after the projection
+// sigma guard (moving_nodes.cpp), post-pillow pass only: <= +4 % on 6 coastal cases. Removed.
+// Runs twice when optimizeDt = 1: on the host mesh before the pillow -- where the twisted hosts
+// the projection leaves can still move; after the pillow they are pinned by thin shells
+// (kefalonia_small1 ref3: after only 2.15e-06 s, before+after 5.83e-04 s) -- and after it.
+// Nonlinear CG (Polak-Ribiere) + Armijo backtracking on the projected positions. A patch is kept
+// only if every element in it passes the full-volume check and its smallest sigma_min/vp rose.
+//
+// closeness > 0 (MeshOptimization): the same solver pulls projected nodes back toward the GTS
+// point ProjectFreeNodes wanted (mesh->proj_target) instead -- see MeshOptimization.
+// Each node more than 1 % of its requested move off target is a patch with its movable
+// neighbours; it moves in 3D (any role but walls/bottom/lid) and the energy gains
+//     closeness * sum |x - t|^2 / len^2      (len = the move the projection asked for).
+// A patch is kept if its distance to the targets dropped, it is valid over the whole volume,
+// no element in it falls below the stage's starting minimum sigma/vp, and the true GLL dt of
+// those near that minimum stays >= the starting true dt_min near it. So dt_min never drops;
+// the slack of the thicker elements is what pays for the closeness.
+static double gradient_opt(hexa_tree_t *mesh, std::vector<double> &coords, double closeness, double *dt_floor_out) {
+	const char *name = closeness > 0 ? "GTS closeness optimizer" : "size gradient optimizer";
+	// ponytail: serial only; with MPI freeze partition-boundary nodes and Allreduce the minimum
+	if (mesh->mpi_size > 1) { printf("    %s: skipped (serial only for now)\n", name); return 1.0; }
+	const int nn = mesh->nodes.elem_count, ne = mesh->elements.elem_count;
+	const double POW = 8.0, SEA_CLAMP = -1.0;
+	auto inc = build_incidence(mesh, nn);
+	auto adj = build_adjacency(mesh, nn);
+	const DtNodeRoles R = classify_dt_nodes(mesh, coords);
+	std::vector<double> vp(ne);
+	for (int e = 0; e < ne; e++) {
+		octant_t *el = (octant_t *) sc_array_index(&mesh->elements, e);
+		vp[e] = (el->n_mat >= 0 && el->n_mat < (int)mesh->input.materials.size()) ? mesh->input.materials[el->n_mat].vp
+		      : (!mesh->input.materials.empty() ? mesh->input.materials[0].vp : 6000.0);
+	}
+	auto ids_of = [&](int e, int id[8]) {
+		octant_t *el = (octant_t *) sc_array_index(&mesh->elements, e);
+		for (int k = 0; k < 8; k++) id[k] = el->nodes[mgeom::H5_ORD[k]].id;
+	};
+	auto hex_of = [&](int e) {
+		int id[8]; ids_of(e, id);
+		pillowgeom::Hex h;
+		for (int k = 0; k < 8; k++) for (int d = 0; d < 3; d++) h[k][d] = coords[3*id[k]+d];
+		return h;
+	};
+	double vol = 0;
+	for (int e = 0; e < ne; e++) vol += pillowgeom::jacobian(hex_of(e), 0.5, 0.5, 0.5);
+	const int orient = vol >= 0 ? 1 : -1;
+	std::vector<double> m(ne);   // sigma_min / vp: dt up to a per-order constant
+	for (int e = 0; e < ne; e++) m[e] = pillowgeom::size_metric(hex_of(e)) / vp[e];
+	auto min_of = [&]() { return *std::min_element(m.begin(), m.end()); };
+	// closeness: distance of each projected node to its target, and which nodes are "off"
+	const bool CL = closeness > 0;
+	const int nt = CL ? std::min<int>(mesh->proj_len.size(), nn) : 0;
+	// GTS queries allocate glib objects: one thread at a time (a small share of the run time)
+	auto dist_of = [&](int n) { double d;
+		#pragma omp critical(gts)
+		d = gts_gap(mesh, coords, n);
+		return d; };
+	std::vector<char> off(nn, 0);
+	auto mark_off = [&]() {
+		int c = 0;
+		for (int n = 0; n < nt; n++) {
+			off[n] = R.fixed[n] != 1 && !std::isnan(mesh->proj_target[3*n]) && mesh->proj_len[n] > 0
+			         && dist_of(n) > 0.01 * mesh->proj_len[n];
+			c += off[n];
+		}
+		return c;
+	};
+	auto total_dist = [&]() {
+		double t = 0;
+		for (int n = 0; n < nt; n++) if (!std::isnan(mesh->proj_target[3*n]) && mesh->proj_len[n] > 0) t += dist_of(n);
+		return t;
+	};
+	// put a surface node back on its surface; false if the vertical ray misses
+	auto project_1 = [&](int n, double x, double y, double zhint, double &z) {
+		if (R.fixed[n] == 2) {
+			if (!eval_gts_height_near(mesh, R.surf[n], x, y, zhint, z)) return false;
+			z = std::min(z, SEA_CLAMP);
+			return true;
+		}
+		z = 0.0;   // fixed == 4: sea lid stays at z = 0, land goes back on the topography
+		return std::fabs(zhint) <= 1e-6 || (eval_gts_height_near(mesh, 1000, x, y, zhint, z) && z > 1e-6);
+	};
+	auto project = [&](int n, double x, double y, double zhint, double &z) { bool r;
+		#pragma omp critical(gts)
+		r = project_1(n, x, y, zhint, z);
+		return r; };
+	static constexpr int bits[8][3] = {{0,0,0},{1,0,0},{1,1,0},{0,1,0},{0,0,1},{1,0,1},{1,1,1},{0,1,1}};
+	int corner_nb[8][3];   // corner k, axis a -> the corner with bit a flipped
+	for (int k = 0; k < 8; k++) for (int a = 0; a < 3; a++)
+		for (int j = 0; j < 8; j++) {
+			int same = 1;
+			for (int b = 0; b < 3; b++) same &= (b == a) ? bits[j][b] != bits[k][b] : bits[j][b] == bits[k][b];
+			if (same) corner_nb[k][a] = j;
+		}
+
+	// The proxy tracks the eigen-dt within ~25 % on the thinnest elements (dt*vp/sigma 0.11-0.15,
+	// hawaii and kefalonia ref3), enough for a proxy "gain" to hide a real loss. So each cluster is
+	// checked once against the true GLL dt -- only on its elements within 1.5x of the current
+	// proxy minimum, the only ones that can set dt_min -- and kept only if that does not drop.
+	const int NG = std::max(1, std::min(mesh->input.gll_order, 20));
+	std::vector<double> gll_nodes, gll_weights;
+	compute_gll_nodes_and_weights(NG, gll_nodes, gll_weights);
+	auto true_dt = [&](int e) {
+		octant_t *el = (octant_t *) sc_array_index(&mesh->elements, e);
+		Material mat;
+		if (el->n_mat >= 0 && el->n_mat < (int)mesh->input.materials.size()) mat = mesh->input.materials[el->n_mat];
+		else if (!mesh->input.materials.empty()) mat = mesh->input.materials[0];
+		else { mat.type = "S"; mat.vp = 6000.0; mat.vs = 3400.0; mat.rho = 2700.0; }
+		double X[8], Y[8], Z[8];
+		load_elem_xyz(mesh, coords, e, X, Y, Z);
+		ElementStability es = compute_hex_gll_stability(e, el->n_mat, mat, X, Y, Z, NG, gll_nodes, gll_weights);
+		return (es.valid && es.dt_crit > 0.0) ? es.dt_crit : 0.0;
+	};
+	auto true_min = [&](const std::vector<int> &els, const std::vector<double> &metric, double cut) {
+		double d = std::numeric_limits<double>::infinity();
+		for (size_t i = 0; i < els.size(); i++) if (metric[i] < cut) d = std::min(d, true_dt(els[i]));
+		return d;
+	};
+	const double start = min_of();
+	const int K = std::max(20, ne / 200);
+	double dt_floor = 0, dist_start = 0, risk_cut = 0;
+	if (CL) {
+		// true dt_min, and the worst dt / (sigma/vp) ratio, over the elements within 4x of the
+		// proxy minimum. An element is at risk if, with that ratio, its proxy could put it under
+		// the floor: m < dt_floor / ratio (x1.25 margin). A fixed 2.5x band leaked at ref4
+		// (kefalonia_small1: 5.08e-05 -> 4.82e-05 s).
+		// nothing off target: skip the band below (on a uniform mesh it is nearly every element:
+		// cadarache ref4 spent 8 min here for nothing)
+		if (mark_off() == 0) { printf("    %s: no node off target\n", name); return 1.0; }
+		double ratio = std::numeric_limits<double>::infinity();
+		dt_floor = std::numeric_limits<double>::infinity();
+		#pragma omp parallel for schedule(dynamic, 64) reduction(min:dt_floor,ratio)
+		for (int e = 0; e < ne; e++) if (m[e] < 4 * start) {
+			const double t = true_dt(e);
+			dt_floor = std::min(dt_floor, t);
+			ratio = std::min(ratio, t / m[e]);
+		}
+		risk_cut = 1.25 * dt_floor / ratio;
+		if (dt_floor_out) *dt_floor_out = dt_floor;
+		dist_start = total_dist();
+		printf("    %s: %d nodes off target, total distance %.6e m, floor min sigma/vp %.6e, true dt %.6e s\n",
+		       name, mark_off(), dist_start, start, dt_floor);
+	} else
+	printf("    size gradient optimizer: %d elements, worst %d per round, %d interface + %d free-surface nodes slide, start min sigma/vp %.6e\n",
+	       ne, K, R.n_slide, R.n_surface, start);
+	double prev = CL ? dist_start : start;
+	int stall = 0, kept_total = 0;
+#ifdef _OPENMP
+	const int NTH = CL ? omp_get_max_threads() : 1;
+#else
+	const int NTH = 1;
+#endif
+	// node -> first dof index, dof count (per patch, one pair per thread)
+	std::vector<std::vector<int>> tdof0(NTH, std::vector<int>(nn, -1)), tdofn(NTH, std::vector<int>(nn, 0));
+	// closeness: a patch that failed is solved again only after a node of its elements moved --
+	// the solve is deterministic, so it would fail again (same result, kefalonia_small1: ~25 %
+	// of the patches in later rounds)
+	std::vector<long> moved_at(CL ? nn : 0, -1), failed_at(CL ? nn : 0, -2);
+	long stamp = 0;
+	for (int round = 0; round < (CL ? 10 : 40) && stall < 2; round++) {
+		// a surface node moves only if its surface can be found under it where it stands (a
+		// coastline node just under the lid has neither the lid nor the topography below it);
+		// an off-target node moves in 3D toward its target
+		auto movable = [&](int n) {
+			const char f = R.fixed[n];
+			if (f == 0 || off[n]) return true;
+			double z;
+			return (f == 2 || f == 4) && project(n, coords[3*n], coords[3*n+1], coords[3*n+2], z);
+		};
+		std::vector<std::vector<int>> clusters;
+		if (CL) {   // one patch per off-target node: the node and its movable neighbours
+			if (mark_off() == 0) break;
+			for (int n = 0; n < nt; n++) if (off[n]) {
+				clusters.push_back({n});
+				for (int j : adj[n]) if (movable(j)) clusters.back().push_back(j);
+			}
+		} else {
+		std::vector<int> order(ne);
+		for (int i = 0; i < ne; i++) order[i] = i;
+		std::partial_sort(order.begin(), order.begin() + K, order.end(), [&](int a, int b) { return m[a] < m[b]; });
+		// patches = connected groups of the worst elements' free nodes (+1 ring), solved separately
+		std::vector<int> free_nodes;
+		std::unordered_set<int> seen;
+		for (int r = 0; r < K; r++) {
+			int id[8]; ids_of(order[r], id);
+			for (int k = 0; k < 8; k++) {
+				if (movable(id[k]) && seen.insert(id[k]).second) free_nodes.push_back(id[k]);
+				for (int j : adj[id[k]]) if (movable(j) && seen.insert(j).second) free_nodes.push_back(j);
+			}
+		}
+		if (free_nodes.empty()) break;
+		// connected clusters of free nodes (through mesh edges), each solved and accepted on its own
+		std::unordered_map<int,int> comp;
+		for (int s0 : free_nodes) {
+			if (comp.count(s0)) continue;
+			clusters.push_back({});
+			std::vector<int> stack{s0};
+			comp[s0] = clusters.size() - 1;
+			while (!stack.empty()) {
+				const int n = stack.back(); stack.pop_back();
+				clusters.back().push_back(n);
+				for (int j : adj[n]) if (seen.count(j) && !comp.count(j)) { comp[j] = clusters.size() - 1; stack.push_back(j); }
+			}
+		}
+		}   // !CL
+		int n_kept = 0, n_invalid = 0, n_nogain = 0, n_trueloss = 0, n_skip = 0;
+		// closeness: patches whose elements share no node are independent -- greedy colouring, each
+		// colour solved in parallel. The result does not depend on the thread count or schedule.
+		// Size mode: one serial sweep in the original order (bit-identical to before).
+		std::vector<std::vector<int>> colours(1);
+		for (size_t c = 0; c < clusters.size(); c++) colours[0].push_back(c);
+		if (CL) {
+			std::vector<std::vector<int>> touch(clusters.size());
+			for (size_t c = 0; c < clusters.size(); c++) {
+				for (int n : clusters[c]) for (int e : inc[n]) { int id[8]; ids_of(e, id); touch[c].insert(touch[c].end(), id, id + 8); }
+				std::sort(touch[c].begin(), touch[c].end());
+				touch[c].erase(std::unique(touch[c].begin(), touch[c].end()), touch[c].end());
+			}
+			std::vector<int> left = colours[0], taken(nn, -1);
+			colours.clear();
+			while (!left.empty()) {
+				const int col = colours.size();
+				colours.emplace_back();
+				std::vector<int> next;
+				for (int c : left) {
+					bool clash = false;
+					for (int n : touch[c]) if (taken[n] == col) { clash = true; break; }
+					if (clash) { next.push_back(c); continue; }
+					for (int n : touch[c]) taken[n] = col;
+					colours.back().push_back(c);
+				}
+				left.swap(next);
+			}
+		}
+		for (const auto &colour : colours) {
+		if (CL) stamp++;
+		#pragma omp parallel for schedule(dynamic) if(CL && NTH > 1) reduction(+:n_kept,n_invalid,n_nogain,n_trueloss,n_skip)
+		for (size_t ci = 0; ci < colour.size(); ci++) {
+		const auto &free_nodes = clusters[colour[ci]];
+#ifdef _OPENMP
+		const int tid = omp_get_thread_num();
+#else
+		const int tid = 0;
+#endif
+		std::vector<int> &dof0 = tdof0[tid], &dofn = tdofn[tid];
+		std::unordered_set<int> pe_set;
+		for (int n : free_nodes) for (int e : inc[n]) pe_set.insert(e);
+		std::vector<int> pelems(pe_set.begin(), pe_set.end());
+		if (CL) {
+			long last = -1;
+			for (int e : pelems) { int id[8]; ids_of(e, id); for (int k = 0; k < 8; k++) last = std::max(last, moved_at[id[k]]); }
+			if (last <= failed_at[free_nodes[0]]) { n_skip++; continue; }
+		}
+		// dofs: (node, axis); surface nodes only x and y
+		std::vector<std::pair<int,int>> dof;
+		for (int n : free_nodes) for (int a = 0; a < (R.fixed[n] == 0 || off[n] ? 3 : 2); a++) dof.push_back({n, a});
+		const int nd = dof.size();
+		std::vector<double> x0(nd), saved(3*free_nodes.size());
+		for (int i = 0; i < nd; i++) x0[i] = coords[3*dof[i].first + dof[i].second];
+		for (size_t i = 0; i < free_nodes.size(); i++) for (int d = 0; d < 3; d++) saved[3*i+d] = coords[3*free_nodes[i]+d];
+		double m_before = 1e300, vref = 0;
+		for (int e : pelems) m_before = std::min(m_before, m[e]);
+		const double cut = CL ? 0.0 : 1.5 * min_of();   // closeness: unused (cl_loss)
+		std::vector<double> m_old(pelems.size());
+		for (size_t i = 0; i < pelems.size(); i++) m_old[i] = m[pelems[i]];
+		const double dt_before = CL ? 0.0 : true_min(pelems, m_old, cut);   // closeness: cl_loss below
+		vref = 1.0 / (m_before * m_before);   // vp^2 ||P^-1||^2 ~ 1/(sigma/vp)^2 at the worst corner
+		if (CL) vref = 1.0 / (start * start);   // closeness: a corner at the floor weighs 1
+		double d_before = 0;
+		for (int n : free_nodes) if (off[n]) d_before += dist_of(n);
+		for (int i = nd - 1; i >= 0; i--) { dof0[dof[i].first] = i; dofn[dof[i].first]++; }
+		struct ResetDofs { std::vector<int> &d0, &dn; const std::vector<int> &ns;
+			~ResetDofs() { for (int n : ns) { d0[n] = -1; dn[n] = 0; } } } reset_dofs{dof0, dofn, free_nodes};
+		auto dof_at = [&](int n, int r) { return r < dofn[n] ? dof0[n] + r : -1; };   // -1: not a dof
+
+		// a surface node keeps its starting offset from its surface (nodes are not exactly on the
+		// GTS -- the pillow, the sea-lid clamp), so a zero move is exactly the identity
+		std::vector<double> dz(free_nodes.size(), 0.0);
+		for (size_t i = 0; i < free_nodes.size(); i++) {
+			const int n = free_nodes[i];
+			double z;
+			if (R.fixed[n] != 0 && !off[n] && project(n, coords[3*n], coords[3*n+1], coords[3*n+2], z)) dz[i] = coords[3*n+2] - z;
+		}
+		// write x into coords (projecting surface nodes); false if a projection fails
+		auto apply = [&](const std::vector<double> &x) {
+			for (int i = 0; i < nd; i++) coords[3*dof[i].first + dof[i].second] = x[i];
+			for (size_t i = 0; i < free_nodes.size(); i++) {
+				const int n = free_nodes[i];
+				if (R.fixed[n] == 0 || off[n]) continue;
+				double z;
+				if (!project(n, coords[3*n], coords[3*n+1], saved[3*i+2] - dz[i], z)) return false;
+				coords[3*n+2] = z + dz[i];
+			}
+			return true;
+		};
+		// energy and gradient w.r.t. the dofs (z-coupling of surface nodes ignored in the gradient;
+		// the line search evaluates the true, projected energy)
+		auto energy = [&](std::vector<double> *g) {
+			double E = 0;
+			if (g) g->assign(nd, 0.0);
+			for (int e : pelems) {
+				int id[8]; ids_of(e, id);
+				const double w = vp[e] * vp[e] / vref;
+				for (int k = 0; k < 8; k++) {
+					double P[3][3];
+					int lo[3], hi[3];
+					for (int a = 0; a < 3; a++) {
+						const int j = corner_nb[k][a];
+						lo[a] = bits[k][a] ? id[j] : id[k]; hi[a] = bits[k][a] ? id[k] : id[j];
+						for (int r = 0; r < 3; r++) P[r][a] = coords[3*hi[a]+r] - coords[3*lo[a]+r];
+					}
+					const double det = P[0][0]*(P[1][1]*P[2][2]-P[1][2]*P[2][1]) - P[0][1]*(P[1][0]*P[2][2]-P[1][2]*P[2][0])
+					                 + P[0][2]*(P[1][0]*P[2][1]-P[1][1]*P[2][0]);
+					if (!(orient*det > 0)) return std::numeric_limits<double>::infinity();
+					double Q[3][3];   // P^-1 = adj(P)/det
+					Q[0][0] =  (P[1][1]*P[2][2]-P[1][2]*P[2][1])/det; Q[0][1] = -(P[0][1]*P[2][2]-P[0][2]*P[2][1])/det;
+					Q[0][2] =  (P[0][1]*P[1][2]-P[0][2]*P[1][1])/det; Q[1][0] = -(P[1][0]*P[2][2]-P[1][2]*P[2][0])/det;
+					Q[1][1] =  (P[0][0]*P[2][2]-P[0][2]*P[2][0])/det; Q[1][2] = -(P[0][0]*P[1][2]-P[0][2]*P[1][0])/det;
+					Q[2][0] =  (P[1][0]*P[2][1]-P[1][1]*P[2][0])/det; Q[2][1] = -(P[0][0]*P[2][1]-P[0][1]*P[2][0])/det;
+					Q[2][2] =  (P[0][0]*P[1][1]-P[0][1]*P[1][0])/det;
+					double f = 0;
+					for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) f += Q[r][c]*Q[r][c];
+					const double v = w * f, term = std::pow(v, POW/2);
+					E += term;
+					if (!g) continue;
+					// d f / d P = -2 (Q^T Q Q^T); d term / d f = (POW/2) term / f
+					double QtQ[3][3], G[3][3];
+					for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) {
+						QtQ[r][c] = 0; for (int s = 0; s < 3; s++) QtQ[r][c] += Q[s][r]*Q[s][c];
+					}
+					const double scale = -2.0 * (POW/2) * term / f;
+					for (int r = 0; r < 3; r++) for (int c = 0; c < 3; c++) {
+						double t = 0; for (int s = 0; s < 3; s++) t += QtQ[r][s]*Q[c][s];
+						G[r][c] = scale * t;
+					}
+					for (int a = 0; a < 3; a++) for (int r = 0; r < 3; r++) {
+						int i = dof_at(hi[a], r); if (i >= 0) (*g)[i] += G[r][a];
+						i = dof_at(lo[a], r);     if (i >= 0) (*g)[i] -= G[r][a];
+					}
+				}
+			}
+			if (CL) for (int i = 0; i < nd; i++) {   // closeness: pull off-target nodes to their targets
+				const int n = dof[i].first, a = dof[i].second;
+				if (!off[n]) continue;
+				const double l2 = mesh->proj_len[n] * mesh->proj_len[n], r = coords[3*n+a] - mesh->proj_target[3*n+a];
+				E += closeness * r * r / l2;
+				if (g) (*g)[i] += 2 * closeness * r / l2;
+			}
+			return E;
+		};
+
+		// Polak-Ribiere CG + Armijo. The first trial moves the fastest dof by a quarter of the
+		// thinnest sigma in the patch; afterwards each line search starts at twice the last
+		// accepted move, so nodes that must travel hundreds of metres are not held to centimetres.
+		double hstep = 1e300;
+		for (int e : pelems) hstep = std::min(hstep, m[e] * vp[e]);
+		std::vector<double> x = x0, g, gprev(nd, 0.0), dir(nd, 0.0), xt(nd);
+		double E = energy(&g);
+		double move = 0.25 * hstep;   // largest single-dof displacement of the last accepted step
+		// closeness patches are one node + ring: a few CG steps get most of it (kefalonia_small1:
+		// 200 steps cost 18 min of MeshOptimization)
+		for (int it = 0; it < (CL ? 30 : 200) && std::isfinite(E); it++) {
+			double gg = 0, gy = 0, gp = 0;
+			for (int i = 0; i < nd; i++) { gg += g[i]*g[i]; gy += g[i]*(g[i]-gprev[i]); gp += gprev[i]*gprev[i]; }
+			if (gg < 1e-300) break;
+			const double beta = (it == 0 || gp <= 0) ? 0.0 : std::max(0.0, gy/gp);
+			double slope = 0, dmax = 0;
+			for (int i = 0; i < nd; i++) { dir[i] = -g[i] + beta*dir[i]; slope += dir[i]*g[i]; }
+			if (slope >= 0) { slope = 0; for (int i = 0; i < nd; i++) { dir[i] = -g[i]; slope += dir[i]*g[i]; } }
+			for (int i = 0; i < nd; i++) dmax = std::max(dmax, std::fabs(dir[i]));
+			gprev = g;
+			double step = 2 * move / dmax;
+			bool moved = false;
+			for (int ls = 0; ls < 40; ls++, step *= 0.5) {
+				for (int i = 0; i < nd; i++) xt[i] = x[i] + step*dir[i];
+				if (!apply(xt)) continue;
+				const double Et = energy(nullptr);
+				if (Et < E + 1e-4*step*slope) { x = xt; E = energy(&g); moved = true; move = step*dmax; break; }
+			}
+			if (!moved) break;
+		}
+		// keep the cluster only if all of it is certified valid over the whole volume (the barrier
+		// only sees the corners) and its thinnest element got thicker; otherwise step back toward
+		// the start, halving the move, before giving up
+		bool ok = false, gain = false;
+		std::vector<double> m_new(pelems.size());
+		for (int back = 0; back < 8 && !(ok && gain); back++) {
+			if (back) for (int i = 0; i < nd; i++) x[i] = 0.5*(x[i] + x0[i]);
+			if (!apply(x)) continue;
+			ok = true;
+			double m_after = 1e300;
+			for (size_t i = 0; i < pelems.size() && ok; i++) {
+				const auto h = hex_of(pelems[i]);
+				ok = pillowgeom::valid(h, orient);
+				m_new[i] = pillowgeom::size_metric(h) / vp[pelems[i]];
+				m_after = std::min(m_after, m_new[i]);
+			}
+			if (!CL) gain = m_after > m_before * (1 + 1e-6);
+			else {
+				double d_after = 0;
+				for (int n : free_nodes) if (off[n]) d_after += dist_of(n);
+				gain = m_after >= start && d_after < d_before * (1 - 1e-6);
+			}
+		}
+		// closeness lets elements sink to the floor, and dt / (sigma/vp) varies ~1.9x between
+		// elements (p1-p99, hawaii ref3): a 1.5x band missed one on belle_ile (dt -10 %). Check
+		// every element at risk (risk_cut above), whether or not its proxy dropped.
+		auto cl_loss = [&]() {
+			for (size_t i = 0; i < pelems.size(); i++)
+				if (m_new[i] < risk_cut && true_dt(pelems[i]) < dt_floor) return true;
+			return false;
+		};
+		const bool trueloss = ok && gain && (CL ? cl_loss() : true_min(pelems, m_new, cut) < dt_before);
+		if (trueloss) { gain = false; n_trueloss++; }
+		if (ok && gain) {
+			for (size_t i = 0; i < pelems.size(); i++) m[pelems[i]] = m_new[i];
+			n_kept++;
+			if (CL) for (int n : free_nodes) moved_at[n] = stamp;
+		} else {
+			if (CL) failed_at[free_nodes[0]] = stamp;
+			for (size_t i = 0; i < free_nodes.size(); i++) for (int d = 0; d < 3; d++) coords[3*free_nodes[i]+d] = saved[3*i+d];
+			if (!trueloss) (ok ? n_nogain : n_invalid)++;
+		}
+		}   // patches of one colour
+		}   // colours
+		kept_total += n_kept;
+		if (CL) {
+			const double now = total_dist();
+			printf("      round %d: %zu patches (%d unchanged since they failed), %d kept, %d no gain, %d true-dt loss, %d invalid; total distance %.6e m (x%.3f), min sigma/vp %.6e\n",
+			       round, clusters.size(), n_skip, n_kept, n_nogain, n_trueloss, n_invalid, now, now / dist_start, min_of());
+			stall = (now >= prev * 0.99) ? stall + 1 : 0;
+			prev = now;
+			continue;
+		}
+		const double now = min_of();
+		printf("      round %d: %zu clusters, %d kept, %d no gain, %d true-dt loss, %d invalid; min sigma/vp %.6e (x%.3f)\n", round,
+		       clusters.size(), n_kept, n_nogain, n_trueloss, n_invalid, now, now / start);
+		stall = (now <= prev * 1.001) ? stall + 1 : 0;
+		prev = now;
+	}
+	if (CL) {
+		printf("    %s: total distance %.6e -> %.6e m (x%.3f), min sigma/vp %.6e -> %.6e, %d patches kept\n",
+		       name, dist_start, total_dist(), total_dist() / dist_start, start, min_of(), kept_total);
+		return total_dist() > 0 ? dist_start / total_dist() : 1.0;
+	}
+	printf("    size gradient optimizer: min sigma/vp %.6e -> %.6e (x%.3f), %d clusters kept\n", start, min_of(), min_of()/start, kept_total);
+	{   // why it stopped: the roles of the nodes of the element that still sets the minimum
+		const int w = std::min_element(m.begin(), m.end()) - m.begin();
+		int id[8], cnt[5] = {0, 0, 0, 0, 0};
+		ids_of(w, id);
+		for (int k = 0; k < 8; k++) cnt[(int)R.fixed[id[k]]]++;
+		printf("    size gradient optimizer: worst element %d nodes: %d free, %d fixed, %d interface, %d coastline, %d free-surface\n",
+		       w, cnt[0], cnt[1], cnt[2], cnt[3], cnt[4]);
+	}
+	return min_of() / start;
+}
+
+void OptimizeSizeGradient(hexa_tree_t *mesh, std::vector<double> &coords) { gradient_opt(mesh, coords, 0.0); }
